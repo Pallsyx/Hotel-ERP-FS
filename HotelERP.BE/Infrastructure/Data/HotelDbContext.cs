@@ -16,6 +16,8 @@ public partial class HotelDbContext : DbContext
     {
     }
 
+    public virtual DbSet<RefreshToken> RefreshTokens { get; set; }
+    
     public virtual DbSet<Amenity> Amenities { get; set; }
 
     public virtual DbSet<Article> Articles { get; set; }
@@ -1054,6 +1056,40 @@ public partial class HotelDbContext : DbContext
             entity.Property(e => e.ValidTo)
                 .HasColumnType("datetime")
                 .HasColumnName("valid_to");
+        });
+        modelBuilder.Entity<RefreshToken>(entity =>
+        {
+        entity.HasKey(e => e.Id);
+        entity.ToTable("Refresh_Tokens");
+
+        entity.Property(e => e.Id).HasColumnName("id");
+        entity.Property(e => e.UserId).HasColumnName("user_id");
+    
+        entity.Property(e => e.Token)
+        .HasMaxLength(500)
+        .HasColumnName("token");
+
+        entity.Property(e => e.JwtId)
+        .HasMaxLength(255)
+        .HasColumnName("jwt_id");
+
+        entity.Property(e => e.IsUsed).HasColumnName("is_used");
+        entity.Property(e => e.IsRevoked).HasColumnName("is_revoked");
+    
+        entity.Property(e => e.CreatedAt)
+        .HasColumnType("datetime")
+        .HasDefaultValueSql("(getdate())")
+        .HasColumnName("created_at");
+
+        entity.Property(e => e.ExpireAt)
+        .HasColumnType("datetime")
+        .HasColumnName("expire_at");
+
+        entity.HasOne(d => d.User)
+        .WithMany() // Liên kết 1 chiều từ RefreshToken về User
+        .HasForeignKey(d => d.UserId)
+        .OnDelete(DeleteBehavior.ClientSetNull)
+        .HasConstraintName("FK_RefreshTokens_Users");
         });
 
         OnModelCreatingPartial(modelBuilder);
