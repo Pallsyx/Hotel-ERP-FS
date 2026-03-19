@@ -1,4 +1,6 @@
 using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
+using HotelERP.BE.Infrastructure.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -7,8 +9,12 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddControllers();
+builder.Services.AddDbContext<HotelDbContext>(options => options.UseSqlServer(connectionString));
+builder.Services.AddScoped<HotelERP.BE.Services.Bookings.IBookingVoucherService, HotelERP.BE.Services.Bookings.BookingVoucherService>();
 
 var app = builder.Build();
+app.MapControllers();
 
 app.UseSwagger();
 app.UseSwaggerUI(c =>
