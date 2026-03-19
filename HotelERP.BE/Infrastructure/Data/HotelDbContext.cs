@@ -16,6 +16,8 @@ public partial class HotelDbContext : DbContext
     {
     }
 
+    public virtual DbSet<LoyaltyPointHistory> LoyaltyPointHistories { get; set; }
+
     public virtual DbSet<Amenity> Amenities { get; set; }
 
     public virtual DbSet<Article> Articles { get; set; }
@@ -476,6 +478,47 @@ public partial class HotelDbContext : DbContext
                 .HasForeignKey(d => d.RoomInventoryId)
                 .HasConstraintName("FK_LossAndDamages_RoomInventory");
         });
+
+        modelBuilder.Entity<LoyaltyPointHistory>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK__LoyaltyPointHistories__3213E83F");
+
+            entity.ToTable("Loyalty_Point_Histories");
+
+            entity.HasIndex(e => new { e.BookingId, e.ActionType }, "UQ_LoyaltyPointHistories_BookingAction").IsUnique();
+
+            entity.HasIndex(e => e.UserId, "IX_LoyaltyPointHistories_UserId");
+
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.ActionType)
+                  .HasMaxLength(50)
+                  .HasColumnName("action_type");
+            entity.Property(e => e.BalanceAfter).HasColumnName("balance_after");
+            entity.Property(e => e.BalanceBefore).HasColumnName("balance_before");
+            entity.Property(e => e.BookingId).HasColumnName("booking_id");
+            entity.Property(e => e.CreatedAt)
+                  .HasDefaultValueSql("(getdate())", "DF_LoyaltyPointHistories_CreatedAt")
+                  .HasColumnType("datetime")
+                  .HasColumnName("created_at");
+            entity.Property(e => e.PointsAdded).HasColumnName("points_added");
+            entity.Property(e => e.Reason)
+                  .HasMaxLength(500)
+                  .HasColumnName("reason");
+            entity.Property(e => e.SourceAmount)
+                  .HasColumnType("decimal(18, 2)")
+                  .HasColumnName("source_amount");
+            entity.Property(e => e.UserId).HasColumnName("user_id");
+
+            entity.HasOne(d => d.Booking).WithMany()
+                  .HasForeignKey(d => d.BookingId)
+                  .OnDelete(DeleteBehavior.Restrict)
+                  .HasConstraintName("FK_LoyaltyPointHistories_Bookings");
+
+            entity.HasOne(d => d.User).WithMany()
+                  .HasForeignKey(d => d.UserId)
+                  .OnDelete(DeleteBehavior.Restrict)
+                  .HasConstraintName("FK_LoyaltyPointHistories_Users");
+       });
 
         modelBuilder.Entity<Membership>(entity =>
         {

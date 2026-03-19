@@ -5,6 +5,8 @@ using HotelERP.BE.Services.Vouchers;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using HotelERP.BE.Configurations;
+using HotelERP.BE.Services.Loyalty;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -38,6 +40,11 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
 });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+builder.Services.Configure<LoyaltyPointsOptions>(
+    builder.Configuration.GetSection(LoyaltyPointsOptions.SectionName));
+
+builder.Services.AddScoped<ILoyaltyPointService, LoyaltyPointService>();
 
 builder.Services.AddScoped<IVoucherService, VoucherService>();
 builder.Services.AddScoped<IVoucherAuditLogHelper, VoucherAuditLogHelper>();
