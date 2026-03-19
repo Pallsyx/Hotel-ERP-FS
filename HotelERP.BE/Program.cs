@@ -1,3 +1,5 @@
+using HotelERP.BE.Utils;
+using HotelERP.BE.Services;
 using Microsoft.Data.SqlClient;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -7,6 +9,9 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
+builder.Services.AddScoped<ArticleService>();
+builder.Services.AddScoped<LoyaltyService>();
 
 var app = builder.Build();
 

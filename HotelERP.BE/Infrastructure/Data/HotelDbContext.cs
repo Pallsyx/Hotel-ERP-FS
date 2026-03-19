@@ -72,8 +72,15 @@ public partial class HotelDbContext : DbContext
 //#warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
        // => optionsBuilder.UseSqlServer("Server=localhost,1433;Database=HotelManagementDB;User Id=sa;Password=HotelERP@2026!;TrustServerCertificate=True;");
 
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
+   protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+       
+        modelBuilder.Entity<ArticleCategory>().HasQueryFilter(c => c.Status == "ACTIVE");
+        
+        modelBuilder.Entity<Article>().HasQueryFilter(a => 
+            a.Status == "ACTIVE" && 
+            (a.Category == null || a.Category.Status == "ACTIVE")
+        );
         modelBuilder.Entity<Amenity>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("PK__Amenitie__3213E83FF99261C0");
@@ -238,6 +245,9 @@ public partial class HotelDbContext : DbContext
 
         modelBuilder.Entity<Booking>(entity =>
         {
+            entity.Property(e => e.IsPointsAwarded)
+            .HasDefaultValue(false)
+            .HasColumnName("is_points_awarded");
             entity.HasKey(e => e.Id).HasName("PK__Bookings__3213E83FD44E63A2");
 
             entity.HasIndex(e => new { e.UserId, e.Status, e.PaymentStatus }, "IX_Bookings_UserStatus");
