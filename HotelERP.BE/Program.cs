@@ -1,9 +1,28 @@
 using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore; 
+using HotelERP.BE.Services; 
+using HotelERP.BE.Infrastructure.Data; // Đã sửa thành đúng namespace chứa HotelDbContext
 
 var builder = WebApplication.CreateBuilder(args);
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' was not found.");
+
+// ==========================================
+// ĐĂNG KÝ CÁC SERVICES BẮT BUỘC
+// ==========================================
+
+// 1. Đăng ký Entity Framework DbContext
+builder.Services.AddDbContext<HotelDbContext>(options =>
+    options.UseSqlServer(connectionString));
+
+// 2. Đăng ký Cloudinary Service để Upload Ảnh
+builder.Services.AddScoped<CloudinaryService>();
+
+// 3. Đăng ký hỗ trợ Controllers 
+builder.Services.AddControllers();
+
+// ==========================================
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -16,6 +35,12 @@ app.UseSwaggerUI(c =>
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "Hotel ERP Backend API v1");
     c.RoutePrefix = "swagger";
 });
+
+// ==========================================
+// MAP ROUTES CHO CONTROLLERS
+// ==========================================
+app.MapControllers(); 
+// ==========================================
 
 app.MapGet("/", () => Results.Redirect("/swagger"));
 

@@ -676,6 +676,12 @@ public partial class HotelDbContext : DbContext
             entity.HasOne(d => d.User).WithMany(p => p.Reviews)
                 .HasForeignKey(d => d.UserId)
                 .HasConstraintName("FK_Reviews_Users");
+
+            // ==========================================
+            // THÊM MỚI: GLOBAL QUERY FILTER CHO SOFT DELETE
+            // Tự động lọc các review bị ẩn khỏi mọi truy vấn GET
+            // ==========================================
+            entity.HasQueryFilter(e => e.IsApproved);
         });
 
         modelBuilder.Entity<Role>(entity =>

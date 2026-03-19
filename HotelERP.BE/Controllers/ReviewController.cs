@@ -1,0 +1,120 @@
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore; // Bổ sung để dùng ToListAsync() và FirstOrDefaultAsync()
+using System.Net;
+using HotelERP.BE.Domain.Models;
+using HotelERP.BE.Services;
+using HotelERP.BE.Infrastructure.Data; // Bổ sung để gọi HotelDbContext
+
+namespace HotelERP.BE.Controllers;
+
+// DTO để nhận dữ liệu an toàn khi người dùng tạo đánh giá mới
+public record CreateReviewDto(int? UserId, int RoomTypeId, int Rating, string? Comment, string? ImageUrl, string? ImagePublicId);
+
+[Route("api/[controller]")]
+[ApiController]
+public class ReviewController(HotelDbContext context, CloudinaryService cloudinaryService) : ControllerBase
+{
+    // ==========================================
+    // 1. LẤY DANH SÁCH (READ)
+    // ==========================================
+    [HttpGet]
+    public async Task<IActionResult> GetAllVisible()
+    {
+        // Lấy danh sách đánh giá mới nhất (Global Query Filter sẽ tự động bỏ qua các bài đã bị ẩn)
+        var reviews = await context.Reviews.OrderByDescending(r => r.CreatedAt).ToListAsync();
+        return Ok(reviews);
+    }
+
+    // ==========================================
+    // 2. THÊM ĐÁNH GIÁ MỚI (CREATE)
+    // ==========================================
+    [HttpPost]
+    public async Task<IActionResult> Create(CreateReviewDto dto)
+    {
+        Review newReview = new()
+        {
+            UserId = dto.UserId,
+            RoomTypeId = dto.RoomTypeId,
+            Rating = dto.Rating,
+            Comment = dto.Comment,
+            ImageUrl = dto.ImageUrl,
+            ImagePublicId = dto.ImagePublicId,
+            IsApproved = true, // Mặc định khi mới tạo là được phép hiển thị
+            Status = "VISIBLE",
+            CreatedAt = DateTime.UtcNow
+        };
+
+        context.Reviews.Add(newReview);
+        await context.SaveChangesAsync();
+        return Ok(new { message = "Thêm đánh giá thành công", data = newReview });
+    }
+
+    // ==========================================
+    // 3. ẨN ĐÁNH GIÁ VÀ GHI LOG (UPDATE / SOFT DELETE)
+    // ==========================================
+    [HttpPut("{id}/hide")]
+    public async Task<IActionResult> HideReview(int id)
+    {
+        // Thêm IgnoreQueryFilters() để tìm được cả những bài lỡ bị ẩn trước đó
+        var review = await context.Reviews.IgnoreQueryFilters().FirstOrDefaultAsync(r => r.Id == id);
+        
+        if (review is null) return NotFound("Không tìm thấy đánh giá.");
+
+        // 1. Soft Delete
+        review.IsApproved = false;
+        review.Status = "Hidden";
+
+        // 2. Lấy và Decode header X-Audit-Reason an toàn
+        string decodedReason = "Không có lý do";
+        if (Request.Headers.TryGetValue("X-Audit-Reason", out var reasonValues))
+        {
+            decodedReason = WebUtility.UrlDecode(reasonValues.ToString());
+        }
+
+        // 3. Ghi Audit Log với Target-typed new()
+        AuditLog auditLog = new()
+        {
+            Action = "HIDE_REVIEW",
+            TableName = "Reviews",
+            RecordId = id,
+            Reason = decodedReason,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        context.AuditLogs.Add(auditLog);
+        
+        await context.SaveChangesAsync();
+
+        return Ok(new { message = "Đã ẩn đánh giá và ghi log thành công." });
+    }
+
+    // ==========================================
+    // 4. UPLOAD HÌNH ẢNH
+    // ==========================================
+    [HttpPost("upload-image")]
+    public async Task<IActionResult> UploadImage(IFormFile file)
+    {
+        var result = await cloudinaryService.UploadImageAsync(file);
+        
+        if (result.Error is not null) return BadRequest(result.Error.Message);
+
+        return Ok(new { 
+            ImageUrl = result.SecureUrl.ToString(), 
+            PublicId = result.PublicId 
+        });
+    }
+
+    // ==========================================
+    // 5. XÓA VĨNH VIỄN (HARD DELETE)
+    // ==========================================
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var review = await context.Reviews.IgnoreQueryFilters().FirstOrDefaultAsync(r => r.Id == id);
+        if (review is null) return NotFound("Không tìm thấy đánh giá.");
+
+        context.Reviews.Remove(review);
+        await context.SaveChangesAsync();
+        return Ok(new { message = "Đã xóa vĩnh viễn đánh giá." });
+    }
+}
