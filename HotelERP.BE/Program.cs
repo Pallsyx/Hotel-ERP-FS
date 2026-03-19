@@ -1,12 +1,46 @@
+using HotelERP.BE.DTOs.Common;
+using HotelERP.BE.Helpers.AuditLogs;
+using HotelERP.BE.Infrastructure.Data;
+using HotelERP.BE.Services.Vouchers;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' was not found.");
 
+builder.Services.AddDbContext<HotelDbContext>(options =>
+    options.UseSqlServer(connectionString));
+
+builder.Services.AddControllers();
+builder.Services.Configure<ApiBehaviorOptions>(options =>
+{
+    options.InvalidModelStateResponseFactory = context =>
+    {
+        var errors = context.ModelState
+            .Where(x => x.Value is not null && x.Value.Errors.Count > 0)
+            .Select(x => new
+            {
+                field = x.Key,
+                errors = x.Value!.Errors.Select(e => string.IsNullOrWhiteSpace(e.ErrorMessage) ? "Invalid value." : e.ErrorMessage)
+            });
+
+        var response = ApiResult<object>.Fail(
+            StatusCodes.Status400BadRequest,
+            "VALIDATION_ERROR",
+            "Dữ liệu đầu vào không hợp lệ.",
+            errors);
+
+        return new BadRequestObjectResult(response);
+    };
+});
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+builder.Services.AddScoped<IVoucherService, VoucherService>();
+builder.Services.AddScoped<IVoucherAuditLogHelper, VoucherAuditLogHelper>();
 
 var app = builder.Build();
 
@@ -16,6 +50,8 @@ app.UseSwaggerUI(c =>
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "Hotel ERP Backend API v1");
     c.RoutePrefix = "swagger";
 });
+
+app.MapControllers();
 
 app.MapGet("/", () => Results.Redirect("/swagger"));
 
