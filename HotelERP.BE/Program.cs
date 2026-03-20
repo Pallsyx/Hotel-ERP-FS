@@ -7,6 +7,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using HotelERP.BE.Configurations;
 using HotelERP.BE.Services.Loyalty;
+using HotelERP.BE.Services.RoomTypes;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -48,6 +49,8 @@ builder.Services.AddScoped<ILoyaltyPointService, LoyaltyPointService>();
 
 builder.Services.AddScoped<IVoucherService, VoucherService>();
 builder.Services.AddScoped<IVoucherAuditLogHelper, VoucherAuditLogHelper>();
+
+builder.Services.AddScoped<IRoomTypeQueryService, RoomTypeQueryService>();
 
 var app = builder.Build();
 
