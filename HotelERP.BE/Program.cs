@@ -7,16 +7,33 @@ var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' was not found.");
 
+// CỤC NÀY TAO ĐÃ SỬA LẠI ĐỂ CHẠY ĐƯỢC SIGNALR VỚI HTML LOCAL
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowSignalR", p => p
+        .SetIsOriginAllowed(_ => true) // Chấp nhận mọi nguồn, kể cả file://
+        .AllowAnyMethod()
+        .AllowAnyHeader()
+        .AllowCredentials()); // Chìa khóa bắt buộc của SignalR
+});
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddControllers();
 builder.Services.AddDbContext<HotelDbContext>(options => options.UseSqlServer(connectionString));
 builder.Services.AddScoped<HotelERP.BE.Services.Bookings.IBookingVoucherService, HotelERP.BE.Services.Bookings.BookingVoucherService>();
+builder.Services.AddSignalR(); // Bật tính năng SignalR
+builder.Services.AddScoped<HotelERP.BE.Services.Rooms.IRoomService, HotelERP.BE.Services.Rooms.RoomService>(); // Đăng ký Service phòng
 
 var app = builder.Build();
+
+// GỌI CORS VỚI CÁI TÊN POLICY MỚI TAO VỪA TẠO
+app.UseCors("AllowSignalR");
+
 app.MapControllers();
 
 app.UseSwagger();
+app.MapHub<HotelERP.BE.Hubs.RoomHub>("/roomHub");
 app.UseSwaggerUI(c =>
 {
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "Hotel ERP Backend API v1");
