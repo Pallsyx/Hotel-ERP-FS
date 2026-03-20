@@ -2,25 +2,35 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using HotelERP.BE.Application.Interfaces;
 using HotelERP.BE.Application.DTOs;
+using HotelERP.BE.DTOs.RoomTypes;
+using HotelERP.BE.Services.RoomTypes;
 
 namespace HotelERP.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class RoomTypesController(IRoomTypeService roomTypeService) : ControllerBase
+public class RoomTypesController : ControllerBase
 {
+    private readonly IRoomTypeService _roomTypeService;
+    private readonly IRoomTypeQueryService? _roomTypeQueryService;
+    public RoomTypesController(IRoomTypeService roomTypeService, IRoomTypeQueryService roomTypeQueryService)
+    {
+        _roomTypeService = roomTypeService;
+        _roomTypeQueryService = roomTypeQueryService;
+    }
+
     [HttpGet]
     
     public async Task<IActionResult> GetRoomTypes()
     {
-        var data = await roomTypeService.GetRoomTypesAsync();
+        var data = await _roomTypeService.GetRoomTypesAsync();
         return Ok(new { success = true, data });
     }
 
     [HttpGet("{id}")]
     public async Task<IActionResult> GetRoomTypeById(int id)
     {
-        var data = await roomTypeService.GetRoomTypeByIdAsync(id);
+        var data = await _roomTypeService.GetRoomTypeByIdAsync(id);
         if (data == null) return NotFound("Không tìm thấy hạng phòng");
         return Ok(new { success = true, data });
     }
@@ -30,7 +40,7 @@ public class RoomTypesController(IRoomTypeService roomTypeService) : ControllerB
     [Consumes("multipart/form-data")] 
     public async Task<IActionResult> CreateRoomType([FromForm] CreateRoomTypeRequest request)
     {
-        var id = await roomTypeService.CreateRoomTypeAsync(request);
+        var id = await _roomTypeService.CreateRoomTypeAsync(request);
         return Ok(new { success = true, message = "Tạo hạng phòng thành công.", roomTypeId = id });
     }
 
@@ -39,7 +49,7 @@ public class RoomTypesController(IRoomTypeService roomTypeService) : ControllerB
     [Consumes("multipart/form-data")] 
     public async Task<IActionResult> UpdateRoomType(int id, [FromForm] UpdateRoomTypeRequest request)
     {
-        var result = await roomTypeService.UpdateRoomTypeAsync(id, request);
+        var result = await _roomTypeService.UpdateRoomTypeAsync(id, request);
         if (!result) return NotFound();
         return Ok(new { success = true, message = "Cập nhật hạng phòng thành công." });
     }
@@ -48,8 +58,26 @@ public class RoomTypesController(IRoomTypeService roomTypeService) : ControllerB
     [Authorize(Roles = "Manager,SUPER_ADMIN")]
     public async Task<IActionResult> DeleteRoomType(int id)
     {
-        var result = await roomTypeService.DeleteRoomTypeAsync(id);
+        var result = await _roomTypeService.DeleteRoomTypeAsync(id);
         if (!result) return NotFound();
         return Ok(new { success = true, message = "Đã xóa hạng phòng." });
+    }
+    
+    [HttpGet("search-by-occupancy")]
+    public async Task<IActionResult> SearchByOccupancy(
+        [FromQuery] SearchRoomTypesByOccupancyRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _roomTypeQueryService!.SearchByOccupancyAsync(request, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPost("price-preview")]
+    public async Task<IActionResult> PreviewPrice(
+        [FromBody] RoomPricePreviewRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _roomTypeQueryService!.PreviewPriceAsync(request, cancellationToken);
+        return StatusCode(result.StatusCode, result);
     }
 }

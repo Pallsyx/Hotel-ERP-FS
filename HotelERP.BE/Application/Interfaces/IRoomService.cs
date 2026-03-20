@@ -1,4 +1,5 @@
 using HotelERP.BE.Application.DTOs;
+using HotelERP.BE.Domain.Models;
 
 namespace HotelERP.BE.Application.Interfaces;
 
@@ -13,4 +14,10 @@ public interface IRoomService
     Task<bool> UpdateRoomStatusAsync(int roomId, UpdateRoomStatusRequest request);
     Task<bool> ReportDamageAsync(int userId, ReportDamageRequest request);
     Task<IEnumerable<DamageReportResponseDto>> GetRoomDamagesAsync(int roomId);
+    // Thuật toán lấy phòng Check-in
+    Task<List<Room>> GetAvailableRoomsForCheckInAsync(int roomTypeId);
+         
+    // Cập nhật trạng thái và bắn SignalR
+    Task<bool> UpdateRoomStatusAsync(int roomId, string status, string cleaningStatus);
+    
 }

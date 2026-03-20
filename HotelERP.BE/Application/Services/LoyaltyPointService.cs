@@ -1,4 +1,4 @@
-using HotelERP.BE.Configurations;
+using HotelERP.BE.DTOs.Configurations;
 using HotelERP.BE.Domain.Models;
 using HotelERP.BE.DTOs.Common;
 using HotelERP.BE.DTOs.Loyalty;

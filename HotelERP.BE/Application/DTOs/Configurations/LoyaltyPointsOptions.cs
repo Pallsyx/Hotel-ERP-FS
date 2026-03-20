@@ -1,4 +1,4 @@
-namespace HotelERP.BE.Configurations;
+namespace HotelERP.BE.DTOs.Configurations;
 
 public class LoyaltyPointsOptions
 {

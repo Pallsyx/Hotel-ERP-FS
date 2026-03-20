@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.SignalR;
 using System.Threading.Tasks;
 
-namespace HotelERP.BE.Hubs
+namespace HotelERP.BE.DTOs.Hubs
 {
     public class RoomHub : Hub
     {

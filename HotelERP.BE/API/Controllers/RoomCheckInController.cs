@@ -1,4 +1,4 @@
-using HotelERP.BE.Services.Rooms;
+using HotelERP.BE.Application.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using System.Threading.Tasks;
 
