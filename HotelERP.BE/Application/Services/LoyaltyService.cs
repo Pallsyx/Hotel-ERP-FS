@@ -17,7 +17,7 @@ public class LoyaltyService
     {
         var invoice = await _context.Invoices
             .Include(i => i.Booking)
-                .ThenInclude(b => b.User)
+                .ThenInclude(b => b!.User)
             .FirstOrDefaultAsync(i => i.Id == invoiceId);
 
         if (invoice == null || invoice.Booking == null || invoice.Booking.UserId == null || invoice.Booking.User == null) 
