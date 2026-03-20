@@ -8,6 +8,11 @@ using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using StackExchange.Redis;
+using RedLockNet;
+using RedLockNet.SERedis;
+using RedLockNet.SERedis.Configuration;
+using Hangfire;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -44,7 +49,19 @@ builder.Services.AddAuthentication(options =>
         ClockSkew = TimeSpan.Zero
     };
 });
+// Cấu hình Hangfire với SQL Server Storage
+builder.Services.AddHangfire(config => config
+    .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+    .UseSimpleAssemblyNameTypeSerializer()
+    .UseRecommendedSerializerSettings()
+    .UseSqlServerStorage(connectionString)); // Dùng chung ConnectionString của DB
 
+builder.Services.AddHangfireServer(); // Chạy worker background
+
+//Kết nối với Redis Server (Đảm bảo bạn đã cài và bật Redis trên máy ảo/Docker hoặc localhost:6379)
+var redisConnection = ConnectionMultiplexer.Connect("localhost:6379");
+// Đăng ký IDistributedLockFactory để sử dụng RedLock.Net với Redis
+builder.Services.AddSingleton<IConnectionMultiplexer>(redisConnection);
 // Đăng ký IAuthService map với AuthService
 builder.Services.AddScoped<IAuthService, AuthService>();
 // Đăng ký IUserProfileService map với UserProfileService
@@ -53,6 +70,8 @@ builder.Services.AddScoped<IUserProfileService, UserProfileService>();
 builder.Services.AddScoped<IPhotoService, PhotoService>();
 // Đăng ký IUserManagementService map với UserManagementService
 builder.Services.AddScoped<IUserManagementService, UserManagementService>();
+// Đăng ký IBookingEngineService map với BookingEngineService
+builder.Services.AddScoped<IBookingEngineService, BookingEngineService>();
 // Cấp quyền cho DbContext được phép đọc thông tin từ HTTP Request (ví dụ như lấy Lý do, lấy Token)
 builder.Services.AddHttpContextAccessor();
 
@@ -85,6 +104,14 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
+// Đăng ký RedLock Factory (Nhà máy sản xuất Khóa chống trùng)
+builder.Services.AddSingleton<IDistributedLockFactory>(provider =>
+{
+    var multiplexers = new List<RedLockMultiplexer> { redisConnection };
+    return RedLockFactory.Create(multiplexers);
+});
+
+
 var app = builder.Build();
 
 // 4. Middleware Pipeline
@@ -94,6 +121,15 @@ app.UseSwaggerUI(c =>
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "Hotel ERP Backend API v1");
     c.RoutePrefix = "swagger";
 });
+
+using (var scope = app.Services.CreateScope())
+{
+    var recurringJobManager = scope.ServiceProvider.GetRequiredService<IRecurringJobManager>();
+    // Cứ mỗi 1 phút, chạy lệnh quét các Booking quá hạn
+    recurringJobManager.AddOrUpdate("ReleaseExpiredBookings", 
+        () => scope.ServiceProvider.GetRequiredService<IBookingEngineService>().ReleaseExpiredBookingsAsync(), 
+        Cron.Minutely);
+}
 
 app.UseHttpsRedirection(); // Bắt buộc HTTPS
 app.UseAuthentication();
