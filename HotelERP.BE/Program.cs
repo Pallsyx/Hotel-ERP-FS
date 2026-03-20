@@ -1,19 +1,29 @@
 using HotelERP.BE.Utils;
 using HotelERP.BE.Services;
 using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
+using HotelERP.BE.Infrastructure.Data;
+using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' was not found.");
 
+builder.Services.AddControllers().AddJsonOptions(options =>
+{
+    options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+});
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
 builder.Services.AddScoped<ArticleService>();
 builder.Services.AddScoped<LoyaltyService>();
-
+builder.Services.AddDbContext<HotelDbContext>(options =>
+    options.UseSqlServer(connectionString));
 var app = builder.Build();
+
 
 app.UseSwagger();
 app.UseSwaggerUI(c =>
@@ -118,5 +128,5 @@ SELECT
             statusCode: StatusCodes.Status500InternalServerError);
     }
 });
-
+app.MapControllers();
 app.Run();

@@ -25,7 +25,7 @@ public class CloudinaryService : ICloudinaryService
 
     public async Task<(string Url, string PublicId)> UploadImageAsync(IFormFile file, string folder)
     {
-        if (file == null || file.Length == 0) return (null, null);
+        if (file == null || file.Length == 0) return (string.Empty, string.Empty);
 
         using var stream = file.OpenReadStream();
         var uploadParams = new ImageUploadParams

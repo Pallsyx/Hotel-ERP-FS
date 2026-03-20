@@ -54,7 +54,17 @@ public class ArticleService
             thumbnailUrl = uploadResult.Url;
             thumbnailPublicId = uploadResult.PublicId;
         }
-
+int? resolvedCategoryId = null;
+        if (!string.IsNullOrWhiteSpace(request.CategoryName))
+        {
+            var category = await _context.ArticleCategories
+                .FirstOrDefaultAsync(c => c.Name == request.CategoryName);
+                
+            if (category == null)
+                throw new Exception($"Không tìm thấy danh mục nào có tên là '{request.CategoryName}' trong hệ thống.");
+                
+            resolvedCategoryId = category.Id;
+        }
         // 4. Tạo entity và lưu DB
         var newArticle = new Article
         {
@@ -62,7 +72,7 @@ public class ArticleService
             Slug = finalSlug,
             Content = request.Content,
             Summary = request.Summary,
-            CategoryId = request.CategoryId,
+            CategoryId = resolvedCategoryId,
             AuthorId = authorId,
             ThumbnailUrl = thumbnailUrl,
             ThumbnailPublicId = thumbnailPublicId,
@@ -88,9 +98,17 @@ public class ArticleService
         article.Title = request.Title;
         article.Content = request.Content;
         article.Summary = request.Summary;
-        article.CategoryId = request.CategoryId;
         article.UpdatedAt = DateTime.UtcNow;
-
+        if (!string.IsNullOrWhiteSpace(request.CategoryName))
+                {
+                    var category = await _context.ArticleCategories
+                        .FirstOrDefaultAsync(c => c.Name == request.CategoryName);
+                        
+                    if (category == null)
+                        throw new Exception($"Không tìm thấy danh mục nào có tên là '{request.CategoryName}'.");
+                        
+                    article.CategoryId = category.Id;
+                }
         if (request.Thumbnail != null)
         {
             // Xóa ảnh cũ trên Cloudinary
