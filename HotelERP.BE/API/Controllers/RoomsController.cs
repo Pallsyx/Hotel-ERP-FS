@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using HotelERP.Application.Interfaces;
-using HotelERP.Application.DTOs.Room;
+using HotelERP.Application.DTOs;
 
 namespace HotelERP.API.Controllers;
 
@@ -78,14 +78,16 @@ public class RoomsController(IRoomService roomService) : ControllerBase
 
     [HttpPost("loss-damages")]
     [Authorize(Roles = "Manager,Housekeeping,Receptionist")]
-    public async Task<IActionResult> ReportDamage([FromBody] ReportDamageRequest request)
+    [Consumes("multipart/form-data")] 
+    public async Task<IActionResult> ReportDamage([FromForm] ReportDamageRequest request)
     {
-        // Mock User ID từ JWT
         var userIdClaim = User.FindFirst("UserId")?.Value;
-        int userId = int.TryParse(userIdClaim, out int id) ? id : 1; // Default 1 cho dev test
+        int userId = int.TryParse(userIdClaim, out int id) ? id : 1; 
 
         var result = await roomService.ReportDamageAsync(userId, request);
-        return Ok(new { success = true, message = "Đã ghi nhận báo cáo hư hỏng." });
+        if (!result) return BadRequest("Có lỗi xảy ra khi lưu trữ.");
+
+        return Ok(new { success = true, message = "Đã ghi nhận báo cáo hư hỏng kèm hình ảnh." });
     }
 
     [HttpGet("{id}/loss-damages")]

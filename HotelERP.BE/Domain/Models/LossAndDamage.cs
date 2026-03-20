@@ -1,33 +1,26 @@
-﻿using System;
-using System.Collections.Generic;
-
-namespace HotelERP.BE.Domain.Models;
+﻿namespace HotelERP.BE.Domain.Models;
 
 public partial class LossAndDamage
 {
     public int Id { get; set; }
 
-    public int? BookingDetailId { get; set; }
+    public int RoomId { get; set; }
 
-    public int? RoomInventoryId { get; set; }
+    public int? BookingId { get; set; } 
 
-    public int Quantity { get; set; }
+    public int ReportedByUserId { get; set; } 
 
-    public decimal PenaltyAmount { get; set; }
+    public string ItemName { get; set; } = null!;
 
     public string? Description { get; set; }
 
+    public decimal Cost { get; set; }
+
     public string? EvidenceImageUrl { get; set; }
 
-    public string? EvidencePublicId { get; set; }
+    public string? CloudinaryPublicId { get; set; }
+    
+    public DateTime ReportedAt { get; set; }
 
-    public string Status { get; set; } = null!;
-
-    public DateTime CreatedAt { get; set; }
-
-    public DateTime? UpdatedAt { get; set; }
-
-    public virtual BookingDetail? BookingDetail { get; set; }
-
-    public virtual RoomInventory? RoomInventory { get; set; }
+    public virtual Room Room { get; set; } = null!;
 }

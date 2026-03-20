@@ -15,5 +15,9 @@ public partial class Amenity
 
     public DateTime CreatedAt { get; set; }
 
+    public DateTime? DeletedAt { get; set; } 
+    
+    public DateTime? UpdatedAt { get; set; }
+
     public virtual ICollection<RoomTypeAmenity> RoomTypeAmenities { get; set; } = new List<RoomTypeAmenity>();
 }

@@ -1,4 +1,4 @@
-using HotelERP.Application.DTOs.Room;
+using HotelERP.Application.DTOs;
 
 namespace HotelERP.Application.Interfaces;
 
