@@ -1,4 +1,7 @@
 using System.Text;
+using HotelERP.BE.API.Filters;
+using HotelERP.BE.Application.Interfaces;
+using HotelERP.BE.Application.Services;
 using HotelERP.BE.Infrastructure.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Data.SqlClient;
@@ -43,11 +46,16 @@ builder.Services.AddAuthentication(options =>
 });
 
 // Đăng ký IAuthService map với AuthService
-builder.Services.AddScoped<HotelERP.BE.Application.Interfaces.IAuthService, HotelERP.BE.Application.Services.AuthService>();
+builder.Services.AddScoped<IAuthService, AuthService>();
 // Đăng ký IUserProfileService map với UserProfileService
-builder.Services.AddScoped<HotelERP.BE.Application.Interfaces.IUserProfileService, HotelERP.BE.Application.Services.UserProfileService>();
+builder.Services.AddScoped<IUserProfileService, UserProfileService>();
 // Đăng ký IPhotoService map với PhotoService
-builder.Services.AddScoped<HotelERP.BE.Application.Interfaces.IPhotoService, HotelERP.BE.Application.Services.PhotoService>();
+builder.Services.AddScoped<IPhotoService, PhotoService>();
+// Đăng ký IUserManagementService map với UserManagementService
+builder.Services.AddScoped<IUserManagementService, UserManagementService>();
+// Cấp quyền cho DbContext được phép đọc thông tin từ HTTP Request (ví dụ như lấy Lý do, lấy Token)
+builder.Services.AddHttpContextAccessor();
+
 builder.Services.AddAuthorization();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -55,6 +63,7 @@ builder.Services.AddEndpointsApiExplorer();
 // 3. Cấu hình Swagger
 builder.Services.AddSwaggerGen(c =>
 {
+    c.OperationFilter<AuditReasonHeaderFilter>(); // Thêm header "X-Audit-Reason" vào Swagger
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "Hotel ERP Backend API v1", Version = "v1" });
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
