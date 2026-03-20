@@ -1,4 +1,4 @@
-namespace HotelERP.Application.DTOs;
+namespace HotelERP.BE.Application.DTOs;
 
 public class ImageUploadResult
 {

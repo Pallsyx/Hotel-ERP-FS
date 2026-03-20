@@ -1,6 +1,6 @@
-using HotelERP.Application.DTOs;
+using HotelERP.BE.Application.DTOs;
 
-namespace HotelERP.Application.Interfaces;
+namespace HotelERP.BE.Application.Interfaces;
 
 public interface IRoomService
 {

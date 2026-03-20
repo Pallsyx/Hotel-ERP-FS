@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
-using HotelERP.Application.Interfaces;
-using HotelERP.Application.DTOs;
+using HotelERP.BE.Application.Interfaces;
+using HotelERP.BE.Application.DTOs;
 
 namespace HotelERP.BE.Controllers;
 

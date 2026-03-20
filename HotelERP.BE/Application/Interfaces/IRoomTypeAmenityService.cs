@@ -1,4 +1,4 @@
-namespace HotelERP.Application.Interfaces;
+namespace HotelERP.BE.Application.Interfaces;
 
 public interface IRoomTypeAmenityService
 {

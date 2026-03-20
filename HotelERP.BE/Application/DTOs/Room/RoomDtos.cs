@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Http;
 
-namespace HotelERP.Application.DTOs;
+namespace HotelERP.BE.Application.DTOs;
 
 public record RoomFilterRequest(string? Status, string? CleaningStatus, int? RoomTypeId);
 
