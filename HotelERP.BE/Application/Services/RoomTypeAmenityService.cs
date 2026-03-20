@@ -1,9 +1,9 @@
 using Microsoft.EntityFrameworkCore;
-using HotelERP.Application.Interfaces;
+using HotelERP.BE.Application.Interfaces;
 using HotelERP.BE.Infrastructure.Data;
 using HotelERP.BE.Domain.Models;
 
-namespace HotelERP.Application.Services;
+namespace HotelERP.BE.Application.Services;
 
 public class RoomTypeAmenityService(HotelDbContext context) : IRoomTypeAmenityService
 {
