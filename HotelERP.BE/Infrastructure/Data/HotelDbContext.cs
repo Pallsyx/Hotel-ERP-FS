@@ -541,43 +541,40 @@ public partial class HotelDbContext : DbContext
 
         modelBuilder.Entity<LossAndDamage>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Loss_And__3213E83FCAB03BE1");
+        entity.HasKey(e => e.Id).HasName("PKLoss_And3213E83FCAB03BE1");
+        entity.ToTable("Loss_And_Damages");
 
-            entity.ToTable("Loss_And_Damages");
+        entity.Property(e => e.Id).HasColumnName("id");
 
-            entity.Property(e => e.Id).HasColumnName("id");
-            entity.Property(e => e.BookingDetailId).HasColumnName("booking_detail_id");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getdate())", "DF_LossAndDamages_CreatedAt")
-                .HasColumnType("datetime")
-                .HasColumnName("created_at");
-            entity.Property(e => e.Description).HasColumnName("description");
-            entity.Property(e => e.EvidenceImageUrl).HasColumnName("evidence_image_url");
-            entity.Property(e => e.EvidencePublicId)
-                .HasMaxLength(255)
-                .HasColumnName("evidence_public_id");
-            entity.Property(e => e.PenaltyAmount)
-                .HasColumnType("decimal(18, 2)")
-                .HasColumnName("penalty_amount");
-            entity.Property(e => e.Quantity).HasColumnName("quantity");
-            entity.Property(e => e.RoomInventoryId).HasColumnName("room_inventory_id");
-            entity.Property(e => e.Status)
-                .HasMaxLength(20)
-                .HasDefaultValue("OPEN", "DF_LossAndDamages_Status")
-                .HasColumnName("status");
-            entity.Property(e => e.UpdatedAt)
-                .HasColumnType("datetime")
-                .HasColumnName("updated_at");
+        // GIỮ NGUYÊN BẢN GỐC SQL
+        entity.Property(e => e.BookingDetailId).HasColumnName("booking_detail_id");
+        entity.Property(e => e.RoomInventoryId).HasColumnName("room_inventory_id");
+        entity.Property(e => e.Quantity).HasColumnName("quantity");
+        entity.Property(e => e.PenaltyAmount).HasColumnType("decimal(18, 2)").HasColumnName("penalty_amount");
+        entity.Property(e => e.Description).HasColumnName("description");
+        entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getdate())").HasColumnType("datetime").HasColumnName("created_at");
 
-            entity.HasOne(d => d.BookingDetail).WithMany(p => p.LossAndDamages)
-                .HasForeignKey(d => d.BookingDetailId)
-                .HasConstraintName("FK_LossAndDamages_BookingDetails");
+        // PHẦN THÊM VÀO (Không ảnh hưởng SQL gốc)
+        entity.Property(e => e.EvidenceImageUrl).HasColumnName("evidence_image_url");
+        entity.Property(e => e.EvidencePublicId).HasMaxLength(255).HasColumnName("evidence_public_id");
+        entity.Property(e => e.Status).HasMaxLength(20).HasDefaultValue("OPEN").HasColumnName("status");
+        entity.Property(e => e.UpdatedAt).HasColumnType("datetime").HasColumnName("updated_at");
+        entity.Property(e => e.RoomId).HasColumnName("room_id");
+        entity.Property(e => e.ReportedByUserId).HasColumnName("reported_by_user_id");
 
-            entity.HasOne(d => d.RoomInventory).WithMany(p => p.LossAndDamages)
-                .HasForeignKey(d => d.RoomInventoryId)
-                .HasConstraintName("FK_LossAndDamages_RoomInventory");
+        entity.HasOne(d => d.BookingDetail).WithMany(p => p.LossAndDamages)
+        .HasForeignKey(d => d.BookingDetailId)
+        .HasConstraintName("FK_LossAndDamages_BookingDetails");
+
+        entity.HasOne(d => d.RoomInventory).WithMany(p => p.LossAndDamages)
+        .HasForeignKey(d => d.RoomInventoryId)
+        .HasConstraintName("FK_LossAndDamages_RoomInventory");
+
+        entity.HasOne(d => d.Room).WithMany(p => p.LossAndDamages)
+        .HasForeignKey(d => d.RoomId)
+        .HasConstraintName("FK_LossAndDamages_Rooms");
         });
-
+        
         modelBuilder.Entity<Membership>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("PK__Membersh__3213E83F4203903C");
@@ -1196,6 +1193,9 @@ public partial class HotelDbContext : DbContext
         .OnDelete(DeleteBehavior.ClientSetNull)
         .HasConstraintName("FK_RefreshTokens_Users");
         });
+
+        modelBuilder.Entity<Room>().HasQueryFilter(r => r.DeletedAt == null);
+        modelBuilder.Entity<RoomType>().HasQueryFilter(rt => rt.DeletedAt == null);
 
         OnModelCreatingPartial(modelBuilder);
     }

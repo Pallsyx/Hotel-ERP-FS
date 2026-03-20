@@ -6,5 +6,8 @@ public interface IBookingEngineService
 {
     Task<IEnumerable<AvailableRoomTypeResponse>> SearchAvailableRoomsAsync(SearchRoomRequest request);
     Task<string> HoldRoomAsync(int roomTypeId, int userId, DateTime checkIn, DateTime checkOut);
-    Task ReleaseExpiredBookingsAsync(); // Sửa lại thành Task, bỏ object
+    Task ReleaseExpiredBookingsAsync(); 
+    Task<int> CreateMultiRoomBookingAsync(int userId, MultiRoomBookingRequest request);
+    Task<bool> AdminForceCancelBookingAsync(int bookingId);
+    Task<IEnumerable<object>> GetAssignableRoomsAsync(int roomTypeId);
 }

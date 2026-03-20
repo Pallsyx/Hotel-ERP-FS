@@ -16,6 +16,9 @@ using Hangfire;
 using HotelERP.BE.Utils;
 using HotelERP.BE.Services;
 using System.Text.Json.Serialization;
+using HotelERP.Infrastructure.Interceptors;
+using HotelERP.Application.Interfaces;
+using HotelERP.Application.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -83,8 +86,11 @@ builder.Services.AddScoped<IUserProfileService, UserProfileService>();
 builder.Services.AddScoped<IPhotoService, PhotoService>();
 builder.Services.AddScoped<IUserManagementService, UserManagementService>();
 builder.Services.AddScoped<IBookingEngineService, BookingEngineService>();
+builder.Services.AddScoped<IRoomInventoryService, RoomInventoryService>();
+builder.Services.AddScoped<IRoomService, RoomService>();
+builder.Services.AddScoped<IRoomTypeService, RoomTypeService>();
 
-// Services mới từ nhánh TienAnh
+
 builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
 builder.Services.AddScoped<ArticleService>();
 builder.Services.AddScoped<LoyaltyService>();

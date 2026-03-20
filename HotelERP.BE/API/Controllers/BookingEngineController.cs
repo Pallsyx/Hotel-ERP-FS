@@ -1,36 +1,93 @@
 using HotelERP.BE.Application.DTOs.BookingEngine;
 using HotelERP.BE.Application.Interfaces;
+using System.Security.Claims;
+using HotelERP.BE.API.Filters; // Đã sửa thư mục Attributes thành Filters cho chuẩn
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HotelERP.BE.API.Controllers;
 
 [Route("api/[controller]")]
 [ApiController]
-public class BookingEngineController : ControllerBase {
+public class BookingEngineController : ControllerBase
+{
     private readonly IBookingEngineService _bookingService;
-    public BookingEngineController(IBookingEngineService bookingService) => _bookingService = bookingService;
 
+    // Dùng chung 1 Constructor
+    public BookingEngineController(IBookingEngineService bookingService)
+    {
+        _bookingService = bookingService;
+    }
+
+    // ==========================================
+    //  SEARCH & HOLD
+    // ==========================================
+    
     [HttpPost("search")]
-    public async Task<IActionResult> Search([FromBody] SearchRoomRequest request) {
+    public async Task<IActionResult> Search([FromBody] SearchRoomRequest request) 
+    {
         var result = await _bookingService.SearchAvailableRoomsAsync(request);
         return Ok(result);
     }
+
     [HttpPost("hold")]
-    [Microsoft.AspNetCore.Authorization.Authorize] // Phải đăng nhập mới được giữ phòng
+    [Authorize] // Phải đăng nhập mới được giữ phòng
     public async Task<IActionResult> HoldRoom([FromBody] HoldRoomRequest request) 
     {
-    try 
-    {
-        // Lấy UserId từ Token đang đăng nhập
-        var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-        int userId = int.Parse(userIdClaim!);
+        try 
+        {
+            // Lấy UserId từ Token đang đăng nhập
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim)) return Unauthorized();
+            
+            int userId = int.Parse(userIdClaim);
 
-        var result = await _bookingService.HoldRoomAsync(request.RoomTypeId, userId, request.CheckInDate, request.CheckOutDate);
-        return Ok(new { success = true, message = result });
+            var result = await _bookingService.HoldRoomAsync(request.RoomTypeId, userId, request.CheckInDate, request.CheckOutDate);
+            return Ok(new { success = true, message = result });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
     }
-    catch (Exception ex)
+
+    // ==========================================
+    //  MULTI-ROOM, CANCEL, CHECK-IN
+    // ==========================================
+    
+    [Authorize]
+    [HttpPost("multi-booking")]
+    public async Task<IActionResult> CreateMultiBooking([FromBody] MultiRoomBookingRequest request)
     {
-        return BadRequest(new { success = false, message = ex.Message });
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdClaim)) return Unauthorized();
+
+        var userId = int.Parse(userIdClaim);
+        
+        // Đã đồng bộ sử dụng _bookingService
+        var bookingId = await _bookingService.CreateMultiRoomBookingAsync(userId, request);
+        
+        return Ok(new { success = true, message = "Đặt phòng thành công (Holding)", bookingId });
     }
+
+    [Authorize(Roles = "SUPER_ADMIN")]
+    [HttpPut("admin/force-cancel/{id}")]
+    [AuditLogInterceptor("Admin can thiệp hủy giữ phòng", "Bookings")] 
+    public async Task<IActionResult> ForceCancel(int id)
+    {
+        // Đã đồng bộ sử dụng _bookingService
+        var result = await _bookingService.AdminForceCancelBookingAsync(id);
+        if (!result) return NotFound(new { message = "Không tìm thấy booking hoặc đã bị hủy trước đó." });
+
+        return Ok(new { success = true, message = "Đã ép hủy và ghi nhận vào Audit Log." });
+    }
+
+    [Authorize(Roles = "RECEPTIONIST,SUPER_ADMIN")]
+    [HttpGet("assignable-rooms/{typeId}")]
+    public async Task<IActionResult> GetRoomsForCheckIn(int typeId)
+    {
+        // Đã đồng bộ sử dụng _bookingService
+        var rooms = await _bookingService.GetAssignableRoomsAsync(typeId);
+        return Ok(new { success = true, data = rooms });
     }
 }

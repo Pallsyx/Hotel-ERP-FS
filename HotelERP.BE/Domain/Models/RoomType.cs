@@ -33,6 +33,12 @@ public partial class RoomType
 
     public DateTime? UpdatedAt { get; set; }
 
+    public DateTime? DeletedAt { get; set; } 
+
+    public string? ImageUrl { get; set; }
+    
+    public string? CloudinaryPublicId { get; set; }
+
     public virtual ICollection<BookingDetail> BookingDetails { get; set; } = new List<BookingDetail>();
 
     public virtual ICollection<Review> Reviews { get; set; } = new List<Review>();
