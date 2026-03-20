@@ -16,6 +16,15 @@ using Hangfire;
 using HotelERP.BE.Utils;
 using HotelERP.BE.Services;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Mvc;
+using HotelERP.BE.DTOs.Configurations;
+using HotelERP.BE.DTOs.Common;
+using HotelERP.BE.Helpers.AuditLogs;
+using HotelERP.BE.DTOs.Hubs;
+using HotelERP.BE.Services.Bookings;
+using HotelERP.BE.Services.Loyalty;
+using HotelERP.BE.Services.RoomTypes;
+using HotelERP.BE.Services.Vouchers;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -26,11 +35,52 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 builder.Services.AddDbContext<HotelDbContext>(options =>
     options.UseSqlServer(connectionString));
 
-// --- 2. CẤU HÌNH JSON (Tránh vòng lặp dữ liệu) ---
+// --- 2. CẤU HÌNH JSON VÀ VALIDATION (Gộp của bạn & Long) ---
 builder.Services.AddControllers().AddJsonOptions(options =>
 {
     options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
 });
+
+// Bộ lọc lỗi Validation xịn của Long
+builder.Services.Configure<ApiBehaviorOptions>(options =>
+{
+    options.InvalidModelStateResponseFactory = context =>
+    {
+        var errors = context.ModelState
+            .Where(x => x.Value is not null && x.Value.Errors.Count > 0)
+            .Select(x => new
+            {
+                field = x.Key,
+                errors = x.Value!.Errors.Select(e =>
+                    string.IsNullOrWhiteSpace(e.ErrorMessage)
+                        ? "Invalid value."
+                        : e.ErrorMessage)
+            });
+
+        var response = ApiResult<object>.Fail(
+            StatusCodes.Status400BadRequest,
+            "VALIDATION_ERROR",
+            "Dữ liệu đầu vào không hợp lệ.",
+            errors);
+
+        return new BadRequestObjectResult(response);
+    };
+});
+
+// Cấu hình CORS cho SignalR của Long
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowSignalR", policy =>
+    {
+        policy.SetIsOriginAllowed(_ => true)
+              .AllowAnyMethod()
+              .AllowAnyHeader()
+              .AllowCredentials();
+    });
+});
+
+// SignalR của Long
+builder.Services.AddSignalR();
 
 // --- 3. CẤU HÌNH JWT AUTHENTICATION ---
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
@@ -64,7 +114,7 @@ builder.Services.AddHangfire(config => config
     .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
     .UseSimpleAssemblyNameTypeSerializer()
     .UseRecommendedSerializerSettings()
-    .UseSqlServerStorage(connectionString)); 
+    .UseSqlServerStorage(connectionString));
 
 builder.Services.AddHangfireServer(); 
 
@@ -77,18 +127,26 @@ builder.Services.AddSingleton<IDistributedLockFactory>(provider =>
     return RedLockFactory.Create(multiplexers);
 });
 
-// --- 5. ĐĂNG KÝ SERVICES (Gộp đủ 100% của team) ---
+// --- 5. ĐĂNG KÝ SERVICES ---
+
+// Options của Loyalty Points
+builder.Services.Configure<LoyaltyPointsOptions>(
+    builder.Configuration.GetSection(LoyaltyPointsOptions.SectionName));
+
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserProfileService, UserProfileService>();
 builder.Services.AddScoped<IPhotoService, PhotoService>();
 builder.Services.AddScoped<IUserManagementService, UserManagementService>();
 builder.Services.AddScoped<IBookingEngineService, BookingEngineService>();
 builder.Services.AddScoped<IRoomInventoryService, RoomInventoryService>();
-builder.Services.AddScoped<IRoomService, RoomService>();
-builder.Services.AddScoped<IRoomTypeService, RoomTypeService>();
 builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
 builder.Services.AddScoped<ArticleService>();
-builder.Services.AddScoped<LoyaltyService>();
+builder.Services.AddScoped<ILoyaltyPointService, LoyaltyPointService>();
+builder.Services.AddScoped<IVoucherService, VoucherService>();
+builder.Services.AddScoped<IVoucherAuditLogHelper, VoucherAuditLogHelper>();
+builder.Services.AddScoped<IRoomTypeQueryService, RoomTypeQueryService>();
+builder.Services.AddScoped<IBookingVoucherService, BookingVoucherService>();
+builder.Services.AddScoped<IRoomService, RoomService>();
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddAuthorization();
@@ -119,9 +177,14 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
+// ==========================================
+// BUILD APP
+// ==========================================
 var app = builder.Build();
 
 // --- 7. MIDDLEWARE PIPELINE ---
+app.UseCors("AllowSignalR"); // CORS của Long phải nằm trước Auth
+
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
@@ -129,7 +192,7 @@ app.UseSwaggerUI(c =>
     c.RoutePrefix = "swagger";
 });
 
-// Chạy Background Job quét phòng quá hạn
+// Hangfire Job của bạn
 using (var scope = app.Services.CreateScope())
 {
     var recurringJobManager = scope.ServiceProvider.GetRequiredService<IRecurringJobManager>();
@@ -143,18 +206,38 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
+// SignalR Hub của Long
+app.MapHub<RoomHub>("/roomHub");
+
 // --- 8. MINIMAL APIS (Health Checks & Summary) ---
 app.MapGet("/", () => Results.Redirect("/swagger")).ExcludeFromDescription();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok", utcTime = DateTime.UtcNow })).ExcludeFromDescription();
 
+// Health DB (Bản của Long xịn hơn)
 app.MapGet("/health/db", async () =>
 {
     try
     {
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync();
-        return Results.Ok(new { status = "ok", database = connection.Database, utcTime = DateTime.UtcNow });
+
+        await using var cmd = new SqlCommand(
+            "SELECT DB_NAME() AS DbName, @@SERVERNAME AS ServerName",
+            connection);
+        await using var reader = await cmd.ExecuteReaderAsync();
+        await reader.ReadAsync();
+
+        var dbName = reader.IsDBNull(0) ? null : reader.GetString(0);
+        var serverName = reader.IsDBNull(1) ? null : reader.GetString(1);
+
+        return Results.Ok(new
+        {
+            status = "ok",
+            database = dbName,
+            server = serverName,
+            utcTime = DateTime.UtcNow
+        });
     }
     catch (Exception ex)
     {

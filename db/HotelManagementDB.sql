@@ -491,6 +491,38 @@ CREATE TABLE [dbo].[Audit_Logs](
 );
 GO
 
+IF OBJECT_ID(N'[dbo].[Loyalty_Point_Histories]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[Loyalty_Point_Histories]
+    (
+        [id] INT IDENTITY(1,1) NOT NULL,
+        [booking_id] INT NOT NULL,
+        [user_id] INT NOT NULL,
+        [action_type] NVARCHAR(50) NOT NULL,
+        [source_amount] DECIMAL(18,2) NOT NULL CONSTRAINT [DF_LoyaltyPointHistories_SourceAmount] DEFAULT ((0)),
+        [points_added] INT NOT NULL CONSTRAINT [DF_LoyaltyPointHistories_PointsAdded] DEFAULT ((0)),
+        [balance_before] INT NOT NULL CONSTRAINT [DF_LoyaltyPointHistories_BalanceBefore] DEFAULT ((0)),
+        [balance_after] INT NOT NULL CONSTRAINT [DF_LoyaltyPointHistories_BalanceAfter] DEFAULT ((0)),
+        [reason] NVARCHAR(500) NOT NULL,
+        [created_at] DATETIME NOT NULL CONSTRAINT [DF_LoyaltyPointHistories_CreatedAt] DEFAULT (GETDATE()),
+
+        CONSTRAINT [PK_LoyaltyPointHistories] PRIMARY KEY ([id]),
+        CONSTRAINT [FK_LoyaltyPointHistories_Bookings] FOREIGN KEY ([booking_id]) REFERENCES [dbo].[Bookings]([id]),
+        CONSTRAINT [FK_LoyaltyPointHistories_Users] FOREIGN KEY ([user_id]) REFERENCES [dbo].[Users]([id]),
+        CONSTRAINT [CK_LoyaltyPointHistories_SourceAmount] CHECK ([source_amount] >= 0),
+        CONSTRAINT [CK_LoyaltyPointHistories_PointsAdded] CHECK ([points_added] >= 0),
+        CONSTRAINT [CK_LoyaltyPointHistories_BalanceBefore] CHECK ([balance_before] >= 0),
+        CONSTRAINT [CK_LoyaltyPointHistories_BalanceAfter] CHECK ([balance_after] >= 0)
+    );
+
+    CREATE UNIQUE INDEX [UQ_LoyaltyPointHistories_BookingAction]
+        ON [dbo].[Loyalty_Point_Histories]([booking_id], [action_type]);
+
+    CREATE INDEX [IX_LoyaltyPointHistories_UserId]
+        ON [dbo].[Loyalty_Point_Histories]([user_id]);
+END
+GO
+
 CREATE INDEX [IX_Rooms_SearchStatus] ON [dbo].[Rooms] ([room_type_id], [status], [cleaning_status]);
 CREATE INDEX [IX_BookingDetails_RoomDateRange] ON [dbo].[Booking_Details] ([room_id], [check_in_date], [check_out_date]);
 CREATE INDEX [IX_BookingDetails_RoomTypeDateRange] ON [dbo].[Booking_Details] ([room_type_id], [check_in_date], [check_out_date]);
