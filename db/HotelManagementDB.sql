@@ -318,6 +318,7 @@ CREATE TABLE [dbo].[Bookings](
     [notes] NVARCHAR(1000) NULL,
     [created_at] DATETIME NOT NULL CONSTRAINT [DF_Bookings_CreatedAt] DEFAULT (GETDATE()),
     [updated_at] DATETIME NULL,
+    [is_points_awarded] BIT DEFAULT 0,
     CONSTRAINT [UQ_Bookings_Code] UNIQUE ([booking_code]),
     CONSTRAINT [FK_Bookings_Users] FOREIGN KEY ([user_id]) REFERENCES [dbo].[Users]([id]),
     CONSTRAINT [FK_Bookings_Vouchers] FOREIGN KEY ([voucher_id]) REFERENCES [dbo].[Vouchers]([id]),

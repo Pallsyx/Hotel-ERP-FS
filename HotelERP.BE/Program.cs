@@ -13,17 +13,26 @@ using RedLockNet;
 using RedLockNet.SERedis;
 using RedLockNet.SERedis.Configuration;
 using Hangfire;
+using HotelERP.BE.Utils;
+using HotelERP.BE.Services;
+using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Cấu hình DbContext
+// --- 1. CẤU HÌNH DATABASE ---
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' was not found.");
 
 builder.Services.AddDbContext<HotelDbContext>(options =>
     options.UseSqlServer(connectionString));
 
-// 2. Cấu hình JWT Authentication
+// --- 2. CẤU HÌNH JSON  ---
+builder.Services.AddControllers().AddJsonOptions(options =>
+{
+    options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+});
+
+// --- 3. CẤU HÌNH JWT AUTHENTICATION  ---
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
 var secretKeyString = jwtSettings["Secret"] ?? "HotelERP_Super_Secret_Key_Must_Be_Long_Enough_2026_DotNet10";
 var secretKey = Encoding.UTF8.GetBytes(secretKeyString);
@@ -35,7 +44,7 @@ builder.Services.AddAuthentication(options =>
 })
 .AddJwtBearer(options =>
 {
-    options.RequireHttpsMetadata = true; // Bắt buộc dùng HTTPS
+    options.RequireHttpsMetadata = true;
     options.SaveToken = true;
     options.TokenValidationParameters = new TokenValidationParameters
     {
@@ -49,40 +58,45 @@ builder.Services.AddAuthentication(options =>
         ClockSkew = TimeSpan.Zero
     };
 });
-// Cấu hình Hangfire với SQL Server Storage
+
+// --- 4. CẤU HÌNH HANGFIRE & REDIS  ---
 builder.Services.AddHangfire(config => config
     .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
     .UseSimpleAssemblyNameTypeSerializer()
     .UseRecommendedSerializerSettings()
-    .UseSqlServerStorage(connectionString)); // Dùng chung ConnectionString của DB
+    .UseSqlServerStorage(connectionString)); 
 
-builder.Services.AddHangfireServer(); // Chạy worker background
+builder.Services.AddHangfireServer(); 
 
-//Kết nối với Redis Server (Đảm bảo bạn đã cài và bật Redis trên máy ảo/Docker hoặc localhost:6379)
 var redisConnection = ConnectionMultiplexer.Connect("localhost:6379");
-// Đăng ký IDistributedLockFactory để sử dụng RedLock.Net với Redis
 builder.Services.AddSingleton<IConnectionMultiplexer>(redisConnection);
-// Đăng ký IAuthService map với AuthService
-builder.Services.AddScoped<IAuthService, AuthService>();
-// Đăng ký IUserProfileService map với UserProfileService
-builder.Services.AddScoped<IUserProfileService, UserProfileService>();
-// Đăng ký IPhotoService map với PhotoService
-builder.Services.AddScoped<IPhotoService, PhotoService>();
-// Đăng ký IUserManagementService map với UserManagementService
-builder.Services.AddScoped<IUserManagementService, UserManagementService>();
-// Đăng ký IBookingEngineService map với BookingEngineService
-builder.Services.AddScoped<IBookingEngineService, BookingEngineService>();
-// Cấp quyền cho DbContext được phép đọc thông tin từ HTTP Request (ví dụ như lấy Lý do, lấy Token)
-builder.Services.AddHttpContextAccessor();
 
+builder.Services.AddSingleton<IDistributedLockFactory>(provider =>
+{
+    var multiplexers = new List<RedLockMultiplexer> { new RedLockMultiplexer(redisConnection) };
+    return RedLockFactory.Create(multiplexers);
+});
+
+// --- 5. ĐĂNG KÝ SERVICES  ---
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IUserProfileService, UserProfileService>();
+builder.Services.AddScoped<IPhotoService, PhotoService>();
+builder.Services.AddScoped<IUserManagementService, UserManagementService>();
+builder.Services.AddScoped<IBookingEngineService, BookingEngineService>();
+
+// Services mới từ nhánh TienAnh
+builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
+builder.Services.AddScoped<ArticleService>();
+builder.Services.AddScoped<LoyaltyService>();
+
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddAuthorization();
-builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
-// 3. Cấu hình Swagger
+// --- 6. CẤU HÌNH SWAGGER  ---
 builder.Services.AddSwaggerGen(c =>
 {
-    c.OperationFilter<AuditReasonHeaderFilter>(); // Thêm header "X-Audit-Reason" vào Swagger
+    c.OperationFilter<AuditReasonHeaderFilter>(); 
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "Hotel ERP Backend API v1", Version = "v1" });
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
@@ -104,17 +118,12 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// Đăng ký RedLock Factory (Nhà máy sản xuất Khóa chống trùng)
-builder.Services.AddSingleton<IDistributedLockFactory>(provider =>
-{
-    var multiplexers = new List<RedLockMultiplexer> { redisConnection };
-    return RedLockFactory.Create(multiplexers);
-});
-
-
+// ==========================================
+// BUILD APP
+// ==========================================
 var app = builder.Build();
 
-// 4. Middleware Pipeline
+// --- 7. MIDDLEWARE PIPELINE ---
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
@@ -125,18 +134,18 @@ app.UseSwaggerUI(c =>
 using (var scope = app.Services.CreateScope())
 {
     var recurringJobManager = scope.ServiceProvider.GetRequiredService<IRecurringJobManager>();
-    // Cứ mỗi 1 phút, chạy lệnh quét các Booking quá hạn
     recurringJobManager.AddOrUpdate("ReleaseExpiredBookings", 
         () => scope.ServiceProvider.GetRequiredService<IBookingEngineService>().ReleaseExpiredBookingsAsync(), 
         Cron.Minutely);
 }
 
-app.UseHttpsRedirection(); // Bắt buộc HTTPS
+app.UseHttpsRedirection(); 
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-// 5. Đánh dấu ExcludeFromDescription để tránh lỗi 500 Swagger
+// --- 8. MINIMAL APIS  ---
+
 app.MapGet("/", () => Results.Redirect("/swagger")).ExcludeFromDescription();
 
 app.MapGet("/health", () => Results.Ok(new
@@ -146,5 +155,94 @@ app.MapGet("/health", () => Results.Ok(new
     environment = app.Environment.EnvironmentName,
     utcTime = DateTime.UtcNow
 })).ExcludeFromDescription();
+
+// API Health Check DB (Của TienAnh)
+app.MapGet("/health/db", async () =>
+{
+    try
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = new SqlCommand("SELECT DB_NAME() AS DbName, @@SERVERNAME AS ServerName", connection);
+        await using var reader = await cmd.ExecuteReaderAsync();
+        await reader.ReadAsync();
+
+        var dbName = reader.IsDBNull(0) ? null : reader.GetString(0);
+        var serverName = reader.IsDBNull(1) ? null : reader.GetString(1);
+
+        return Results.Ok(new
+        {
+            status = "ok",
+            database = dbName,
+            server = serverName,
+            utcTime = DateTime.UtcNow
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(
+            title: "Database connection failed",
+            detail: ex.Message,
+            statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+}).ExcludeFromDescription(); // Khuyến khích giấu đi cho Swagger sạch sẽ
+
+// API Seed Summary 
+app.MapGet("/api/system/seed-summary", async () =>
+{
+    try
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync();
+
+        var sql = @"
+SELECT 
+    (SELECT COUNT(*) FROM Roles) AS roles_count,
+    (SELECT COUNT(*) FROM Users) AS users_count,
+    (SELECT COUNT(*) FROM Memberships) AS memberships_count,
+    (SELECT COUNT(*) FROM Room_Types) AS room_types_count,
+    (SELECT COUNT(*) FROM Rooms) AS rooms_count,
+    (SELECT COUNT(*) FROM Vouchers) AS vouchers_count,
+    (SELECT COUNT(*) FROM Bookings) AS bookings_count,
+    (SELECT COUNT(*) FROM Booking_Details) AS booking_details_count,
+    (SELECT COUNT(*) FROM Invoices) AS invoices_count,
+    (SELECT COUNT(*) FROM Payments) AS payments_count,
+    (SELECT COUNT(*) FROM Articles) AS articles_count,
+    (SELECT COUNT(*) FROM Attractions) AS attractions_count,
+    (SELECT COUNT(*) FROM Reviews) AS reviews_count,
+    (SELECT COUNT(*) FROM Audit_Logs) AS audit_logs_count;";
+
+        await using var cmd = new SqlCommand(sql, connection);
+        await using var reader = await cmd.ExecuteReaderAsync();
+        await reader.ReadAsync();
+
+        return Results.Ok(new
+        {
+            message = "Seed data summary",
+            roles = reader.GetInt32(0),
+            users = reader.GetInt32(1),
+            memberships = reader.GetInt32(2),
+            roomTypes = reader.GetInt32(3),
+            rooms = reader.GetInt32(4),
+            vouchers = reader.GetInt32(5),
+            bookings = reader.GetInt32(6),
+            bookingDetails = reader.GetInt32(7),
+            invoices = reader.GetInt32(8),
+            payments = reader.GetInt32(9),
+            articles = reader.GetInt32(10),
+            attractions = reader.GetInt32(11),
+            reviews = reader.GetInt32(12),
+            auditLogs = reader.GetInt32(13)
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(
+            title: "Failed to read seed summary",
+            detail: ex.Message,
+            statusCode: StatusCodes.Status500InternalServerError);
+    }
+}).ExcludeFromDescription();
 
 app.Run();

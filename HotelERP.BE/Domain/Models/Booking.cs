@@ -46,4 +46,6 @@ public partial class Booking
     public virtual User? User { get; set; }
 
     public virtual Voucher? Voucher { get; set; }
+
+    public bool? IsPointsAwarded { get; set; }
 }
