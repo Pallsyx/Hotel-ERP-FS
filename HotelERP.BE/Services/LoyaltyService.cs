@@ -60,7 +60,6 @@ public class LoyaltyService
         // Tìm hạng cao nhất mà số điểm hiện tại thỏa mãn
         var newTier = activeMemberships.FirstOrDefault(m => user.LoyaltyPoints >= m.MinPoints);
         
-        // Cập nhật hạng nếu đạt mốc mới
         if (newTier != null && user.MembershipId != newTier.Id)
         {
             user.MembershipId = newTier.Id;
