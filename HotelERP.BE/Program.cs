@@ -1,23 +1,43 @@
+using HotelERP.BE.Configurations;
 using HotelERP.BE.DTOs.Common;
 using HotelERP.BE.Helpers.AuditLogs;
+using HotelERP.BE.Hubs;
 using HotelERP.BE.Infrastructure.Data;
+using HotelERP.BE.Services.Bookings;
+using HotelERP.BE.Services.Loyalty;
+using HotelERP.BE.Services.RoomTypes;
+using HotelERP.BE.Services.Rooms;
 using HotelERP.BE.Services.Vouchers;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
-using HotelERP.BE.Configurations;
-using HotelERP.BE.Services.Loyalty;
-using HotelERP.BE.Services.RoomTypes;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Connection string
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' was not found.");
 
+// CORS
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowSignalR", policy =>
+    {
+        policy
+            .SetIsOriginAllowed(_ => true)
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .AllowCredentials();
+    });
+});
+
+// Database
 builder.Services.AddDbContext<HotelDbContext>(options =>
     options.UseSqlServer(connectionString));
 
+// Controllers + Validation response
 builder.Services.AddControllers();
+
 builder.Services.Configure<ApiBehaviorOptions>(options =>
 {
     options.InvalidModelStateResponseFactory = context =>
@@ -27,7 +47,10 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
             .Select(x => new
             {
                 field = x.Key,
-                errors = x.Value!.Errors.Select(e => string.IsNullOrWhiteSpace(e.ErrorMessage) ? "Invalid value." : e.ErrorMessage)
+                errors = x.Value!.Errors.Select(e =>
+                    string.IsNullOrWhiteSpace(e.ErrorMessage)
+                        ? "Invalid value."
+                        : e.ErrorMessage)
             });
 
         var response = ApiResult<object>.Fail(
@@ -39,20 +62,30 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
         return new BadRequestObjectResult(response);
     };
 });
+
+// Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// Options
 builder.Services.Configure<LoyaltyPointsOptions>(
     builder.Configuration.GetSection(LoyaltyPointsOptions.SectionName));
 
+// DI Services
 builder.Services.AddScoped<ILoyaltyPointService, LoyaltyPointService>();
-
 builder.Services.AddScoped<IVoucherService, VoucherService>();
 builder.Services.AddScoped<IVoucherAuditLogHelper, VoucherAuditLogHelper>();
-
 builder.Services.AddScoped<IRoomTypeQueryService, RoomTypeQueryService>();
+builder.Services.AddScoped<IBookingVoucherService, BookingVoucherService>();
+builder.Services.AddScoped<IRoomService, RoomService>();
+
+// SignalR
+builder.Services.AddSignalR();
 
 var app = builder.Build();
+
+// Middleware
+app.UseCors("AllowSignalR");
 
 app.UseSwagger();
 app.UseSwaggerUI(c =>
@@ -61,7 +94,9 @@ app.UseSwaggerUI(c =>
     c.RoutePrefix = "swagger";
 });
 
+// Routes
 app.MapControllers();
+app.MapHub<RoomHub>("/roomHub");
 
 app.MapGet("/", () => Results.Redirect("/swagger"));
 
@@ -80,7 +115,10 @@ app.MapGet("/health/db", async () =>
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync();
 
-        await using var cmd = new SqlCommand("SELECT DB_NAME() AS DbName, @@SERVERNAME AS ServerName", connection);
+        await using var cmd = new SqlCommand(
+            "SELECT DB_NAME() AS DbName, @@SERVERNAME AS ServerName",
+            connection);
+
         await using var reader = await cmd.ExecuteReaderAsync();
         await reader.ReadAsync();
 
