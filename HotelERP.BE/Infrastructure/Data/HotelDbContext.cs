@@ -76,89 +76,119 @@ public partial class HotelDbContext : DbContext
 
     public virtual DbSet<Voucher> Vouchers { get; set; }
 
-    // 3. KÍCH HOẠT CAMERA AN NINH (CHANGETRACKER) TRƯỚC KHI LƯU VÀO DB
+    // 3. GHI ĐÈ PHƯƠNG THỨC LƯU THAY ĐỔI ĐỂ TỰ ĐỘNG GHI LOG VÀO BẢNG Audit_Logs MỖI KHI CÓ THAO TÁC THÊM/SỬA/XÓA DỮ LIỆU
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+{
+    var httpContext = _httpContextAccessor?.HttpContext;
+    var reason = httpContext?.Items["AuditReason"]?.ToString();
+    var actionName = httpContext?.Items["AuditAction"]?.ToString();
+    
+    var userIdClaim = httpContext?.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+    int? userId = int.TryParse(userIdClaim, out int id) ? id : null;
+
+    // Dùng Tuple để lưu tạm Entry, đối tượng Log và danh sách giá trị mới chưa có ID thật
+    var pendingAuditEntries = new List<(Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry Entry, AuditLog Log, Dictionary<string, object?> NewValues)>();
+
+    foreach (var entry in ChangeTracker.Entries())
     {
-        var httpContext = _httpContextAccessor?.HttpContext;
-        var reason = httpContext?.Items["AuditReason"]?.ToString();
-        var actionName = httpContext?.Items["AuditAction"]?.ToString();
-        
-        var userIdClaim = httpContext?.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-        int? userId = int.TryParse(userIdClaim, out int id) ? id : null;
+        // BỎ QUA CÁC BẢNG KHÔNG CẦN THEO DÕI
+        if (entry.Entity is AuditLog || 
+            entry.Entity is RefreshToken || 
+            entry.State == EntityState.Detached || 
+            entry.State == EntityState.Unchanged)
+            continue;
 
-        var auditEntries = new List<AuditLog>();
+        var tableName = entry.Metadata.GetTableName();
+        var oldValues = new Dictionary<string, object?>();
+        var newValues = new Dictionary<string, object?>();
 
-        foreach (var entry in ChangeTracker.Entries())
+        foreach (var property in entry.Properties)
         {
-            // BỎ QUA CÁC BẢNG KHÔNG CẦN THEO DÕI
-            // Thêm entry.Entity is RefreshToken vào để chặn log bảng này
-            if (entry.Entity is AuditLog || 
-                entry.Entity is RefreshToken || 
-                entry.State == EntityState.Detached || 
-                entry.State == EntityState.Unchanged)
+            if (property.IsTemporary && entry.State != EntityState.Added) continue; 
+            
+            string propertyName = property.Metadata.Name;
+
+            // BỎ QUA CÁC CỘT THAY ĐỔI THƯỜNG XUYÊN NHƯNG KHÔNG QUAN TRỌNG
+            if (propertyName == "LastLoginAt" || propertyName == "UpdatedAt")
                 continue;
 
-            var tableName = entry.Metadata.GetTableName();
-            var oldValues = new Dictionary<string, object?>();
-            var newValues = new Dictionary<string, object?>();
-
-            foreach (var property in entry.Properties)
+            switch (entry.State)
             {
-                if (property.IsTemporary) continue; 
-                
-                string propertyName = property.Metadata.Name;
-
-                // BỎ QUA CÁC CỘT THAY ĐỔI THƯỜNG XUYÊN NHƯNG KHÔNG QUAN TRỌNG
-                // Nếu người dùng chỉ đăng nhập (đổi LastLoginAt) thì không thèm ghi log
-                if (propertyName == "LastLoginAt" || propertyName == "UpdatedAt")
-                    continue;
-
-                switch (entry.State)
-                {
-                    case EntityState.Added:
-                        newValues[propertyName] = property.CurrentValue;
-                        break;
-                    case EntityState.Deleted:
+                case EntityState.Added:
+                    newValues[propertyName] = property.CurrentValue;
+                    break;
+                case EntityState.Deleted:
+                    oldValues[propertyName] = property.OriginalValue;
+                    break;
+                case EntityState.Modified:
+                    if (property.IsModified)
+                    {
                         oldValues[propertyName] = property.OriginalValue;
-                        break;
-                    case EntityState.Modified:
-                        if (property.IsModified)
-                        {
-                            oldValues[propertyName] = property.OriginalValue;
-                            newValues[propertyName] = property.CurrentValue;
-                        }
-                        break;
-                }
+                        newValues[propertyName] = property.CurrentValue;
+                    }
+                    break;
             }
-
-            // Nhờ có đoạn check này, nếu một User chỉ bị thay đổi mỗi cột "LastLoginAt", 
-            // 2 cái Dictionary kia sẽ trống rỗng (Count == 0), và nó sẽ LƯỚT QUA LUÔN không ghi thẻ Log nào cả!
-            if (oldValues.Count == 0 && newValues.Count == 0) continue;
-
-            var primaryKey = entry.Properties.FirstOrDefault(p => p.Metadata.IsPrimaryKey());
-            int recordId = primaryKey != null && primaryKey.CurrentValue != null && primaryKey.CurrentValue is int pkValue ? pkValue : 0;
-
-            string action = actionName ?? entry.State.ToString().ToUpper();
-
-            auditEntries.Add(new AuditLog
-            {
-                UserId = userId,
-                Action = action,
-                TableName = tableName ?? "Unknown",
-                RecordId = recordId,
-                OldValue = oldValues.Count > 0 ? System.Text.Json.JsonSerializer.Serialize(oldValues) : null,
-                NewValue = newValues.Count > 0 ? System.Text.Json.JsonSerializer.Serialize(newValues) : null,
-                Reason = reason,
-                CreatedAt = DateTime.UtcNow
-            });
         }
 
-        if (auditEntries.Count > 0)
+        if (oldValues.Count == 0 && newValues.Count == 0) continue;
+
+        string action = actionName ?? entry.State.ToString().ToUpper();
+
+        var auditLog = new AuditLog
         {
-            AuditLogs.AddRange(auditEntries);
+            UserId = userId,
+            Action = action,
+            TableName = tableName ?? "Unknown",
+            // CHƯA gán RecordId và NewValue vội vì SQL chưa cấp ID thật
+            OldValue = oldValues.Count > 0 ? System.Text.Json.JsonSerializer.Serialize(oldValues) : null,
+            Reason = reason,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        // Gói lại và bỏ vào danh sách chờ
+        pendingAuditEntries.Add((entry, auditLog, newValues));
+    }
+
+    // Nếu không có gì thay đổi, lưu bình thường rồi thoát
+    if (pendingAuditEntries.Count == 0)
+    {
+        return await base.SaveChangesAsync(cancellationToken);
+    }
+
+    // =========================================================================
+    // NHỊP 1: Lưu các thay đổi chính xuống Database để SQL Server cấp ID thật
+    // =========================================================================
+    var result = await base.SaveChangesAsync(cancellationToken);
+
+    // =========================================================================
+    // NHỊP 2: Moi ID thật vừa được cấp phát gán ngược lại vào AuditLog
+    // =========================================================================
+    foreach (var item in pendingAuditEntries)
+    {
+        var primaryKey = item.Entry.Properties.FirstOrDefault(p => p.Metadata.IsPrimaryKey());
+        int recordId = primaryKey != null && primaryKey.CurrentValue is int pkValue ? pkValue : 0;
+        
+        // Gán RecordId dương chuẩn xịn
+        item.Log.RecordId = recordId;
+
+        // Nếu là hành động Tạo Mới, bổ sung ID thật vào trong chuỗi JSON NewValue
+        if ((item.Log.Action == "ADDED" || item.Log.Action.Contains("CREATE")) && primaryKey != null)
+        {
+            item.NewValues[primaryKey.Metadata.Name] = primaryKey.CurrentValue;
         }
 
-        return await base.SaveChangesAsync(cancellationToken);
+        // Đóng gói JSON NewValue
+        item.Log.NewValue = item.NewValues.Count > 0 ? System.Text.Json.JsonSerializer.Serialize(item.NewValues) : null;
+
+        AuditLogs.Add(item.Log);
+    }
+
+    // =========================================================================
+    // NHỊP 3: Lưu toàn bộ AuditLogs chứa các ID thật
+    // =========================================================================
+    await base.SaveChangesAsync(cancellationToken);
+
+    return result;
     }
 
     //protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)

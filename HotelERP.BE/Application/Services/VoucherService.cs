@@ -15,12 +15,10 @@ public class VoucherService : IVoucherService
     private const string DiscountTypeFixedAmount = "FIXED_AMOUNT";
 
     private readonly HotelDbContext _dbContext;
-    private readonly IVoucherAuditLogHelper _voucherAuditLogHelper;
 
     public VoucherService(HotelDbContext dbContext, IVoucherAuditLogHelper voucherAuditLogHelper)
     {
         _dbContext = dbContext;
-        _voucherAuditLogHelper = voucherAuditLogHelper;
     }
 
     public async Task<ApiResult<List<VoucherResponseDto>>> GetAllAsync(string? status, string? search, CancellationToken cancellationToken = default)
@@ -133,15 +131,6 @@ public class VoucherService : IVoucherService
         _dbContext.Vouchers.Add(voucher);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        await _voucherAuditLogHelper.WriteAsync(
-            performedByUserId,
-            "CREATE_VOUCHER",
-            voucher.Id,
-            new { },
-            _voucherAuditLogHelper.BuildSnapshot(voucher),
-            request.Reason,
-            cancellationToken);
-
         return ApiResult<VoucherResponseDto>.Created(MapToResponse(voucher), "Tạo voucher thành công.", "CREATE_VOUCHER_SUCCESS");
     }
 
@@ -175,8 +164,6 @@ public class VoucherService : IVoucherService
             return validationResult;
         }
 
-        var oldSnapshot = _voucherAuditLogHelper.BuildSnapshot(voucher);
-
         voucher.Code = Normalize(request.Code)!;
         voucher.DiscountType = Normalize(request.DiscountType)!;
         voucher.DiscountValue = request.DiscountValue;
@@ -189,15 +176,6 @@ public class VoucherService : IVoucherService
         voucher.UpdatedAt = DateTime.UtcNow;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
-
-        await _voucherAuditLogHelper.WriteAsync(
-            performedByUserId,
-            "UPDATE_VOUCHER",
-            voucher.Id,
-            oldSnapshot,
-            _voucherAuditLogHelper.BuildSnapshot(voucher),
-            request.Reason,
-            cancellationToken);
 
         return ApiResult<VoucherResponseDto>.Ok(MapToResponse(voucher), "Cập nhật voucher thành công.", "UPDATE_VOUCHER_SUCCESS");
     }
@@ -227,23 +205,10 @@ public class VoucherService : IVoucherService
                 "Voucher đã ở trạng thái INACTIVE.");
         }
 
-        var oldSnapshot = _voucherAuditLogHelper.BuildSnapshot(voucher);
-
         voucher.Status = StatusInactive;
         voucher.UpdatedAt = DateTime.UtcNow;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
-
-        var newSnapshot = _voucherAuditLogHelper.BuildSnapshot(voucher);
-
-        await _voucherAuditLogHelper.WriteAsync(
-            performedByUserId,
-            "DISABLE_VOUCHER",
-            voucher.Id,
-            oldSnapshot,
-            newSnapshot,
-            request.Reason,
-            cancellationToken);
 
         return ApiResult<object>.Ok(new
         {
