@@ -1,4 +1,7 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Data.SqlClient;
+using HotelERP.BE.Infrastructure.Data; // Để tìm thấy HotelDbContext
+using HotelERP.Infrastructure.Interceptors;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -7,6 +10,14 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddHttpContextAccessor();
+
+builder.Services.AddDbContext<HotelDbContext>((sp, options) => {
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))
+           .AddInterceptors(sp.GetRequiredService<AuditLogInterceptor>());
+});
+
+builder.Services.AddScoped<AuditLogInterceptor>();
 
 var app = builder.Build();
 
