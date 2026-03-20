@@ -52,4 +52,9 @@ public class CloudinaryService : ICloudinaryService
         
         return result.Result == "ok";
     }
+
+    internal async Task UploadImageAsync(IFormFile file)
+    {
+        throw new NotImplementedException();
+    }
 }
