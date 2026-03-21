@@ -7,15 +7,21 @@ namespace HotelERP.BE.Infrastructure.Data;
 
 public partial class HotelDbContext : DbContext
 {
+    // 1. KHAI BÁO BIẾN ĐỂ LẤY THÔNG TIN TỪ HTTP REQUEST (Header, Token...)
+    private readonly Microsoft.AspNetCore.Http.IHttpContextAccessor? _httpContextAccessor;
     public HotelDbContext()
     {
     }
 
-    public HotelDbContext(DbContextOptions<HotelDbContext> options)
+    // 2. NHÚNG BỘ ĐỌC HTTP REQUEST VÀO CONSTRUCTOR CỦA DBCONTEXT
+    public HotelDbContext(DbContextOptions<HotelDbContext> options, Microsoft.AspNetCore.Http.IHttpContextAccessor? httpContextAccessor = null)
         : base(options)
     {
+        _httpContextAccessor = httpContextAccessor;
     }
 
+    public virtual DbSet<RefreshToken> RefreshTokens { get; set; }
+    
     public virtual DbSet<Amenity> Amenities { get; set; }
 
     public virtual DbSet<Article> Articles { get; set; }
@@ -67,6 +73,91 @@ public partial class HotelDbContext : DbContext
     public virtual DbSet<User> Users { get; set; }
 
     public virtual DbSet<Voucher> Vouchers { get; set; }
+
+    // 3. KÍCH HOẠT CAMERA AN NINH (CHANGETRACKER) TRƯỚC KHI LƯU VÀO DB
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        var httpContext = _httpContextAccessor?.HttpContext;
+        var reason = httpContext?.Items["AuditReason"]?.ToString();
+        var actionName = httpContext?.Items["AuditAction"]?.ToString();
+        
+        var userIdClaim = httpContext?.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        int? userId = int.TryParse(userIdClaim, out int id) ? id : null;
+
+        var auditEntries = new List<AuditLog>();
+
+        foreach (var entry in ChangeTracker.Entries())
+        {
+            // BỎ QUA CÁC BẢNG KHÔNG CẦN THEO DÕI
+            // Thêm entry.Entity is RefreshToken vào để chặn log bảng này
+            if (entry.Entity is AuditLog || 
+                entry.Entity is RefreshToken || 
+                entry.State == EntityState.Detached || 
+                entry.State == EntityState.Unchanged)
+                continue;
+
+            var tableName = entry.Metadata.GetTableName();
+            var oldValues = new Dictionary<string, object?>();
+            var newValues = new Dictionary<string, object?>();
+
+            foreach (var property in entry.Properties)
+            {
+                if (property.IsTemporary) continue; 
+                
+                string propertyName = property.Metadata.Name;
+
+                // BỎ QUA CÁC CỘT THAY ĐỔI THƯỜNG XUYÊN NHƯNG KHÔNG QUAN TRỌNG
+                // Nếu người dùng chỉ đăng nhập (đổi LastLoginAt) thì không thèm ghi log
+                if (propertyName == "LastLoginAt" || propertyName == "UpdatedAt")
+                    continue;
+
+                switch (entry.State)
+                {
+                    case EntityState.Added:
+                        newValues[propertyName] = property.CurrentValue;
+                        break;
+                    case EntityState.Deleted:
+                        oldValues[propertyName] = property.OriginalValue;
+                        break;
+                    case EntityState.Modified:
+                        if (property.IsModified)
+                        {
+                            oldValues[propertyName] = property.OriginalValue;
+                            newValues[propertyName] = property.CurrentValue;
+                        }
+                        break;
+                }
+            }
+
+            // Nhờ có đoạn check này, nếu một User chỉ bị thay đổi mỗi cột "LastLoginAt", 
+            // 2 cái Dictionary kia sẽ trống rỗng (Count == 0), và nó sẽ LƯỚT QUA LUÔN không ghi thẻ Log nào cả!
+            if (oldValues.Count == 0 && newValues.Count == 0) continue;
+
+            var primaryKey = entry.Properties.FirstOrDefault(p => p.Metadata.IsPrimaryKey());
+            int recordId = primaryKey != null && primaryKey.CurrentValue != null && primaryKey.CurrentValue is int pkValue ? pkValue : 0;
+
+            string action = actionName ?? entry.State.ToString().ToUpper();
+
+            auditEntries.Add(new AuditLog
+            {
+                UserId = userId,
+                Action = action,
+                TableName = tableName ?? "Unknown",
+                RecordId = recordId,
+                OldValue = oldValues.Count > 0 ? System.Text.Json.JsonSerializer.Serialize(oldValues) : null,
+                NewValue = newValues.Count > 0 ? System.Text.Json.JsonSerializer.Serialize(newValues) : null,
+                Reason = reason,
+                CreatedAt = DateTime.UtcNow
+            });
+        }
+
+        if (auditEntries.Count > 0)
+        {
+            AuditLogs.AddRange(auditEntries);
+        }
+
+        return await base.SaveChangesAsync(cancellationToken);
+    }
 
     //protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
 //#warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
@@ -1064,6 +1155,40 @@ public partial class HotelDbContext : DbContext
             entity.Property(e => e.ValidTo)
                 .HasColumnType("datetime")
                 .HasColumnName("valid_to");
+        });
+        modelBuilder.Entity<RefreshToken>(entity =>
+        {
+        entity.HasKey(e => e.Id);
+        entity.ToTable("Refresh_Tokens");
+
+        entity.Property(e => e.Id).HasColumnName("id");
+        entity.Property(e => e.UserId).HasColumnName("user_id");
+    
+        entity.Property(e => e.Token)
+        .HasMaxLength(500)
+        .HasColumnName("token");
+
+        entity.Property(e => e.JwtId)
+        .HasMaxLength(255)
+        .HasColumnName("jwt_id");
+
+        entity.Property(e => e.IsUsed).HasColumnName("is_used");
+        entity.Property(e => e.IsRevoked).HasColumnName("is_revoked");
+    
+        entity.Property(e => e.CreatedAt)
+        .HasColumnType("datetime")
+        .HasDefaultValueSql("(getdate())")
+        .HasColumnName("created_at");
+
+        entity.Property(e => e.ExpireAt)
+        .HasColumnType("datetime")
+        .HasColumnName("expire_at");
+
+        entity.HasOne(d => d.User)
+        .WithMany() // Liên kết 1 chiều từ RefreshToken về User
+        .HasForeignKey(d => d.UserId)
+        .OnDelete(DeleteBehavior.ClientSetNull)
+        .HasConstraintName("FK_RefreshTokens_Users");
         });
 
         OnModelCreatingPartial(modelBuilder);
