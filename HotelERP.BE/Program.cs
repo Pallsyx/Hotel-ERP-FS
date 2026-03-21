@@ -147,6 +147,7 @@ builder.Services.AddScoped<IVoucherAuditLogHelper, VoucherAuditLogHelper>();
 builder.Services.AddScoped<IRoomTypeQueryService, RoomTypeQueryService>();
 builder.Services.AddScoped<IBookingVoucherService, BookingVoucherService>();
 builder.Services.AddScoped<IRoomService, RoomService>();
+builder.Services.AddScoped<ArticleCategoryService>();
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddAuthorization();
