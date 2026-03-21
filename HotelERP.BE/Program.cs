@@ -1,29 +1,102 @@
-using HotelERP.BE.Utils;
-using HotelERP.BE.Services;
+using System.Text;
+using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
+using HotelERP.BE.API.Filters;
+using HotelERP.BE.Application.Interfaces;
+using HotelERP.BE.Application.Services;
 using HotelERP.BE.Infrastructure.Data;
-using System.Text.Json.Serialization;
+using HotelERP.BE.Services;
+using HotelERP.BE.Utils;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// 1. Cấu hình DbContext
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' was not found.");
 
+builder.Services.AddDbContext<HotelDbContext>(options =>
+    options.UseSqlServer(connectionString));
+
+// 2. Cấu hình Controllers và xử lý lỗi vòng lặp JSON
 builder.Services.AddControllers().AddJsonOptions(options =>
 {
     options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
 });
+
+// 3. Đăng ký các Services (DI)
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
 builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
 builder.Services.AddScoped<ArticleService>();
 builder.Services.AddScoped<LoyaltyService>();
-builder.Services.AddDbContext<HotelDbContext>(options =>
-    options.UseSqlServer(connectionString));
+
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IUserProfileService, UserProfileService>();
+builder.Services.AddScoped<IPhotoService, PhotoService>();
+builder.Services.AddScoped<IUserManagementService, UserManagementService>();
+
+// 4. Cấu hình JWT Authentication
+var jwtSettings = builder.Configuration.GetSection("JwtSettings");
+var secretKeyString = jwtSettings["Secret"] ?? "HotelERP_Super_Secret_Key_Must_Be_Long_Enough_2026_DotNet10";
+var secretKey = Encoding.UTF8.GetBytes(secretKeyString);
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.RequireHttpsMetadata = true; // Bắt buộc dùng HTTPS
+    options.SaveToken = true;
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = new SymmetricSecurityKey(secretKey),
+        ValidateIssuer = true,
+        ValidIssuer = jwtSettings["Issuer"] ?? "HotelERP.BE",
+        ValidateAudience = true,
+        ValidAudience = jwtSettings["Audience"] ?? "HotelERP.Clients",
+        ValidateLifetime = true,
+        ClockSkew = TimeSpan.Zero
+    };
+});
+builder.Services.AddAuthorization();
+
+// 5. Cấu hình Swagger (Tích hợp ổ khóa nhập Token JWT)
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.OperationFilter<AuditReasonHeaderFilter>(); // Thêm header "X-Audit-Reason" vào Swagger
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "Hotel ERP Backend API v1", Version = "v1" });
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Description = "Nhập 'Bearer' [khoảng trắng] và token của bạn vào ô bên dưới.\nVí dụ: 'Bearer eyJhbGci...'",
+        Name = "Authorization",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer"
+    });
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
+            },
+            Array.Empty<string>()
+        }
+    });
+});
+
 var app = builder.Build();
 
+// ==========================================
+// THIẾT LẬP MIDDLEWARE PIPELINE
+// ==========================================
 
 app.UseSwagger();
 app.UseSwaggerUI(c =>
@@ -32,7 +105,16 @@ app.UseSwaggerUI(c =>
     c.RoutePrefix = "swagger";
 });
 
-app.MapGet("/", () => Results.Redirect("/swagger"));
+app.UseHttpsRedirection(); // Bắt buộc HTTPS
+app.UseAuthentication();   // Xác thực phải đi trước Ủy quyền
+app.UseAuthorization();
+app.MapControllers();      // Gọi Controller
+
+// ==========================================
+// CÁC API HẠ TẦNG (Tự động ẩn khỏi Swagger)
+// ==========================================
+
+app.MapGet("/", () => Results.Redirect("/swagger")).ExcludeFromDescription();
 
 app.MapGet("/health", () => Results.Ok(new
 {
@@ -40,7 +122,7 @@ app.MapGet("/health", () => Results.Ok(new
     service = "HotelERP.BE",
     environment = app.Environment.EnvironmentName,
     utcTime = DateTime.UtcNow
-}));
+})).ExcludeFromDescription();
 
 app.MapGet("/health/db", async () =>
 {
@@ -71,7 +153,7 @@ app.MapGet("/health/db", async () =>
             detail: ex.Message,
             statusCode: StatusCodes.Status503ServiceUnavailable);
     }
-});
+}).ExcludeFromDescription();
 
 app.MapGet("/api/system/seed-summary", async () =>
 {
@@ -128,5 +210,5 @@ SELECT
             statusCode: StatusCodes.Status500InternalServerError);
     }
 });
-app.MapControllers();
+
 app.Run();
