@@ -32,7 +32,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
 builder.Services.AddScoped<ArticleService>();
 builder.Services.AddScoped<LoyaltyService>();
-
+builder.Services.AddScoped<ArticleCategoryService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserProfileService, UserProfileService>();
 builder.Services.AddScoped<IPhotoService, PhotoService>();

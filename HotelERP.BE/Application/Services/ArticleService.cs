@@ -4,6 +4,7 @@ using HotelERP.BE.DTOs;
 using HotelERP.BE.Utils;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using Microsoft.AspNetCore.Http; // Đã thêm thư viện xử lý File
 
 namespace HotelERP.BE.Services;
 
@@ -54,7 +55,8 @@ public class ArticleService
             thumbnailUrl = uploadResult.Url;
             thumbnailPublicId = uploadResult.PublicId;
         }
-int? resolvedCategoryId = null;
+        
+        int? resolvedCategoryId = null;
         if (!string.IsNullOrWhiteSpace(request.CategoryName))
         {
             var category = await _context.ArticleCategories
@@ -65,6 +67,7 @@ int? resolvedCategoryId = null;
                 
             resolvedCategoryId = category.Id;
         }
+        
         // 4. Tạo entity và lưu DB
         var newArticle = new Article
         {
@@ -100,15 +103,16 @@ int? resolvedCategoryId = null;
         article.Summary = request.Summary;
         article.UpdatedAt = DateTime.UtcNow;
         if (!string.IsNullOrWhiteSpace(request.CategoryName))
-                {
-                    var category = await _context.ArticleCategories
-                        .FirstOrDefaultAsync(c => c.Name == request.CategoryName);
-                        
-                    if (category == null)
-                        throw new Exception($"Không tìm thấy danh mục nào có tên là '{request.CategoryName}'.");
-                        
-                    article.CategoryId = category.Id;
-                }
+        {
+            var category = await _context.ArticleCategories
+                .FirstOrDefaultAsync(c => c.Name == request.CategoryName);
+                
+            if (category == null)
+                throw new Exception($"Không tìm thấy danh mục nào có tên là '{request.CategoryName}'.");
+                
+            article.CategoryId = category.Id;
+        }
+        
         if (request.Thumbnail != null)
         {
             // Xóa ảnh cũ trên Cloudinary
@@ -162,7 +166,6 @@ int? resolvedCategoryId = null;
         // TÌM THEO TÊN CHUYÊN MỤC (Thay vì ID)
         if (!string.IsNullOrWhiteSpace(categoryName)) 
         {
-            // SQL Server mặc định không phân biệt hoa/thường nên so sánh "==" là rất an toàn
             query = query.Where(a => a.Category != null && a.Category.Name == categoryName);
         }
 
@@ -181,5 +184,43 @@ int? resolvedCategoryId = null;
             .ToListAsync();
 
         return articles;
+    }
+
+    // ==========================================
+    // UPLOAD THUMBNAIL ĐỘC LẬP (HÀM MỚI THÊM)
+    // ==========================================
+    public async Task<string> UploadThumbnailAsync(int id, IFormFile file)
+    {
+        // 1. Tìm bài viết trong DB
+        var article = await _context.Articles.FindAsync(id);
+        if (article == null)
+        {
+            throw new Exception("Không tìm thấy bài viết với ID này.");
+        }
+
+        // 2. Gọi dịch vụ Cloudinary để upload ảnh
+        var uploadResult = await _cloudinary.UploadImageAsync(file, "articles"); 
+
+        if (string.IsNullOrEmpty(uploadResult.Url))
+        {
+            throw new Exception("Upload ảnh thất bại.");
+        }
+
+        // Xóa ảnh cũ trên Cloud nếu có để đỡ tốn dung lượng
+        if (!string.IsNullOrEmpty(article.ThumbnailPublicId))
+        {
+            await _cloudinary.DeleteImageAsync(article.ThumbnailPublicId);
+        }
+
+        // 3. Cập nhật đường dẫn ảnh mới vào bài viết
+        article.ThumbnailUrl = uploadResult.Url;
+        article.ThumbnailPublicId = uploadResult.PublicId;
+        article.UpdatedAt = DateTime.UtcNow;
+
+        // 4. Lưu xuống DB
+        _context.Articles.Update(article);
+        await _context.SaveChangesAsync();
+
+        return article.ThumbnailUrl;
     }
 }
