@@ -201,7 +201,7 @@ public class ArticleService
         // 2. Gọi dịch vụ Cloudinary để upload ảnh
         var uploadResult = await _cloudinary.UploadImageAsync(file, "articles"); 
 
-        if (uploadResult == null)
+        if (string.IsNullOrEmpty(uploadResult.Url))
         {
             throw new Exception("Upload ảnh thất bại.");
         }
