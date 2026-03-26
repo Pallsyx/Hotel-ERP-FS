@@ -4,6 +4,7 @@ using HotelERP.BE.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace HotelERP.BE.Migrations
 {
     [DbContext(typeof(HotelDbContext))]
-    partial class HotelDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260319155604_AddRefreshTokenTable")]
+    partial class AddRefreshTokenTable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -37,12 +40,6 @@ namespace HotelERP.BE.Migrations
                         .HasColumnName("created_at")
                         .HasDefaultValueSql("(getdate())", "DF_Amenities_CreatedAt");
 
-<<<<<<< HEAD
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("datetime2");
-
-=======
->>>>>>> origin/tienanh
                     b.Property<string>("IconUrl")
                         .HasColumnType("nvarchar(max)")
                         .HasColumnName("icon_url");
@@ -61,12 +58,6 @@ namespace HotelERP.BE.Migrations
                         .HasColumnName("status")
                         .HasDefaultValue("ACTIVE", "DF_Amenities_Status");
 
-<<<<<<< HEAD
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-=======
->>>>>>> origin/tienanh
                     b.HasKey("Id")
                         .HasName("PK__Amenitie__3213E83FF99261C0");
 
@@ -234,19 +225,11 @@ namespace HotelERP.BE.Migrations
                         .HasColumnType("nvarchar(max)")
                         .HasColumnName("image_url");
 
-<<<<<<< HEAD
-                    b.Property<decimal>("Latitude")
-                        .HasColumnType("decimal(10, 7)")
-                        .HasColumnName("latitude");
-
-                    b.Property<decimal>("Longitude")
-=======
                     b.Property<decimal?>("Latitude")
                         .HasColumnType("decimal(10, 7)")
                         .HasColumnName("latitude");
 
                     b.Property<decimal?>("Longitude")
->>>>>>> origin/tienanh
                         .HasColumnType("decimal(10, 7)")
                         .HasColumnName("longitude");
 
@@ -394,15 +377,6 @@ namespace HotelERP.BE.Migrations
                         .HasColumnType("datetime")
                         .HasColumnName("hold_expires_at");
 
-<<<<<<< HEAD
-                    b.Property<bool?>("IsPointsAwarded")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
-                        .HasDefaultValue(false)
-                        .HasColumnName("is_points_awarded");
-
-=======
->>>>>>> origin/tienanh
                     b.Property<string>("Notes")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)")
@@ -663,19 +637,11 @@ namespace HotelERP.BE.Migrations
                         .HasColumnType("int")
                         .HasColumnName("booking_detail_id");
 
-<<<<<<< HEAD
-                    b.Property<DateTime?>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("datetime")
-                        .HasColumnName("created_at")
-                        .HasDefaultValueSql("(getdate())");
-=======
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime")
                         .HasColumnName("created_at")
                         .HasDefaultValueSql("(getdate())", "DF_LossAndDamages_CreatedAt");
->>>>>>> origin/tienanh
 
                     b.Property<string>("Description")
                         .HasColumnType("nvarchar(max)")
@@ -698,125 +664,32 @@ namespace HotelERP.BE.Migrations
                         .HasColumnType("int")
                         .HasColumnName("quantity");
 
-<<<<<<< HEAD
-                    b.Property<int?>("ReportedByUserId")
-                        .HasColumnType("int")
-                        .HasColumnName("reported_by_user_id");
-
-                    b.Property<int?>("RoomId")
-                        .HasColumnType("int")
-                        .HasColumnName("room_id");
-
-=======
->>>>>>> origin/tienanh
                     b.Property<int?>("RoomInventoryId")
                         .HasColumnType("int")
                         .HasColumnName("room_inventory_id");
 
                     b.Property<string>("Status")
-<<<<<<< HEAD
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)")
-                        .HasDefaultValue("OPEN")
-                        .HasColumnName("status");
-=======
                         .IsRequired()
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)")
                         .HasColumnName("status")
                         .HasDefaultValue("OPEN", "DF_LossAndDamages_Status");
->>>>>>> origin/tienanh
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime")
                         .HasColumnName("updated_at");
 
                     b.HasKey("Id")
-<<<<<<< HEAD
-                        .HasName("PKLoss_And3213E83FCAB03BE1");
-
-                    b.HasIndex("BookingDetailId");
-
-                    b.HasIndex("RoomId");
-
-=======
                         .HasName("PK__Loss_And__3213E83FCAB03BE1");
 
                     b.HasIndex("BookingDetailId");
 
->>>>>>> origin/tienanh
                     b.HasIndex("RoomInventoryId");
 
                     b.ToTable("Loss_And_Damages", (string)null);
                 });
 
-<<<<<<< HEAD
-            modelBuilder.Entity("HotelERP.BE.Domain.Models.LoyaltyPointHistory", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasColumnName("id");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("ActionType")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)")
-                        .HasColumnName("action_type");
-
-                    b.Property<int>("BalanceAfter")
-                        .HasColumnType("int")
-                        .HasColumnName("balance_after");
-
-                    b.Property<int>("BalanceBefore")
-                        .HasColumnType("int")
-                        .HasColumnName("balance_before");
-
-                    b.Property<int>("BookingId")
-                        .HasColumnType("int")
-                        .HasColumnName("booking_id");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("datetime")
-                        .HasColumnName("created_at")
-                        .HasDefaultValueSql("(getdate())", "DF_LoyaltyPointHistories_CreatedAt");
-
-                    b.Property<int>("PointsAdded")
-                        .HasColumnType("int")
-                        .HasColumnName("points_added");
-
-                    b.Property<string>("Reason")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)")
-                        .HasColumnName("reason");
-
-                    b.Property<decimal>("SourceAmount")
-                        .HasColumnType("decimal(18, 2)")
-                        .HasColumnName("source_amount");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("int")
-                        .HasColumnName("user_id");
-
-                    b.HasKey("Id")
-                        .HasName("PK__LoyaltyPointHistories__3213E83F");
-
-                    b.HasIndex(new[] { "UserId" }, "IX_LoyaltyPointHistories_UserId");
-
-                    b.HasIndex(new[] { "BookingId", "ActionType" }, "UQ_LoyaltyPointHistories_BookingAction")
-                        .IsUnique();
-
-                    b.ToTable("Loyalty_Point_Histories", (string)null);
-                });
-
-=======
->>>>>>> origin/tienanh
             modelBuilder.Entity("HotelERP.BE.Domain.Models.Membership", b =>
                 {
                     b.Property<int>("Id")
@@ -1302,12 +1175,6 @@ namespace HotelERP.BE.Migrations
                         .HasColumnName("created_at")
                         .HasDefaultValueSql("(getdate())", "DF_Rooms_CreatedAt");
 
-<<<<<<< HEAD
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("datetime2");
-
-=======
->>>>>>> origin/tienanh
                     b.Property<int?>("Floor")
                         .HasColumnType("int")
                         .HasColumnName("floor");
@@ -1493,24 +1360,12 @@ namespace HotelERP.BE.Migrations
                         .HasColumnType("int")
                         .HasColumnName("capacity_children");
 
-<<<<<<< HEAD
-                    b.Property<string>("CloudinaryPublicId")
-                        .HasColumnType("nvarchar(max)");
-
-=======
->>>>>>> origin/tienanh
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime")
                         .HasColumnName("created_at")
                         .HasDefaultValueSql("(getdate())", "DF_RoomTypes_CreatedAt");
 
-<<<<<<< HEAD
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("datetime2");
-
-=======
->>>>>>> origin/tienanh
                     b.Property<string>("Description")
                         .HasColumnType("nvarchar(max)")
                         .HasColumnName("description");
@@ -1523,12 +1378,6 @@ namespace HotelERP.BE.Migrations
                         .HasColumnType("decimal(18, 2)")
                         .HasColumnName("extra_hour_price");
 
-<<<<<<< HEAD
-                    b.Property<string>("ImageUrl")
-                        .HasColumnType("nvarchar(max)");
-
-=======
->>>>>>> origin/tienanh
                     b.Property<decimal>("LateCheckoutFeePercent")
                         .HasColumnType("decimal(5, 2)")
                         .HasColumnName("late_checkout_fee_percent");
@@ -1937,14 +1786,6 @@ namespace HotelERP.BE.Migrations
                         .HasForeignKey("BookingDetailId")
                         .HasConstraintName("FK_LossAndDamages_BookingDetails");
 
-<<<<<<< HEAD
-                    b.HasOne("HotelERP.BE.Domain.Models.Room", "Room")
-                        .WithMany("LossAndDamages")
-                        .HasForeignKey("RoomId")
-                        .HasConstraintName("FK_LossAndDamages_Rooms");
-
-=======
->>>>>>> origin/tienanh
                     b.HasOne("HotelERP.BE.Domain.Models.RoomInventory", "RoomInventory")
                         .WithMany("LossAndDamages")
                         .HasForeignKey("RoomInventoryId")
@@ -1952,38 +1793,9 @@ namespace HotelERP.BE.Migrations
 
                     b.Navigation("BookingDetail");
 
-<<<<<<< HEAD
-                    b.Navigation("Room");
-
                     b.Navigation("RoomInventory");
                 });
 
-            modelBuilder.Entity("HotelERP.BE.Domain.Models.LoyaltyPointHistory", b =>
-                {
-                    b.HasOne("HotelERP.BE.Domain.Models.Booking", "Booking")
-                        .WithMany()
-                        .HasForeignKey("BookingId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("FK_LoyaltyPointHistories_Bookings");
-
-                    b.HasOne("HotelERP.BE.Domain.Models.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("FK_LoyaltyPointHistories_Users");
-
-                    b.Navigation("Booking");
-
-                    b.Navigation("User");
-                });
-
-=======
-                    b.Navigation("RoomInventory");
-                });
-
->>>>>>> origin/tienanh
             modelBuilder.Entity("HotelERP.BE.Domain.Models.OrderService", b =>
                 {
                     b.HasOne("HotelERP.BE.Domain.Models.BookingDetail", "BookingDetail")
@@ -2199,11 +2011,6 @@ namespace HotelERP.BE.Migrations
                 {
                     b.Navigation("BookingDetails");
 
-<<<<<<< HEAD
-                    b.Navigation("LossAndDamages");
-
-=======
->>>>>>> origin/tienanh
                     b.Navigation("RoomInventories");
                 });
 
