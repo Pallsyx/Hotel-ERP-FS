@@ -10,7 +10,7 @@ namespace HotelERP.API.Controllers;
 public class RoomsController(IRoomService roomService) : ControllerBase
 {
     [HttpGet]
-    [Authorize(Roles = "Manager,Receptionist,Housekeeping,SUPER_ADMIN")]
+    [Authorize(Roles = "Manager,Receptionist,Housekeeping,Admin")]
     public async Task<IActionResult> GetRooms([FromQuery] RoomFilterRequest filter)
     {
         var rooms = await roomService.GetRoomsAsync(filter);
@@ -18,7 +18,7 @@ public class RoomsController(IRoomService roomService) : ControllerBase
     }
 
     [HttpGet("{id}")]
-    [Authorize(Roles = "Manager,Receptionist,Housekeeping,SUPER_ADMIN")]
+    [Authorize(Roles = "Manager,Receptionist,Housekeeping,Admin")]
     public async Task<IActionResult> GetRoom(int id)
     {
         var room = await roomService.GetRoomByIdAsync(id);
@@ -27,7 +27,7 @@ public class RoomsController(IRoomService roomService) : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Manager,Admin,SUPER_ADMIN")]
+    [Authorize(Roles = "Manager,Admin")]
     public async Task<IActionResult> CreateRoom([FromBody] CreateRoomRequest request)
     {
         var roomId = await roomService.CreateRoomAsync(request);
@@ -35,7 +35,7 @@ public class RoomsController(IRoomService roomService) : ControllerBase
     }
 
     [HttpPut("{id}")]
-    [Authorize(Roles = "Manager,Admin,SUPER_ADMIN")]
+    [Authorize(Roles = "Manager,Admin")]
     public async Task<IActionResult> UpdateRoom(int id, [FromBody] UpdateRoomRequest request)
     {
         var result = await roomService.UpdateRoomAsync(id, request);
@@ -44,7 +44,7 @@ public class RoomsController(IRoomService roomService) : ControllerBase
     }
 
     [HttpDelete("{id}")]
-    [Authorize(Roles = "Manager,SUPER_ADMIN")]
+    [Authorize(Roles = "Manager,Admin")]
     public async Task<IActionResult> DeleteRoom(int id)
     {
         var result = await roomService.DeleteRoomAsync(id);
@@ -53,7 +53,7 @@ public class RoomsController(IRoomService roomService) : ControllerBase
     }
 
     [HttpPatch("{id}/cleaning-status")]
-    [Authorize(Roles = "Manager,Housekeeping,SUPER_ADMIN")]
+    [Authorize(Roles = "Manager,Housekeeping,Admin")]
     public async Task<IActionResult> UpdateCleaningStatus(int id, [FromBody] UpdateCleaningStatusRequest request)
     {
         var valid = new[] { "CLEAN", "DIRTY", "INSPECTING" };
@@ -65,7 +65,7 @@ public class RoomsController(IRoomService roomService) : ControllerBase
     }
 
     [HttpPatch("{id}/status")]
-    [Authorize(Roles = "Manager,Receptionist,SUPER_ADMIN")]
+    [Authorize(Roles = "Manager,Receptionist,Admin")]
     public async Task<IActionResult> UpdateRoomStatus(int id, [FromBody] UpdateRoomStatusRequest request)
     {
         var valid = new[] { "AVAILABLE", "OCCUPIED", "MAINTENANCE", "OUT_OF_ORDER" };
@@ -77,7 +77,7 @@ public class RoomsController(IRoomService roomService) : ControllerBase
     }
 
     [HttpPost("loss-damages")]
-    [Authorize(Roles = "Manager,Housekeeping,Receptionist,SUPER_ADMIN")]
+    [Authorize(Roles = "Manager,Housekeeping,Receptionist,Admin")]
     [Consumes("multipart/form-data")] 
     public async Task<IActionResult> ReportDamage([FromForm] ReportDamageRequest request)
     {

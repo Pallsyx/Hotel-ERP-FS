@@ -36,7 +36,7 @@ public class RoomTypesController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Manager,SUPER_ADMIN")]
+    [Authorize(Roles = "Manager,Admin")]
     [Consumes("multipart/form-data")] 
     public async Task<IActionResult> CreateRoomType([FromForm] CreateRoomTypeRequest request)
     {
@@ -45,7 +45,7 @@ public class RoomTypesController : ControllerBase
     }
 
     [HttpPut("{id}")]
-    [Authorize(Roles = "Manager,SUPER_ADMIN")]
+    [Authorize(Roles = "Manager,Admin")]
     [Consumes("multipart/form-data")] 
     public async Task<IActionResult> UpdateRoomType(int id, [FromForm] UpdateRoomTypeRequest request)
     {
@@ -55,7 +55,7 @@ public class RoomTypesController : ControllerBase
     }
 
     [HttpDelete("{id}")]
-    [Authorize(Roles = "Manager,SUPER_ADMIN")]
+    [Authorize(Roles = "Manager,Admin")]
     public async Task<IActionResult> DeleteRoomType(int id)
     {
         var result = await _roomTypeService.DeleteRoomTypeAsync(id);

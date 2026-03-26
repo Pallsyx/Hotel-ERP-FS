@@ -70,7 +70,7 @@ public class BookingEngineController : ControllerBase
         return Ok(new { success = true, message = "Đặt phòng thành công (Holding)", bookingId });
     }
 
-    [Authorize(Roles = "SUPER_ADMIN")]
+    [Authorize(Roles = "Admin")]
     [HttpPut("admin/force-cancel/{id}")]
     [AuditLogInterceptor("Admin can thiệp hủy giữ phòng", "Bookings")] 
     public async Task<IActionResult> ForceCancel(int id)
@@ -82,7 +82,7 @@ public class BookingEngineController : ControllerBase
         return Ok(new { success = true, message = "Đã ép hủy và ghi nhận vào Audit Log." });
     }
 
-    [Authorize(Roles = "RECEPTIONIST,SUPER_ADMIN")]
+    [Authorize(Roles = "Receptionist,Admin")]
     [HttpGet("assignable-rooms/{typeId}")]
     public async Task<IActionResult> GetRoomsForCheckIn(int typeId)
     {

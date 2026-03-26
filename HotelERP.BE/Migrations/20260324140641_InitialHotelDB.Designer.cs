@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace HotelERP.BE.Migrations
 {
     [DbContext(typeof(HotelDbContext))]
-    [Migration("20260320212015_AddVoucherAndSignalR")]
-    partial class AddVoucherAndSignalR
+    [Migration("20260324140641_InitialHotelDB")]
+    partial class InitialHotelDB
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

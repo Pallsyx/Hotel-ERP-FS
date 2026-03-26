@@ -64,7 +64,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("admin/generate-reset-link")]
-    [Authorize] // Tạm thời yêu cầu có Token để gọi. Sau này có thể thêm [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> AdminGenerateResetLink([FromBody] AdminResetPasswordRequest request)
     {
         try

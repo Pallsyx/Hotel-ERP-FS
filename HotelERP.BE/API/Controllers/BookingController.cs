@@ -8,7 +8,7 @@ namespace HotelERP.BE.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize] // Yêu cầu phải có Token đăng nhập
+    [Authorize(Roles = "Admin,Manager,Receptionist")]
     public class BookingController : ControllerBase
     {
         private readonly HotelDbContext _context;

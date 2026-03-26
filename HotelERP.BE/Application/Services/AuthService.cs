@@ -53,7 +53,7 @@ public class AuthService : IAuthService
 
         // 2. Tự động tìm Role "Customer" (Khách hàng) trong Database
         // Lưu ý: Đổi chữ "Customer" thành tên chính xác trong bảng Roles của bạn (VD: "Guest", "Khách hàng"...)
-        var customerRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name == "Customer");
+        var customerRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name == "Guest");
         if (customerRole == null)
             throw new Exception("Hệ thống chưa cấu hình quyền Khách hàng mặc định.");
 
@@ -196,7 +196,7 @@ public class AuthService : IAuthService
     }
 
     // --- CÁC HÀM PRIVATE HỖ TRỢ ---
-
+    
     private async Task<TokenResponse> GenerateTokensAsync(User user)
     {
         var tokenHandler = new JwtSecurityTokenHandler();

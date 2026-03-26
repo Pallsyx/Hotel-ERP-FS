@@ -148,6 +148,8 @@ builder.Services.AddScoped<IRoomTypeQueryService, RoomTypeQueryService>();
 builder.Services.AddScoped<IBookingVoucherService, BookingVoucherService>();
 builder.Services.AddScoped<IRoomService, RoomService>();
 builder.Services.AddScoped<ArticleCategoryService>();
+builder.Services.AddScoped<IAmenityService, AmenityService>();
+
 
 
 builder.Services.AddHttpContextAccessor();
@@ -178,6 +180,17 @@ builder.Services.AddSwaggerGen(c =>
         }
     });
 });
+// Cấu hình CORS cho Swagger UI (nếu cần, thường là không cần vì Swagger UI chạy cùng domain với API)
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy.WithOrigins("http://localhost:5173") // Link Frontend của bạn
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials(); // Bắt buộc để sau này xài SignalR
+    });
+});
 
 // ==========================================
 // BUILD APP
@@ -204,6 +217,7 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.UseHttpsRedirection(); 
+app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
