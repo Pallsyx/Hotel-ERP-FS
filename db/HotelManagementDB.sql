@@ -47,6 +47,9 @@ IF OBJECT_ID(N'[dbo].[Role_Permissions]', N'U') IS NOT NULL DROP TABLE [dbo].[Ro
 IF OBJECT_ID(N'[dbo].[Permissions]', N'U') IS NOT NULL DROP TABLE [dbo].[Permissions];
 IF OBJECT_ID(N'[dbo].[Roles]', N'U') IS NOT NULL DROP TABLE [dbo].[Roles];
 IF OBJECT_ID(N'[dbo].[Vouchers]', N'U') IS NOT NULL DROP TABLE [dbo].[Vouchers];
+IF OBJECT_ID(N'[dbo].[Article_Categories]', N'U') IS NOT NULL DROP TABLE [dbo].[Article_Categories];
+IF OBJECT_ID(N'[dbo].[Refresh_Tokens]', N'U') IS NOT NULL DROP TABLE [dbo].[Refresh_Tokens]; -- Thêm dòng này vào đây
+IF OBJECT_ID(N'[dbo].[Users]', N'U') IS NOT NULL DROP TABLE [dbo].[Users];
 GO
 
 -- =========================================================================
@@ -451,6 +454,22 @@ CREATE TABLE [dbo].[Audit_Logs](
 );
 GO
 
+CREATE TABLE [dbo].[Refresh_Tokens] (
+    [id] int NOT NULL IDENTITY,
+    [user_id] int NOT NULL,
+    [token] nvarchar(500) NOT NULL,
+    [jwt_id] nvarchar(255) NOT NULL,
+    [is_used] bit NOT NULL,
+    [is_revoked] bit NOT NULL,
+    [created_at] datetime NOT NULL DEFAULT (getdate()),
+    [expire_at] datetime NOT NULL,
+    CONSTRAINT [PK_Refresh_Tokens] PRIMARY KEY ([id]),
+    CONSTRAINT [FK_RefreshTokens_Users] FOREIGN KEY ([user_id]) REFERENCES [dbo].[Users] ([id])
+);
+GO
+
+CREATE INDEX [IX_Refresh_Tokens_user_id] ON [dbo].[Refresh_Tokens] ([user_id]);
+GO
 
 -- =========================================================================
 -- PHẦN 3: NẠP DỮ LIỆU MỚI (TỪ FILE EDITED CỦA BẠN)
