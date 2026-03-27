@@ -1,7 +1,9 @@
 using System.Text;
+using Hangfire;
 using HotelERP.BE.API.Filters;
 using HotelERP.BE.Application.Interfaces;
 using HotelERP.BE.Application.Services;
+using HotelERP.BE.DTOs.Hubs;
 using HotelERP.BE.Infrastructure.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Data.SqlClient;
