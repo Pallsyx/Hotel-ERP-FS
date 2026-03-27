@@ -1,34 +1,21 @@
-using Microsoft.Data.SqlClient;
-using Microsoft.EntityFrameworkCore;
+using System.Text;
+using HotelERP.BE.API.Filters;
+using HotelERP.BE.Application.Interfaces;
+using HotelERP.BE.Application.Services;
 using HotelERP.BE.Infrastructure.Data;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Data.SqlClient;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// --- 1. CẤU HÌNH DATABASE ---
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' was not found.");
 
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowSignalR", p => p
-        .SetIsOriginAllowed(_ => true) // Chấp nhận mọi nguồn, kể cả file://
-        .AllowAnyMethod()
-        .AllowAnyHeader()
-        .AllowCredentials()); // Chìa khóa bắt buộc của SignalR
-});
-
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-builder.Services.AddControllers();
-builder.Services.AddDbContext<HotelDbContext>(options => options.UseSqlServer(connectionString));
-builder.Services.AddScoped<HotelERP.BE.Services.Bookings.IBookingVoucherService, HotelERP.BE.Services.Bookings.BookingVoucherService>();
-builder.Services.AddSignalR(); // Bật tính năng SignalR
-builder.Services.AddScoped<HotelERP.BE.Services.Rooms.IRoomService, HotelERP.BE.Services.Rooms.RoomService>(); // Đăng ký Service phòng
 
 var app = builder.Build();
-
-app.UseCors("AllowSignalR");
-
-app.MapControllers();
 
 app.UseSwagger();
 app.MapHub<HotelERP.BE.Hubs.RoomHub>("/roomHub");
@@ -38,16 +25,30 @@ app.UseSwaggerUI(c =>
     c.RoutePrefix = "swagger";
 });
 
-app.MapGet("/", () => Results.Redirect("/swagger"));
-
-app.MapGet("/health", () => Results.Ok(new
+// Hangfire Job của bạn
+using (var scope = app.Services.CreateScope())
 {
-    status = "ok",
-    service = "HotelERP.BE",
-    environment = app.Environment.EnvironmentName,
-    utcTime = DateTime.UtcNow
-}));
+    var recurringJobManager = scope.ServiceProvider.GetRequiredService<IRecurringJobManager>();
+    recurringJobManager.AddOrUpdate("ReleaseExpiredBookings", 
+        () => scope.ServiceProvider.GetRequiredService<IBookingEngineService>().ReleaseExpiredBookingsAsync(), 
+        Cron.Minutely);
+}
 
+app.UseHttpsRedirection(); 
+app.UseCors("AllowFrontend");
+app.UseAuthentication();
+app.UseAuthorization();
+app.MapControllers();
+
+// SignalR Hub của Long
+app.MapHub<RoomHub>("/roomHub");
+
+// --- 8. MINIMAL APIS (Health Checks & Summary) ---
+app.MapGet("/", () => Results.Redirect("/swagger")).ExcludeFromDescription();
+
+app.MapGet("/health", () => Results.Ok(new { status = "ok", utcTime = DateTime.UtcNow })).ExcludeFromDescription();
+
+// Health DB (Bản của Long xịn hơn)
 app.MapGet("/health/db", async () =>
 {
     try
@@ -55,7 +56,9 @@ app.MapGet("/health/db", async () =>
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync();
 
-        await using var cmd = new SqlCommand("SELECT DB_NAME() AS DbName, @@SERVERNAME AS ServerName", connection);
+        await using var cmd = new SqlCommand(
+            "SELECT DB_NAME() AS DbName, @@SERVERNAME AS ServerName",
+            connection);
         await using var reader = await cmd.ExecuteReaderAsync();
         await reader.ReadAsync();
 
@@ -72,12 +75,9 @@ app.MapGet("/health/db", async () =>
     }
     catch (Exception ex)
     {
-        return Results.Problem(
-            title: "Database connection failed",
-            detail: ex.Message,
-            statusCode: StatusCodes.Status503ServiceUnavailable);
+        return Results.Problem(detail: ex.Message, statusCode: 503);
     }
-});
+}).ExcludeFromDescription();
 
 app.MapGet("/api/system/seed-summary", async () =>
 {
@@ -85,54 +85,16 @@ app.MapGet("/api/system/seed-summary", async () =>
     {
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync();
-
-        var sql = @"
-SELECT 
-    (SELECT COUNT(*) FROM Roles) AS roles_count,
-    (SELECT COUNT(*) FROM Users) AS users_count,
-    (SELECT COUNT(*) FROM Memberships) AS memberships_count,
-    (SELECT COUNT(*) FROM Room_Types) AS room_types_count,
-    (SELECT COUNT(*) FROM Rooms) AS rooms_count,
-    (SELECT COUNT(*) FROM Vouchers) AS vouchers_count,
-    (SELECT COUNT(*) FROM Bookings) AS bookings_count,
-    (SELECT COUNT(*) FROM Booking_Details) AS booking_details_count,
-    (SELECT COUNT(*) FROM Invoices) AS invoices_count,
-    (SELECT COUNT(*) FROM Payments) AS payments_count,
-    (SELECT COUNT(*) FROM Articles) AS articles_count,
-    (SELECT COUNT(*) FROM Attractions) AS attractions_count,
-    (SELECT COUNT(*) FROM Reviews) AS reviews_count,
-    (SELECT COUNT(*) FROM Audit_Logs) AS audit_logs_count;";
-
+        var sql = "SELECT (SELECT COUNT(*) FROM Users) AS users, (SELECT COUNT(*) FROM Rooms) AS rooms, (SELECT COUNT(*) FROM Bookings) AS bookings";
         await using var cmd = new SqlCommand(sql, connection);
         await using var reader = await cmd.ExecuteReaderAsync();
         await reader.ReadAsync();
-
-        return Results.Ok(new
-        {
-            message = "Seed data summary",
-            roles = reader.GetInt32(0),
-            users = reader.GetInt32(1),
-            memberships = reader.GetInt32(2),
-            roomTypes = reader.GetInt32(3),
-            rooms = reader.GetInt32(4),
-            vouchers = reader.GetInt32(5),
-            bookings = reader.GetInt32(6),
-            bookingDetails = reader.GetInt32(7),
-            invoices = reader.GetInt32(8),
-            payments = reader.GetInt32(9),
-            articles = reader.GetInt32(10),
-            attractions = reader.GetInt32(11),
-            reviews = reader.GetInt32(12),
-            auditLogs = reader.GetInt32(13)
-        });
+        return Results.Ok(new { users = reader[0], rooms = reader[1], bookings = reader[2] });
     }
     catch (Exception ex)
     {
-        return Results.Problem(
-            title: "Failed to read seed summary",
-            detail: ex.Message,
-            statusCode: StatusCodes.Status500InternalServerError);
+        return Results.Problem(detail: ex.Message);
     }
-});
+}).ExcludeFromDescription();
 
 app.Run();

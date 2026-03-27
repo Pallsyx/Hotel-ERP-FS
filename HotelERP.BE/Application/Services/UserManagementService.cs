@@ -1,0 +1,190 @@
+using HotelERP.BE.Application.DTOs.UserManagement;
+using HotelERP.BE.Application.Interfaces;
+using HotelERP.BE.Domain.Models;
+using HotelERP.BE.Infrastructure.Data;
+using Microsoft.EntityFrameworkCore;
+
+namespace HotelERP.BE.Application.Services;
+
+public class UserManagementService : IUserManagementService
+{
+    private readonly HotelDbContext _context;
+
+    public UserManagementService(HotelDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<IEnumerable<UserListItemResponse>> GetAllUsersAsync()
+    {
+        return await _context.Users
+            .Include(u => u.Role)
+            .OrderByDescending(u => u.CreatedAt)
+            .Select(u => new UserListItemResponse {
+                Id = u.Id,
+                FullName = u.FullName,
+                Email = u.Email,
+                Phone = u.Phone,
+                RoleName = u.Role != null ? u.Role.Name : "N/A",
+                Status = u.Status,
+                CreatedAt = u.CreatedAt
+            }).ToListAsync();
+    }
+
+    public async Task<bool> CreateUserAsync(AdminCreateUserRequest request)
+    {
+        if (await _context.Users.AnyAsync(u => u.Email == request.Email))
+            throw new Exception("Email đã tồn tại.");
+
+        var user = new User {
+            FullName = request.FullName,
+            Email = request.Email,
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
+            RoleId = request.RoleId,
+            Phone = request.Phone,
+            Status = true,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        await _context.Users.AddAsync(user);
+        return await _context.SaveChangesAsync() > 0;
+    }
+
+    public async Task<bool> DeleteUserAsync(int id)
+    {
+        var user = await _context.Users.FindAsync(id);
+        if (user == null) return false;
+
+        // Thay vì xóa cứng, ta dùng xóa mềm bằng cách đổi Status
+        user.Status = false; 
+        return await _context.SaveChangesAsync() > 0;
+    }
+
+    public async Task<bool> ChangeUserRoleAsync(int id, int newRoleId)
+    {
+        var user = await _context.Users.FindAsync(id);
+        if (user == null) return false;
+
+        user.RoleId = newRoleId;
+        return await _context.SaveChangesAsync() > 0;
+    }
+
+    public async Task<bool> UpdateUserAsync(int id, AdminUpdateUserRequest request)
+    {
+        var user = await _context.Users.FindAsync(id);
+        if (user == null) return false;
+
+        user.FullName = request.FullName;
+        user.Phone = request.Phone;
+        user.Status = request.Status;
+        
+        return await _context.SaveChangesAsync() > 0;
+    }
+
+    public async Task<IEnumerable<RolePermissionResponse>> GetRolesWithPermissionsAsync()
+    {
+    return await _context.Roles
+        .Include(r => r.RolePermissions)
+        .ThenInclude(rp => rp.Permission)
+        .Select(r => new RolePermissionResponse {
+            RoleId = r.Id,
+            RoleName = r.Name,
+            // Rút trích mảng tên quyền (VD: ["VIEW_DASHBOARD", "MANAGE_ROOMS"])
+            Permissions = r.RolePermissions.Select(rp => rp.Permission.Name).ToList()
+        })
+        .ToListAsync();
+    }
+    // 1. Hàm lấy danh sách Quyền và gom nhóm
+public async Task<List<PermissionTree>> GetGroupedPermissionsAsync()
+{
+    // Lấy tất cả quyền từ DB (Bảng Permissions [id, name])
+    var allPermissions = await _context.Permissions.ToListAsync();
+
+    // Do bảng gốc của bạn chỉ có id và name, ta sẽ tự gom nhóm bằng code để UI đẹp hơn
+    var tree = new List<PermissionTree>
+    {
+        new PermissionTree 
+        { 
+            Title = "1. Hệ thống & Quản trị", Key = "g1",
+            Children = allPermissions.Where(p => p.Name == "VIEW_DASHBOARD" || p.Name == "MANAGE_USERS" || p.Name == "MANAGE_ROLES")
+                .Select(p => new PermissionNode { Title = p.Name, Key = p.Name }).ToList()
+        },
+        new PermissionTree 
+        { 
+            Title = "2. Quản lý Đặt phòng & Phòng", Key = "g2",
+            Children = allPermissions.Where(p => p.Name == "MANAGE_ROOMS" || p.Name == "MANAGE_BOOKINGS")
+                .Select(p => new PermissionNode { Title = p.Name, Key = p.Name }).ToList()
+        },
+        new PermissionTree 
+        { 
+            Title = "3. Quản lý Dịch vụ & Tài chính", Key = "g3",
+            Children = allPermissions.Where(p => p.Name == "MANAGE_INVOICES" || p.Name == "MANAGE_SERVICES" || p.Name == "VIEW_REPORTS")
+                .Select(p => new PermissionNode { Title = p.Name, Key = p.Name }).ToList()
+        },
+        new PermissionTree 
+        { 
+            Title = "4. Quản lý Nội dung & Kho", Key = "g4",
+            Children = allPermissions.Where(p => p.Name == "MANAGE_CONTENT" || p.Name == "MANAGE_INVENTORY")
+                .Select(p => new PermissionNode { Title = p.Name, Key = p.Name }).ToList()
+        }
+    };
+
+    return tree;
+}
+
+// 2. Hàm Cập nhật Quyền cho Role
+public async Task<bool> UpdateRolePermissionsAsync(int roleId, RolePermissionsRequest request)
+{
+    // Tìm Role trong DB
+    var role = await _context.Roles
+        .Include(r => r.RolePermissions)
+        .FirstOrDefaultAsync(r => r.Id == roleId);
+
+    if (role == null) throw new Exception("Không tìm thấy chức vụ này!");
+
+    // Không cho phép sửa quyền của Admin (An toàn hệ thống)
+    if (role.Name == "Admin") throw new Exception("Không thể thay đổi quyền của Admin tối cao!");
+
+    // Cập nhật thông tin cơ bản
+    role.Description = request.Description ?? role.Description;
+    // role.Status = request.Status; // (Mở comment nếu bảng Roles của bạn có cột Status)
+
+    // XÓA TOÀN BỘ quyền cũ của Role này trong bảng Role_Permissions
+    _context.RolePermissions.RemoveRange(role.RolePermissions);
+
+    // Lấy ID của các quyền mới dựa trên PermissionCodes (Name) gửi lên
+    var newPermissions = await _context.Permissions
+        .Where(p => request.PermissionCodes.Contains(p.Name))
+        .ToListAsync();
+
+    // THÊM CÁC quyền mới vào
+    foreach (var permission in newPermissions)
+    {
+        _context.RolePermissions.Add(new RolePermission 
+        { 
+            RoleId = roleId, 
+            PermissionId = permission.Id 
+        });
+    }
+
+    await _context.SaveChangesAsync();
+    return true;
+    }
+    // Hàm lấy tất cả Role để hiển thị trong dropdown 
+    public async Task<List<RoleListItemResponse>> GetAllRolesAsync()
+    {
+    var roles = await _context.Roles
+        .Select(r => new RoleListItemResponse
+        {
+            Id = r.Id,
+            Name = r.Name,
+            Description = r.Description,
+            // Lấy mảng tên các quyền của Role này để Frontend check cây phân quyền
+            PermissionCodes = r.RolePermissions.Select(rp => rp.Permission.Name).ToList(),
+            Status = true // Tạm hardcode true nếu bảng Roles của bạn không có cột trạng thái
+        })
+        .ToListAsync();
+
+    return roles;
+    }
+}

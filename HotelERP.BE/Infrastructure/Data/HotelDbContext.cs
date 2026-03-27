@@ -7,14 +7,22 @@ namespace HotelERP.BE.Infrastructure.Data;
 
 public partial class HotelDbContext : DbContext
 {
+    // 1. KHAI BÁO BIẾN ĐỂ LẤY THÔNG TIN TỪ HTTP REQUEST (Header, Token...)
+    private readonly Microsoft.AspNetCore.Http.IHttpContextAccessor? _httpContextAccessor;
     public HotelDbContext()
     {
     }
 
-    public HotelDbContext(DbContextOptions<HotelDbContext> options)
+    // 2. NHÚNG BỘ ĐỌC HTTP REQUEST VÀO CONSTRUCTOR CỦA DBCONTEXT
+    public HotelDbContext(DbContextOptions<HotelDbContext> options, Microsoft.AspNetCore.Http.IHttpContextAccessor? httpContextAccessor = null)
         : base(options)
     {
+        _httpContextAccessor = httpContextAccessor;
     }
+
+    public virtual DbSet<RefreshToken> RefreshTokens { get; set; }
+    
+    public virtual DbSet<LoyaltyPointHistory> LoyaltyPointHistories { get; set; }
 
     public virtual DbSet<Amenity> Amenities { get; set; }
 
@@ -68,12 +76,134 @@ public partial class HotelDbContext : DbContext
 
     public virtual DbSet<Voucher> Vouchers { get; set; }
 
+    // 3. GHI ĐÈ PHƯƠNG THỨC LƯU THAY ĐỔI ĐỂ TỰ ĐỘNG GHI LOG VÀO BẢNG Audit_Logs MỖI KHI CÓ THAO TÁC THÊM/SỬA/XÓA DỮ LIỆU
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+{
+    var httpContext = _httpContextAccessor?.HttpContext;
+    var reason = httpContext?.Items["AuditReason"]?.ToString();
+    var actionName = httpContext?.Items["AuditAction"]?.ToString();
+    
+    var userIdClaim = httpContext?.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+    int? userId = int.TryParse(userIdClaim, out int id) ? id : null;
+
+    // Dùng Tuple để lưu tạm Entry, đối tượng Log và danh sách giá trị mới chưa có ID thật
+    var pendingAuditEntries = new List<(Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry Entry, AuditLog Log, Dictionary<string, object?> NewValues)>();
+
+    foreach (var entry in ChangeTracker.Entries())
+    {
+        // BỎ QUA CÁC BẢNG KHÔNG CẦN THEO DÕI
+        if (entry.Entity is AuditLog || 
+            entry.Entity is RefreshToken || 
+            entry.State == EntityState.Detached || 
+            entry.State == EntityState.Unchanged)
+            continue;
+
+        var tableName = entry.Metadata.GetTableName();
+        var oldValues = new Dictionary<string, object?>();
+        var newValues = new Dictionary<string, object?>();
+
+        foreach (var property in entry.Properties)
+        {
+            if (property.IsTemporary && entry.State != EntityState.Added) continue; 
+            
+            string propertyName = property.Metadata.Name;
+
+            // BỎ QUA CÁC CỘT THAY ĐỔI THƯỜNG XUYÊN NHƯNG KHÔNG QUAN TRỌNG
+            if (propertyName == "LastLoginAt" || propertyName == "UpdatedAt")
+                continue;
+
+            switch (entry.State)
+            {
+                case EntityState.Added:
+                    newValues[propertyName] = property.CurrentValue;
+                    break;
+                case EntityState.Deleted:
+                    oldValues[propertyName] = property.OriginalValue;
+                    break;
+                case EntityState.Modified:
+                    if (property.IsModified)
+                    {
+                        oldValues[propertyName] = property.OriginalValue;
+                        newValues[propertyName] = property.CurrentValue;
+                    }
+                    break;
+            }
+        }
+
+        if (oldValues.Count == 0 && newValues.Count == 0) continue;
+
+        string action = actionName ?? entry.State.ToString().ToUpper();
+
+        var auditLog = new AuditLog
+        {
+            UserId = userId,
+            Action = action,
+            TableName = tableName ?? "Unknown",
+            // CHƯA gán RecordId và NewValue vội vì SQL chưa cấp ID thật
+            OldValue = oldValues.Count > 0 ? System.Text.Json.JsonSerializer.Serialize(oldValues) : null,
+            Reason = reason,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        // Gói lại và bỏ vào danh sách chờ
+        pendingAuditEntries.Add((entry, auditLog, newValues));
+    }
+
+    // Nếu không có gì thay đổi, lưu bình thường rồi thoát
+    if (pendingAuditEntries.Count == 0)
+    {
+        return await base.SaveChangesAsync(cancellationToken);
+    }
+
+    // =========================================================================
+    // NHỊP 1: Lưu các thay đổi chính xuống Database để SQL Server cấp ID thật
+    // =========================================================================
+    var result = await base.SaveChangesAsync(cancellationToken);
+
+    // =========================================================================
+    // NHỊP 2: Moi ID thật vừa được cấp phát gán ngược lại vào AuditLog
+    // =========================================================================
+    foreach (var item in pendingAuditEntries)
+    {
+        var primaryKey = item.Entry.Properties.FirstOrDefault(p => p.Metadata.IsPrimaryKey());
+        int recordId = primaryKey != null && primaryKey.CurrentValue is int pkValue ? pkValue : 0;
+        
+        // Gán RecordId dương chuẩn xịn
+        item.Log.RecordId = recordId;
+
+        // Nếu là hành động Tạo Mới, bổ sung ID thật vào trong chuỗi JSON NewValue
+        if ((item.Log.Action == "ADDED" || item.Log.Action.Contains("CREATE")) && primaryKey != null)
+        {
+            item.NewValues[primaryKey.Metadata.Name] = primaryKey.CurrentValue;
+        }
+
+        // Đóng gói JSON NewValue
+        item.Log.NewValue = item.NewValues.Count > 0 ? System.Text.Json.JsonSerializer.Serialize(item.NewValues) : null;
+
+        AuditLogs.Add(item.Log);
+    }
+
+    // =========================================================================
+    // NHỊP 3: Lưu toàn bộ AuditLogs chứa các ID thật
+    // =========================================================================
+    await base.SaveChangesAsync(cancellationToken);
+
+    return result;
+    }
+
     //protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
 //#warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
        // => optionsBuilder.UseSqlServer("Server=localhost,1433;Database=HotelManagementDB;User Id=sa;Password=HotelERP@2026!;TrustServerCertificate=True;");
 
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
+   protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+       
+        modelBuilder.Entity<ArticleCategory>().HasQueryFilter(c => c.Status == "ACTIVE");
+        
+        modelBuilder.Entity<Article>().HasQueryFilter(a => 
+            a.Status == "ACTIVE" && 
+            (a.Category == null || a.Category.Status == "ACTIVE")
+        );
         modelBuilder.Entity<Amenity>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("PK__Amenitie__3213E83FF99261C0");
@@ -238,6 +368,9 @@ public partial class HotelDbContext : DbContext
 
         modelBuilder.Entity<Booking>(entity =>
         {
+            entity.Property(e => e.IsPointsAwarded)
+            .HasDefaultValue(false)
+            .HasColumnName("is_points_awarded");
             entity.HasKey(e => e.Id).HasName("PK__Bookings__3213E83FD44E63A2");
 
             entity.HasIndex(e => new { e.UserId, e.Status, e.PaymentStatus }, "IX_Bookings_UserStatus");
@@ -440,42 +573,81 @@ public partial class HotelDbContext : DbContext
 
         modelBuilder.Entity<LossAndDamage>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Loss_And__3213E83FCAB03BE1");
+        entity.HasKey(e => e.Id).HasName("PKLoss_And3213E83FCAB03BE1");
+        entity.ToTable("Loss_And_Damages");
 
-            entity.ToTable("Loss_And_Damages");
+        entity.Property(e => e.Id).HasColumnName("id");
+
+        // GIỮ NGUYÊN BẢN GỐC SQL
+        entity.Property(e => e.BookingDetailId).HasColumnName("booking_detail_id");
+        entity.Property(e => e.RoomInventoryId).HasColumnName("room_inventory_id");
+        entity.Property(e => e.Quantity).HasColumnName("quantity");
+        entity.Property(e => e.PenaltyAmount).HasColumnType("decimal(18, 2)").HasColumnName("penalty_amount");
+        entity.Property(e => e.Description).HasColumnName("description");
+        entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getdate())").HasColumnType("datetime").HasColumnName("created_at");
+
+        // PHẦN THÊM VÀO (Không ảnh hưởng SQL gốc)
+        entity.Property(e => e.EvidenceImageUrl).HasColumnName("evidence_image_url");
+        entity.Property(e => e.EvidencePublicId).HasMaxLength(255).HasColumnName("evidence_public_id");
+        entity.Property(e => e.Status).HasMaxLength(20).HasDefaultValue("OPEN").HasColumnName("status");
+        entity.Property(e => e.UpdatedAt).HasColumnType("datetime").HasColumnName("updated_at");
+        entity.Property(e => e.RoomId).HasColumnName("room_id");
+        entity.Property(e => e.ReportedByUserId).HasColumnName("reported_by_user_id");
+
+        entity.HasOne(d => d.BookingDetail).WithMany(p => p.LossAndDamages)
+        .HasForeignKey(d => d.BookingDetailId)
+        .HasConstraintName("FK_LossAndDamages_BookingDetails");
+
+        entity.HasOne(d => d.RoomInventory).WithMany(p => p.LossAndDamages)
+        .HasForeignKey(d => d.RoomInventoryId)
+        .HasConstraintName("FK_LossAndDamages_RoomInventory");
+
+        entity.HasOne(d => d.Room).WithMany(p => p.LossAndDamages)
+        .HasForeignKey(d => d.RoomId)
+        .HasConstraintName("FK_LossAndDamages_Rooms");
+        });
+        
+
+        modelBuilder.Entity<LoyaltyPointHistory>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK__LoyaltyPointHistories__3213E83F");
+
+            entity.ToTable("Loyalty_Point_Histories");
+
+            entity.HasIndex(e => new { e.BookingId, e.ActionType }, "UQ_LoyaltyPointHistories_BookingAction").IsUnique();
+
+            entity.HasIndex(e => e.UserId, "IX_LoyaltyPointHistories_UserId");
 
             entity.Property(e => e.Id).HasColumnName("id");
-            entity.Property(e => e.BookingDetailId).HasColumnName("booking_detail_id");
+            entity.Property(e => e.ActionType)
+                  .HasMaxLength(50)
+                  .HasColumnName("action_type");
+            entity.Property(e => e.BalanceAfter).HasColumnName("balance_after");
+            entity.Property(e => e.BalanceBefore).HasColumnName("balance_before");
+            entity.Property(e => e.BookingId).HasColumnName("booking_id");
             entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getdate())", "DF_LossAndDamages_CreatedAt")
-                .HasColumnType("datetime")
-                .HasColumnName("created_at");
-            entity.Property(e => e.Description).HasColumnName("description");
-            entity.Property(e => e.EvidenceImageUrl).HasColumnName("evidence_image_url");
-            entity.Property(e => e.EvidencePublicId)
-                .HasMaxLength(255)
-                .HasColumnName("evidence_public_id");
-            entity.Property(e => e.PenaltyAmount)
-                .HasColumnType("decimal(18, 2)")
-                .HasColumnName("penalty_amount");
-            entity.Property(e => e.Quantity).HasColumnName("quantity");
-            entity.Property(e => e.RoomInventoryId).HasColumnName("room_inventory_id");
-            entity.Property(e => e.Status)
-                .HasMaxLength(20)
-                .HasDefaultValue("OPEN", "DF_LossAndDamages_Status")
-                .HasColumnName("status");
-            entity.Property(e => e.UpdatedAt)
-                .HasColumnType("datetime")
-                .HasColumnName("updated_at");
+                  .HasDefaultValueSql("(getdate())", "DF_LoyaltyPointHistories_CreatedAt")
+                  .HasColumnType("datetime")
+                  .HasColumnName("created_at");
+            entity.Property(e => e.PointsAdded).HasColumnName("points_added");
+            entity.Property(e => e.Reason)
+                  .HasMaxLength(500)
+                  .HasColumnName("reason");
+            entity.Property(e => e.SourceAmount)
+                  .HasColumnType("decimal(18, 2)")
+                  .HasColumnName("source_amount");
+            entity.Property(e => e.UserId).HasColumnName("user_id");
 
-            entity.HasOne(d => d.BookingDetail).WithMany(p => p.LossAndDamages)
-                .HasForeignKey(d => d.BookingDetailId)
-                .HasConstraintName("FK_LossAndDamages_BookingDetails");
+            entity.HasOne(d => d.Booking).WithMany()
+                  .HasForeignKey(d => d.BookingId)
+                  .OnDelete(DeleteBehavior.Restrict)
+                  .HasConstraintName("FK_LoyaltyPointHistories_Bookings");
 
-            entity.HasOne(d => d.RoomInventory).WithMany(p => p.LossAndDamages)
-                .HasForeignKey(d => d.RoomInventoryId)
-                .HasConstraintName("FK_LossAndDamages_RoomInventory");
-        });
+            entity.HasOne(d => d.User).WithMany()
+                  .HasForeignKey(d => d.UserId)
+                  .OnDelete(DeleteBehavior.Restrict)
+                  .HasConstraintName("FK_LoyaltyPointHistories_Users");
+       });
 
         modelBuilder.Entity<Membership>(entity =>
         {
@@ -676,6 +848,12 @@ public partial class HotelDbContext : DbContext
             entity.HasOne(d => d.User).WithMany(p => p.Reviews)
                 .HasForeignKey(d => d.UserId)
                 .HasConstraintName("FK_Reviews_Users");
+
+            // ==========================================
+            // THÊM MỚI: GLOBAL QUERY FILTER CHO SOFT DELETE
+            // Tự động lọc các review bị ẩn khỏi mọi truy vấn GET
+            // ==========================================
+            entity.HasQueryFilter(e => e.IsApproved);
         });
 
         modelBuilder.Entity<Role>(entity =>
@@ -1055,6 +1233,43 @@ public partial class HotelDbContext : DbContext
                 .HasColumnType("datetime")
                 .HasColumnName("valid_to");
         });
+        modelBuilder.Entity<RefreshToken>(entity =>
+        {
+        entity.HasKey(e => e.Id);
+        entity.ToTable("Refresh_Tokens");
+
+        entity.Property(e => e.Id).HasColumnName("id");
+        entity.Property(e => e.UserId).HasColumnName("user_id");
+    
+        entity.Property(e => e.Token)
+        .HasMaxLength(500)
+        .HasColumnName("token");
+
+        entity.Property(e => e.JwtId)
+        .HasMaxLength(255)
+        .HasColumnName("jwt_id");
+
+        entity.Property(e => e.IsUsed).HasColumnName("is_used");
+        entity.Property(e => e.IsRevoked).HasColumnName("is_revoked");
+    
+        entity.Property(e => e.CreatedAt)
+        .HasColumnType("datetime")
+        .HasDefaultValueSql("(getdate())")
+        .HasColumnName("created_at");
+
+        entity.Property(e => e.ExpireAt)
+        .HasColumnType("datetime")
+        .HasColumnName("expire_at");
+
+        entity.HasOne(d => d.User)
+        .WithMany() // Liên kết 1 chiều từ RefreshToken về User
+        .HasForeignKey(d => d.UserId)
+        .OnDelete(DeleteBehavior.ClientSetNull)
+        .HasConstraintName("FK_RefreshTokens_Users");
+        });
+
+        modelBuilder.Entity<Room>().HasQueryFilter(r => r.DeletedAt == null);
+        modelBuilder.Entity<RoomType>().HasQueryFilter(rt => rt.DeletedAt == null);
 
         OnModelCreatingPartial(modelBuilder);
     }

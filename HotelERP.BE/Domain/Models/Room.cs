@@ -23,9 +23,13 @@ public partial class Room
 
     public DateTime? UpdatedAt { get; set; }
 
+    public DateTime? DeletedAt { get; set; }
+
     public virtual ICollection<BookingDetail> BookingDetails { get; set; } = new List<BookingDetail>();
 
     public virtual ICollection<RoomInventory> RoomInventories { get; set; } = new List<RoomInventory>();
 
     public virtual RoomType? RoomType { get; set; }
+    
+    public virtual ICollection<LossAndDamage> LossAndDamages { get; set; } = new List<LossAndDamage>();
 }
