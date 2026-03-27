@@ -7,7 +7,6 @@ var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' was not found.");
 
-// CỤC NÀY TAO ĐÃ SỬA LẠI ĐỂ CHẠY ĐƯỢC SIGNALR VỚI HTML LOCAL
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowSignalR", p => p
@@ -27,7 +26,6 @@ builder.Services.AddScoped<HotelERP.BE.Services.Rooms.IRoomService, HotelERP.BE.
 
 var app = builder.Build();
 
-// GỌI CORS VỚI CÁI TÊN POLICY MỚI TAO VỪA TẠO
 app.UseCors("AllowSignalR");
 
 app.MapControllers();
