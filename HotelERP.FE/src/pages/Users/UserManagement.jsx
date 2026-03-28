@@ -241,7 +241,7 @@ const UserManagement = () => {
   {
     title: 'Trạng thái', dataIndex: 'status', key: 'status', align: 'center',
     render: (status, record) => {
-      // 👉 KHÓA ADMIN: Nếu là Admin thì không cho gạt nút trạng thái [cite: 191]
+      // 👉 KHÓA ADMIN: Nếu là Admin thì không cho gạt nút trạng thái
       const isTargetAdmin = record.roleName === 'Admin';
       return (
         <Switch
@@ -257,7 +257,7 @@ const UserManagement = () => {
   {
     title: 'Hành động', key: 'action', align: 'center',
     render: (_, record) => {
-      // 👉 KHÓA ADMIN: Nếu dòng này là Admin thì vô hiệu hóa các nút chỉnh sửa [cite: 193]
+      // 👉 KHÓA ADMIN: Nếu dòng này là Admin thì vô hiệu hóa các nút chỉnh sửa
       const isTargetAdmin = record.roleName === 'Admin';
       
       return (
