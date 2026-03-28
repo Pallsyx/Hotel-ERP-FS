@@ -1,5 +1,5 @@
 /*
-    BẢN GỘP HOÀN CHỈNH: CẤU TRÚC GỐC + DỮ LIỆU ĐÃ EDIT
+    BẢN GỘP HOÀN CHỈNH: CẤU TRÚC GỐC + DỮ LIỆU ĐÃ EDIT + USER_PERMISSIONS
 */
 
 SET NOCOUNT ON;
@@ -20,36 +20,44 @@ GO
 EXEC sp_MSforeachtable "ALTER TABLE ? NOCHECK CONSTRAINT all"
 GO
 
-IF OBJECT_ID(N'[dbo].[Loyalty_Point_Histories]', N'U') IS NOT NULL DROP TABLE [dbo].[Loyalty_Point_Histories];
+-- 1. Xóa các bảng "Con của Con" (Cấp 3)
+IF OBJECT_ID(N'[dbo].[Refresh_Tokens]', N'U') IS NOT NULL DROP TABLE [dbo].[Refresh_Tokens];
+IF OBJECT_ID(N'[dbo].[Notifications]', N'U') IS NOT NULL DROP TABLE [dbo].[Notifications];
+IF OBJECT_ID(N'[dbo].[Audit_Logs]', N'U') IS NOT NULL DROP TABLE [dbo].[Audit_Logs];
 IF OBJECT_ID(N'[dbo].[Payments]', N'U') IS NOT NULL DROP TABLE [dbo].[Payments];
-IF OBJECT_ID(N'[dbo].[Invoices]', N'U') IS NOT NULL DROP TABLE [dbo].[Invoices];
 IF OBJECT_ID(N'[dbo].[Order_Service_Details]', N'U') IS NOT NULL DROP TABLE [dbo].[Order_Service_Details];
-IF OBJECT_ID(N'[dbo].[Order_Services]', N'U') IS NOT NULL DROP TABLE [dbo].[Order_Services];
 IF OBJECT_ID(N'[dbo].[Loss_And_Damages]', N'U') IS NOT NULL DROP TABLE [dbo].[Loss_And_Damages];
+IF OBJECT_ID(N'[dbo].[User_Permissions]', N'U') IS NOT NULL DROP TABLE [dbo].[User_Permissions]; -- BẢNG NGOẠI LỆ MỚI THÊM
+
+-- 2. Xóa các bảng "Con" (Cấp 2 - Trỏ trực tiếp vào Users, Bookings, Rooms)
+IF OBJECT_ID(N'[dbo].[Invoices]', N'U') IS NOT NULL DROP TABLE [dbo].[Invoices];
+IF OBJECT_ID(N'[dbo].[Order_Services]', N'U') IS NOT NULL DROP TABLE [dbo].[Order_Services];
 IF OBJECT_ID(N'[dbo].[Booking_Details]', N'U') IS NOT NULL DROP TABLE [dbo].[Booking_Details];
-IF OBJECT_ID(N'[dbo].[Bookings]', N'U') IS NOT NULL DROP TABLE [dbo].[Bookings];
+IF OBJECT_ID(N'[dbo].[Reviews]', N'U') IS NOT NULL DROP TABLE [dbo].[Reviews];
+IF OBJECT_ID(N'[dbo].[Articles]', N'U') IS NOT NULL DROP TABLE [dbo].[Articles];
+IF OBJECT_ID(N'[dbo].[Role_Permissions]', N'U') IS NOT NULL DROP TABLE [dbo].[Role_Permissions];
 IF OBJECT_ID(N'[dbo].[Room_Inventory]', N'U') IS NOT NULL DROP TABLE [dbo].[Room_Inventory];
 IF OBJECT_ID(N'[dbo].[Room_Images]', N'U') IS NOT NULL DROP TABLE [dbo].[Room_Images];
 IF OBJECT_ID(N'[dbo].[RoomType_Amenities]', N'U') IS NOT NULL DROP TABLE [dbo].[RoomType_Amenities];
-IF OBJECT_ID(N'[dbo].[Reviews]', N'U') IS NOT NULL DROP TABLE [dbo].[Reviews];
-IF OBJECT_ID(N'[dbo].[Articles]', N'U') IS NOT NULL DROP TABLE [dbo].[Articles];
-IF OBJECT_ID(N'[dbo].[Audit_Logs]', N'U') IS NOT NULL DROP TABLE [dbo].[Audit_Logs];
-IF OBJECT_ID(N'[dbo].[Services]', N'U') IS NOT NULL DROP TABLE [dbo].[Services];
-IF OBJECT_ID(N'[dbo].[Service_Categories]', N'U') IS NOT NULL DROP TABLE [dbo].[Service_Categories];
+
+-- 3. Xóa các bảng "Cha" (Cấp 1 - Nơi chứa dữ liệu gốc)
+-- Bảng Bookings phải xóa trước Users
+IF OBJECT_ID(N'[dbo].[Bookings]', N'U') IS NOT NULL DROP TABLE [dbo].[Bookings];
+-- Bảng Users bây giờ đã "tự do", có thể xóa an toàn
+IF OBJECT_ID(N'[dbo].[Users]', N'U') IS NOT NULL DROP TABLE [dbo].[Users];
+
+-- 4. Xóa các bảng danh mục còn lại
 IF OBJECT_ID(N'[dbo].[Rooms]', N'U') IS NOT NULL DROP TABLE [dbo].[Rooms];
 IF OBJECT_ID(N'[dbo].[Room_Types]', N'U') IS NOT NULL DROP TABLE [dbo].[Room_Types];
+IF OBJECT_ID(N'[dbo].[Services]', N'U') IS NOT NULL DROP TABLE [dbo].[Services];
+IF OBJECT_ID(N'[dbo].[Service_Categories]', N'U') IS NOT NULL DROP TABLE [dbo].[Service_Categories];
+IF OBJECT_ID(N'[dbo].[Vouchers]', N'U') IS NOT NULL DROP TABLE [dbo].[Vouchers];
+IF OBJECT_ID(N'[dbo].[Memberships]', N'U') IS NOT NULL DROP TABLE [dbo].[Memberships];
+IF OBJECT_ID(N'[dbo].[Roles]', N'U') IS NOT NULL DROP TABLE [dbo].[Roles];
+IF OBJECT_ID(N'[dbo].[Permissions]', N'U') IS NOT NULL DROP TABLE [dbo].[Permissions];
 IF OBJECT_ID(N'[dbo].[Amenities]', N'U') IS NOT NULL DROP TABLE [dbo].[Amenities];
 IF OBJECT_ID(N'[dbo].[Attractions]', N'U') IS NOT NULL DROP TABLE [dbo].[Attractions];
 IF OBJECT_ID(N'[dbo].[Article_Categories]', N'U') IS NOT NULL DROP TABLE [dbo].[Article_Categories];
-IF OBJECT_ID(N'[dbo].[Users]', N'U') IS NOT NULL DROP TABLE [dbo].[Users];
-IF OBJECT_ID(N'[dbo].[Memberships]', N'U') IS NOT NULL DROP TABLE [dbo].[Memberships];
-IF OBJECT_ID(N'[dbo].[Role_Permissions]', N'U') IS NOT NULL DROP TABLE [dbo].[Role_Permissions];
-IF OBJECT_ID(N'[dbo].[Permissions]', N'U') IS NOT NULL DROP TABLE [dbo].[Permissions];
-IF OBJECT_ID(N'[dbo].[Roles]', N'U') IS NOT NULL DROP TABLE [dbo].[Roles];
-IF OBJECT_ID(N'[dbo].[Vouchers]', N'U') IS NOT NULL DROP TABLE [dbo].[Vouchers];
-IF OBJECT_ID(N'[dbo].[Article_Categories]', N'U') IS NOT NULL DROP TABLE [dbo].[Article_Categories];
-IF OBJECT_ID(N'[dbo].[Refresh_Tokens]', N'U') IS NOT NULL DROP TABLE [dbo].[Refresh_Tokens]; -- Thêm dòng này vào đây
-IF OBJECT_ID(N'[dbo].[Users]', N'U') IS NOT NULL DROP TABLE [dbo].[Users];
 GO
 
 -- =========================================================================
@@ -118,6 +126,18 @@ CREATE TABLE [dbo].[Users](
     CONSTRAINT [UQ_Users_Email] UNIQUE ([email]),
     CONSTRAINT [FK_Users_Roles] FOREIGN KEY ([role_id]) REFERENCES [dbo].[Roles]([id]),
     CONSTRAINT [FK_Users_Memberships] FOREIGN KEY ([membership_id]) REFERENCES [dbo].[Memberships]([id])
+);
+GO
+
+-- BẢNG MỚI: NGOẠI LỆ QUYỀN CẤP CÁ NHÂN (USER PERMISSIONS)
+CREATE TABLE [dbo].[User_Permissions] (
+    [user_id] INT NOT NULL,
+    [permission_id] INT NOT NULL,
+    [is_granted] BIT NOT NULL, -- 1: Cấp thêm quyền ngoài Role, 0: Tước quyền sẵn có của Role
+    [created_at] DATETIME DEFAULT GETDATE(),
+    CONSTRAINT [PK_User_Permissions] PRIMARY KEY ([user_id], [permission_id]),
+    CONSTRAINT [FK_UserPermissions_Users] FOREIGN KEY ([user_id]) REFERENCES [dbo].[Users]([id]),
+    CONSTRAINT [FK_UserPermissions_Permissions] FOREIGN KEY ([permission_id]) REFERENCES [dbo].[Permissions]([id])
 );
 GO
 
@@ -454,6 +474,17 @@ CREATE TABLE [dbo].[Audit_Logs](
 );
 GO
 
+CREATE TABLE [dbo].[Notifications] (
+    [id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    [user_id] INT NULL,
+    [title] NVARCHAR(255) NOT NULL,
+    [content] NVARCHAR(MAX) NOT NULL,
+    [is_read] BIT DEFAULT 0,
+    [created_at] DATETIME DEFAULT GETDATE(),
+    FOREIGN KEY ([user_id]) REFERENCES [dbo].[Users]([id])
+);
+GO
+
 CREATE TABLE [dbo].[Refresh_Tokens] (
     [id] int NOT NULL IDENTITY,
     [user_id] int NOT NULL,
@@ -477,9 +508,24 @@ GO
 
 -- BẢNG QUYỀN HẠN & VAI TRÒ
 SET IDENTITY_INSERT [dbo].[Permissions] ON 
-INSERT [dbo].[Permissions] ([id], [name]) VALUES 
-(1, N'VIEW_DASHBOARD'), (2, N'MANAGE_USERS'), (3, N'MANAGE_ROLES'), (4, N'MANAGE_ROOMS'), (5, N'MANAGE_BOOKINGS'), 
-(6, N'MANAGE_INVOICES'), (7, N'MANAGE_SERVICES'), (8, N'VIEW_REPORTS'), (9, N'MANAGE_CONTENT'), (10, N'MANAGE_INVENTORY')
+INSERT [dbo].[Permissions] ([id], [name], [description]) VALUES 
+(1, N'VIEW_DASHBOARD', N'Xem bảng điều khiển'),
+(2, N'MANAGE_USERS', N'Quản lý nhân sự'),
+(3, N'MANAGE_ROLES', N'Quản lý chức vụ & quyền'),
+(4, N'MANAGE_ROOMS', N'Quản lý danh mục phòng'),
+(5, N'MANAGE_BOOKINGS', N'Quản lý đặt phòng'),
+(6, N'MANAGE_INVOICES', N'Quản lý hóa đơn'),
+(7, N'MANAGE_SERVICES', N'Quản lý dịch vụ'),
+(8, N'VIEW_REPORTS', N'Xem báo cáo'),
+(9, N'MANAGE_CONTENT', N'Quản lý bài viết/tin tức'),
+(10, N'MANAGE_INVENTORY', N'Quản lý kho vật tư'),
+(11, N'VIEW_SYSTEM_LOGS', N'Xem nhật ký hệ thống'),
+(12, N'VIEW_NOTIFICATIONS', N'Xem thông báo'),
+(13, N'VIEW_ROOMS', N'Xem trạng thái phòng'),
+(14, N'UPDATE_ROOM_STATUS', N'Cập nhật dọn phòng'),
+(15, N'CHECK_IN_OUT', N'Thủ tục nhận/trả phòng'),
+(16, N'MANAGE_AMENITIES', N'Quản lý tiện nghi'),
+(17, N'MANAGE_MAINTENANCE', N'Quản lý bảo trì')
 SET IDENTITY_INSERT [dbo].[Permissions] OFF
 GO
 
@@ -491,9 +537,10 @@ INSERT [dbo].[Roles] ([id], [name], [description]) VALUES
 SET IDENTITY_INSERT [dbo].[Roles] OFF
 GO
 
+
 -- PHÂN QUYỀN CHO CÁC VAI TRÒ (RBAC)
 INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES 
-(1,1), (1,2), (1,3), (1,4), (1,5), (1,6), (1,7), (1,8), (1,9), (1,10), -- Admin (Full)
+(1,1), (1,2), (1,3), (1,4), (1,5), (1,6), (1,7), (1,8), (1,9), (1,10), (1,11), (1,12), (1,13), (1,14), (1,15), (1,16), (1,17), -- Admin (Full 17 Quyền)
 (2,1), (2,4), (2,5), (2,6), (2,7), (2,8), (2,10), -- Manager
 (3,1), (3,4), (3,5), (3,6), (3,7), -- Receptionist
 (4,1), (4,6), (4,8), -- Accountant

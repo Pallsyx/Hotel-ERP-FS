@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using HotelERP.BE.Models;
 
 namespace HotelERP.BE.Domain.Models;
 
@@ -42,6 +43,7 @@ public partial class User
     public virtual Membership? Membership { get; set; }
 
     public virtual ICollection<Review> Reviews { get; set; } = new List<Review>();
+    public virtual ICollection<UserPermission> UserPermissions { get; set; } = new List<UserPermission>();
 
     public virtual Role? Role { get; set; }
 }

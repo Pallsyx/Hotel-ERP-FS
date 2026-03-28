@@ -22,28 +22,33 @@ public class AuthService : IAuthService
         _configuration = configuration;
     }
 
-    public async Task<TokenResponse> LoginAsync(LoginRequest request)
+   public async Task<TokenResponse> LoginAsync(LoginRequest request)
     {
-        // 1. Tìm user theo email và đảm bảo User chưa bị xóa mềm (Status = true)
-        var user = await _context.Users
-            .Include(u => u.Role)
-            .FirstOrDefaultAsync(u => u.Email == request.Email && u.Status == true);
+    // 1. Tìm user kèm theo Role -> RolePermissions -> Permission
+    var user = await _context.Users
+        .Include(u => u.Role)
+            .ThenInclude(r => r!.RolePermissions)
+                .ThenInclude(rp => rp.Permission) // Lấy tận cùng tên quyền hạn của Role
+        .Include(u => u.UserPermissions)
+            .ThenInclude(up => up.Permission)     // Lấy thêm quyền ngoại lệ của cá nhân
+        .FirstOrDefaultAsync(u => u.Email == request.Email && u.Status == true);
 
-        if (user == null)
-            throw new Exception("Email hoặc mật khẩu không chính xác.");
+    if (user == null)
+        throw new Exception("Email hoặc mật khẩu không chính xác.");
 
-        // 2. Kiểm tra mật khẩu bằng BCrypt
-        bool isPasswordValid = BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash);
-        if (!isPasswordValid)
-            throw new Exception("Email hoặc mật khẩu không chính xác.");
+    // 2. Kiểm tra mật khẩu
+    bool isPasswordValid = BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash);
+    if (!isPasswordValid)
+        throw new Exception("Email hoặc mật khẩu không chính xác.");
 
-        // Cập nhật LastLoginAt
-        user.LastLoginAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
+    // Cập nhật LastLoginAt
+    user.LastLoginAt = DateTime.UtcNow;
+    await _context.SaveChangesAsync();
 
-        // 3. Tạo JWT & Refresh Token
-        return await GenerateTokensAsync(user);
+    // 3. Tạo JWT & Refresh Token (Hàm này sẽ xử lý Claims)
+    return await GenerateTokensAsync(user);
     }
+    
     public async Task<bool> RegisterAsync(RegisterRequest request)
     {
         // 1. Kiểm tra Email tồn tại
@@ -199,61 +204,104 @@ public class AuthService : IAuthService
     
     private async Task<TokenResponse> GenerateTokensAsync(User user)
     {
-        var tokenHandler = new JwtSecurityTokenHandler();
-        var secretKey = Encoding.UTF8.GetBytes(_configuration["JwtSettings:Secret"]!);
-        var jwtId = Guid.NewGuid().ToString();
+    var tokenHandler = new JwtSecurityTokenHandler();
+    var secretKey = Encoding.UTF8.GetBytes(_configuration["JwtSettings:Secret"]!);
+    var jwtId = Guid.NewGuid().ToString();
 
-        var claims = new List<Claim>
-        {
-            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-            new Claim(ClaimTypes.Email, user.Email),
-            new Claim(ClaimTypes.Name, user.FullName),
-            new Claim(JwtRegisteredClaimNames.Jti, jwtId)
-        };
+    // 1. Đảm bảo dữ liệu quyền hạn đã được nạp (CẢ QUYỀN CHỨC VỤ LẪN QUYỀN NGOẠI LỆ)
+    if (user.Role?.RolePermissions == null || user.UserPermissions == null)
+    {
+        user = await _context.Users
+            .Include(u => u.Role)
+                .ThenInclude(r => r!.RolePermissions)
+                    .ThenInclude(rp => rp.Permission)
+            .Include(u => u.UserPermissions)         // 👉 NẠP THÊM BẢNG NGOẠI LỆ
+                .ThenInclude(up => up.Permission) 
+            .FirstOrDefaultAsync(u => u.Id == user.Id) ?? user;
+    }
 
-        // Gắn Role vào Claims
-        if (user.Role != null)
+    var claims = new List<Claim>
+    {
+        new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+        new Claim(ClaimTypes.Email, user.Email),
+        new Claim(ClaimTypes.Name, user.FullName),
+        new Claim(ClaimTypes.Role, user.Role?.Name ?? "User"), 
+        new Claim("role", user.Role?.Name ?? "User"),
+        new Claim(JwtRegisteredClaimNames.Jti, jwtId)
+    };
+
+    // ==========================================================
+    // 2. THUẬT TOÁN TRỘN QUYỀN (Role + Cấp thêm - Tước đi)
+    // ==========================================================
+    var finalPermissions = new HashSet<string>();
+
+    // Bước A: Nạp toàn bộ quyền cơ bản từ Chức vụ (Role)
+    if (user.Role?.RolePermissions != null)
+    {
+        foreach (var rp in user.Role.RolePermissions)
         {
-            claims.Add(new Claim(ClaimTypes.Role, user.Role.Name));
+            if (rp.Permission != null && !string.IsNullOrEmpty(rp.Permission.Name))
+                finalPermissions.Add(rp.Permission.Name);
         }
+    }
 
-        var accessTokenExp = int.Parse(_configuration["JwtSettings:AccessTokenExpirationMinutes"] ?? "15");
-        
-        var tokenDescriptor = new SecurityTokenDescriptor
+    // Bước B: Ghi đè bằng Quyền ngoại lệ cá nhân (UserPermissions)
+    if (user.UserPermissions != null)
+    {
+        foreach (var up in user.UserPermissions)
         {
-            Subject = new ClaimsIdentity(claims),
-            Expires = DateTime.UtcNow.AddMinutes(accessTokenExp),
-            Issuer = _configuration["JwtSettings:Issuer"],
-            Audience = _configuration["JwtSettings:Audience"],
-            SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(secretKey), SecurityAlgorithms.HmacSha256Signature)
-        };
+            if (up.Permission != null && !string.IsNullOrEmpty(up.Permission.Name))
+            {
+                if (up.IsGranted) 
+                    finalPermissions.Add(up.Permission.Name); // Được tích -> Cấp thêm
+                else 
+                    finalPermissions.Remove(up.Permission.Name); // Bị bỏ tích -> Tước đi
+            }
+        }
+    }
 
-        var accessToken = tokenHandler.CreateToken(tokenDescriptor);
-        
-        // Tạo Refresh Token
-        var refreshToken = GenerateSecureRandomString();
-        var refreshTokenExpDays = int.Parse(_configuration["JwtSettings:RefreshTokenExpirationDays"] ?? "7");
+    // Bước C: Gắn toàn bộ quyền cuối cùng vào Token
+    foreach (var permission in finalPermissions)
+    {
+        claims.Add(new Claim("permission", permission));
+    }
+    // ==========================================================
 
-        var newRefreshToken = new RefreshToken
-        {
-            UserId = user.Id,
-            Token = refreshToken,
-            JwtId = jwtId,
-            IsUsed = false,
-            IsRevoked = false,
-            CreatedAt = DateTime.UtcNow,
-            ExpireAt = DateTime.UtcNow.AddDays(refreshTokenExpDays)
-        };
+    // --- Giữ nguyên phần tạo Token bên dưới của bạn ---
+    var accessTokenExp = int.Parse(_configuration["JwtSettings:AccessTokenExpirationMinutes"] ?? "15");
+    var tokenDescriptor = new SecurityTokenDescriptor
+    {
+        Subject = new ClaimsIdentity(claims),
+        Expires = DateTime.UtcNow.AddMinutes(accessTokenExp),
+        Issuer = _configuration["JwtSettings:Issuer"],
+        Audience = _configuration["JwtSettings:Audience"],
+        SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(secretKey), SecurityAlgorithms.HmacSha256Signature)
+    };
 
-        await _context.RefreshTokens.AddAsync(newRefreshToken);
-        await _context.SaveChangesAsync();
+    var accessToken = tokenHandler.CreateToken(tokenDescriptor);
+    var refreshToken = GenerateSecureRandomString();
+    var refreshTokenExpDays = int.Parse(_configuration["JwtSettings:RefreshTokenExpirationDays"] ?? "7");
 
-        return new TokenResponse
-        {
-            AccessToken = tokenHandler.WriteToken(accessToken),
-            RefreshToken = refreshToken,
-            ExpiryDate = tokenDescriptor.Expires.Value
-        };
+    var newRefreshToken = new RefreshToken
+    {
+        UserId = user.Id,
+        Token = refreshToken,
+        JwtId = jwtId,
+        IsUsed = false,
+        IsRevoked = false,
+        CreatedAt = DateTime.UtcNow,
+        ExpireAt = DateTime.UtcNow.AddDays(refreshTokenExpDays)
+    };
+
+    await _context.RefreshTokens.AddAsync(newRefreshToken);
+    await _context.SaveChangesAsync();
+
+    return new TokenResponse
+    {
+        AccessToken = tokenHandler.WriteToken(accessToken),
+        RefreshToken = refreshToken,
+        ExpiryDate = tokenDescriptor.Expires.Value
+    };
     }
 
     private string GenerateSecureRandomString()

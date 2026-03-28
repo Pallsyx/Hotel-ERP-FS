@@ -25,6 +25,9 @@ using HotelERP.BE.Services.Bookings;
 using HotelERP.BE.Services.Loyalty;
 using HotelERP.BE.Services.RoomTypes;
 using HotelERP.BE.Services.Vouchers;
+using HotelERP.BE.Hubs;
+using HotelERP.BE.Constants;
+using System.Reflection;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -83,6 +86,7 @@ builder.Services.AddCors(options =>
 builder.Services.AddSignalR();
 
 // --- 3. CẤU HÌNH JWT AUTHENTICATION ---
+// --- 3. CẤU HÌNH JWT AUTHENTICATION ---
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
 var secretKeyString = jwtSettings["Secret"] ?? "HotelERP_Super_Secret_Key_Must_Be_Long_Enough_2026_DotNet10";
 var secretKey = Encoding.UTF8.GetBytes(secretKeyString);
@@ -107,6 +111,43 @@ builder.Services.AddAuthentication(options =>
         ValidateLifetime = true,
         ClockSkew = TimeSpan.Zero
     };
+
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            // Lấy token từ tham số "access_token" trên URL mà SignalR gửi lên
+            var accessToken = context.Request.Query["access_token"];
+
+            // Kiểm tra nếu request đang gọi đến Hub (của cả bạn và Long)
+            var path = context.HttpContext.Request.Path;
+            if (!string.IsNullOrEmpty(accessToken) && 
+                (path.StartsWithSegments("/notificationHub") || path.StartsWithSegments("/roomHub")))
+            {
+                // Gán token vào context để hệ thống chấp nhận kết nối
+                context.Token = accessToken;
+            }
+            return Task.CompletedTask;
+        }
+    };
+});
+
+// --- 3. CẤU HÌNH RBAC DYNAMICS (Tự động tạo Policy từ PermissionKeys) ---
+builder.Services.AddAuthorization(options =>
+{
+    // Lấy tất cả các hằng số string trong lớp PermissionKeys
+    var permissions = typeof(PermissionKeys)
+        .GetFields(BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy)
+        .Where(f => f.IsLiteral && !f.IsInitOnly && f.FieldType == typeof(string))
+        .Select(f => (string)f.GetRawConstantValue()!)
+        .ToList();
+
+    // Tự động tạo Policy cho từng Permission
+    foreach (var permission in permissions)
+    {
+        options.AddPolicy(permission, policy => 
+            policy.RequireClaim("permission", permission));
+    }
 });
 
 // --- 4. CẤU HÌNH HANGFIRE & REDIS ---
@@ -149,6 +190,9 @@ builder.Services.AddScoped<IBookingVoucherService, BookingVoucherService>();
 builder.Services.AddScoped<IRoomService, RoomService>();
 builder.Services.AddScoped<ArticleCategoryService>();
 builder.Services.AddScoped<IAmenityService, AmenityService>();
+builder.Services.AddSignalR();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(Program).Assembly));
 
 
 
@@ -180,15 +224,13 @@ builder.Services.AddSwaggerGen(c =>
         }
     });
 });
-// Cấu hình CORS cho Swagger UI (nếu cần, thường là không cần vì Swagger UI chạy cùng domain với API)
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowFrontend", policy =>
-    {
-        policy.WithOrigins("http://localhost:5173") // Link Frontend của bạn
+
+builder.Services.AddCors(options => {
+    options.AddPolicy("AllowAll", policy => {
+        policy.WithOrigins("http://localhost:5173") // Cổng Frontend của bạn
               .AllowAnyHeader()
               .AllowAnyMethod()
-              .AllowCredentials(); // Bắt buộc để sau này xài SignalR
+              .AllowCredentials(); // BẮT BUỘC cho SignalR [cite: 615, 626]
     });
 });
 
@@ -217,10 +259,12 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.UseHttpsRedirection(); 
-app.UseCors("AllowFrontend");
+app.UseCors("AllowSignalR"); // Dùng cái này là đủ cho cả API và SignalR
 app.UseAuthentication();
 app.UseAuthorization();
+app.MapHub<NotificationHub>("/notificationHub"); // SignalR Hub
 app.MapControllers();
+
 
 // SignalR Hub của Long
 app.MapHub<RoomHub>("/roomHub");

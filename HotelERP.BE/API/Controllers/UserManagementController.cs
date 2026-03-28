@@ -3,12 +3,13 @@ using HotelERP.BE.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using HotelERP.BE.API.Filters;
 using Microsoft.AspNetCore.Mvc;
+using HotelERP.BE.Constants;
+
 
 namespace HotelERP.BE.API.Controllers;
 
 [Route("api/[controller]")]
 [ApiController]
-[Authorize(Roles = "Admin")] // Chỉ Admin mới được vào khu vực này
 public class UserManagementController : ControllerBase
 {
     private readonly IUserManagementService _userService;
@@ -19,6 +20,7 @@ public class UserManagementController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize(Policy = PermissionKeys.ManageUsers)]
     public async Task<IActionResult> GetAll()
     {
         var users = await _userService.GetAllUsersAsync();
@@ -26,7 +28,7 @@ public class UserManagementController : ControllerBase
     }
 
     [HttpGet("roles-with-permissions")]
-    [Authorize(Roles = "Admin,Manager")] // Cho phép Admin và Manager gọi để xem
+    [Authorize(Policy = PermissionKeys.ManageRoles)]
     public async Task<IActionResult> GetRolesWithPermissions()
     {
     var roles = await _userService.GetRolesWithPermissionsAsync();
@@ -34,6 +36,7 @@ public class UserManagementController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = PermissionKeys.ManageUsers)]
     public async Task<IActionResult> Create([FromBody] AdminCreateUserRequest request)
     {
         try {
@@ -45,13 +48,23 @@ public class UserManagementController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [Authorize(Policy = PermissionKeys.ManageUsers)]
     public async Task<IActionResult> Update(int id, [FromBody] AdminUpdateUserRequest request)
     {
-        var result = await _userService.UpdateUserAsync(id, request);
-        return result ? Ok(new { message = "Cập nhật thành công." }) : NotFound();
+        try 
+        {
+            var result = await _userService.UpdateUserAsync(id, request);
+            // Nếu result = false (tức là không tìm thấy user id trong DB), nó sẽ trả về 404
+            return result ? Ok(new { message = "Cập nhật thành công." }) : NotFound(new { message = $"Không tìm thấy User với ID: {id}" });
+        } 
+        catch (Exception ex) 
+        {
+            return StatusCode(500, new { message = "Lỗi Server: " + ex.Message, inner = ex.InnerException?.Message });
+        }
     }
 
     [HttpDelete("{id}")]
+    [Authorize(Policy = PermissionKeys.ManageUsers)]
     [AuditLogInterceptor("Vô hiệu hóa tài khoản", "Users")] // Gắn Attribute để tự động ghi log khi xóa
     public async Task<IActionResult> Delete(int id)
     {
@@ -60,6 +73,7 @@ public class UserManagementController : ControllerBase
     }
 
     [HttpPut("{id}/change-role")]
+    [Authorize(Policy = PermissionKeys.ManageUsers)]
     [AuditLogInterceptor("Thay đổi quyền hạn", "Users")] // Gắn Attribute để tự động ghi log khi thay đổi quyền
     public async Task<IActionResult> ChangeRole(int id, [FromBody] int newRoleId)
     {
@@ -68,7 +82,7 @@ public class UserManagementController : ControllerBase
     }
     
     [HttpGet("permissions/grouped")]
-    [Authorize(Roles = "Admin")] // Chỉ Admin mới được cấu hình RBAC
+    [Authorize(Policy = PermissionKeys.ManageRoles)]
     public async Task<IActionResult> GetGroupedPermissions()
     {
     var data = await _userService.GetGroupedPermissionsAsync();
@@ -76,7 +90,7 @@ public class UserManagementController : ControllerBase
     }
 
     [HttpPut("roles/{roleId}/permissions")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = PermissionKeys.ManageRoles)]
     public async Task<IActionResult> UpdateRolePermissions(int roleId, [FromBody] RolePermissionsRequest request)
     {   
     try
@@ -90,7 +104,7 @@ public class UserManagementController : ControllerBase
     }
     }
     [HttpGet("roles")]
-    [Authorize(Roles = "Admin,Manager")] // Cho phép Admin và Manager xem danh sách
+    [Authorize(Policy = PermissionKeys.ManageRoles)]
     public async Task<IActionResult> GetAllRoles()
     {
         try
@@ -103,5 +117,22 @@ public class UserManagementController : ControllerBase
         {
         return BadRequest(new { success = false, message = ex.Message });
         }
+    }
+
+    [HttpGet("{id}/permissions")]
+    [Authorize(Policy = PermissionKeys.ManageUsers)]
+    public async Task<IActionResult> GetUserPermissions(int id)
+    {
+    var permissions = await _userService.GetUserEffectivePermissionsAsync(id);
+    return Ok(new { success = true, data = permissions });
+    }
+
+    [HttpPut("{id}/permissions")]
+    [Authorize(Policy = PermissionKeys.ManageUsers)]
+    public async Task<IActionResult> UpdateUserPermissions(int id, [FromBody] List<string> permissionCodes)
+    {
+    var result = await _userService.UpdateUserSpecificPermissionsAsync(id, permissionCodes);
+    if (!result) return BadRequest(new { message = "Lỗi khi cập nhật quyền cá nhân." });
+    return Ok(new { success = true, message = "Cập nhật quyền ngoại lệ thành công!" });
     }
 }
