@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using HotelERP.BE.Domain.Models;
+using HotelERP.BE.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace HotelERP.BE.Infrastructure.Data;
@@ -75,6 +76,8 @@ public partial class HotelDbContext : DbContext
     public virtual DbSet<User> Users { get; set; }
 
     public virtual DbSet<Voucher> Vouchers { get; set; }
+    public virtual DbSet<Notification> Notifications { get; set; }
+    public virtual DbSet<UserPermission> UserPermissions { get; set; }
 
     // 3. GHI ĐÈ PHƯƠNG THỨC LƯU THAY ĐỔI ĐỂ TỰ ĐỘNG GHI LOG VÀO BẢNG Audit_Logs MỖI KHI CÓ THAO TÁC THÊM/SỬA/XÓA DỮ LIỆU
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
@@ -197,7 +200,8 @@ public partial class HotelDbContext : DbContext
 
    protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-       
+        modelBuilder.Entity<UserPermission>().HasKey(up => new { up.UserId, up.PermissionId });
+        
         modelBuilder.Entity<ArticleCategory>().HasQueryFilter(c => c.Status == "ACTIVE");
         
         modelBuilder.Entity<Article>().HasQueryFilter(a => 
