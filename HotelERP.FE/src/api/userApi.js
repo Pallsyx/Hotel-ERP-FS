@@ -22,9 +22,12 @@ const userApi = {
   },
 
   // Đổi quyền (Role)
-  changeRole: (id, newRoleId) => {
+  changeRole: (id, newRoleId, reason) => {
+    console.log("Đang gửi API đổi quyền với reason:", reason); // 👉 Log lý do ra Console để kiểm tra
     return axiosClient.put(`/UserManagement/${id}/change-role`, newRoleId, {
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json',
+        'X-Audit-Reason': encodeURIComponent(reason)
+       }
     });
   },
 

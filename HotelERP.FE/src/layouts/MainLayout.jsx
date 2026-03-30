@@ -1,22 +1,19 @@
 import React from 'react';
-// MỚI THÊM: Bổ sung chữ Spin vào danh sách import của antd
-import { Layout, Menu, Button, Typography, Dropdown, Spin } from 'antd'; 
+import { Layout, Menu, Button, Typography, Dropdown, Spin } from 'antd';
 import { UserOutlined, TeamOutlined, SafetyCertificateOutlined, LogoutOutlined } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useLoadingStore } from '../store/loadingStore';
-import NotificationBell from './NotificationBell';
+import NotificationBell from './NotificationBell.jsx';
 
 const { Header, Sider, Content } = Layout;
 const { Title } = Typography;
 
-const MainLayout = () => {  
-  // 👉 1. Lấy thêm mảng permissions từ AuthStore ra
+const MainLayout = () => {
+  // 1. Lấy dữ liệu từ Store
   const { user, logout, permissions } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
-  
-  // MỚI THÊM: Lấy trạng thái isLoading từ Zustand Store
   const isLoading = useLoadingStore((state) => state.isLoading);
 
   const handleLogout = () => {
@@ -24,35 +21,32 @@ const MainLayout = () => {
     navigate('/login');
   };
 
-  // 👉 2. Khai báo Menu gốc kèm theo "điều kiện quyền hạn"
+  // 2. Định nghĩa Menu gốc
   const rawMenuItems = [
     {
       key: '/admin/users',
       icon: <TeamOutlined />,
       label: 'Quản lý Nhân sự',
-      requiredPermission: 'MANAGE_USERS' // Bắt buộc phải có quyền này mới được thấy
+      requiredPermission: 'MANAGE_USERS',
     },
     {
       key: '/admin/roles',
       icon: <SafetyCertificateOutlined />,
       label: 'Phân quyền (RBAC)',
-      requiredPermission: 'MANAGE_ROLES' // Bắt buộc phải có quyền này mới được thấy
+      requiredPermission: 'MANAGE_ROLES',
     },
   ];
 
-  // 👉 3. Lọc Menu: Chỉ giữ lại những mục mà User có quyền xem
-  // 1. Kiểm tra quyền Admin [cite: 55]
-  const isAdmin = user?.roleName === 'Admin';
+  // 3. Logic lọc Menu theo quyền (Admin thấy hết, Role khác lọc theo permissions)
+  const isAdmin = user?.roleName === 'Admin' || user?.fullName === 'Admin';
 
-  // 2. Lọc danh sách menu dựa trên quyền hạn 
-  const filteredMenuItems = rawMenuItems.filter(item => 
-    isAdmin || 
-    !item.requiredPermission || 
-    (permissions && permissions.includes(item.requiredPermission))
-  );
-
-  // 3. QUAN TRỌNG: Loại bỏ thuộc tính 'requiredPermission' để không truyền xuống DOM [cite: 53, 59]
-  const menuItems = filteredMenuItems.map(({ requiredPermission, ...rest }) => rest);
+  const menuItems = rawMenuItems
+    .filter((item) => {
+      if (isAdmin) return true;
+      if (!item.requiredPermission) return true;
+      return permissions && permissions.includes(item.requiredPermission);
+    })
+    .map(({ requiredPermission, ...rest }) => rest); // Xóa prop thừa để tránh lỗi React Warning
 
   const userMenu = {
     items: [
@@ -66,7 +60,6 @@ const MainLayout = () => {
   };
 
   return (
-    // MỚI THÊM: Bọc toàn bộ Layout bên trong thẻ Spin
     <Spin spinning={isLoading} size="large" description="Hệ thống đang xử lý...">
       <Layout style={{ minHeight: '100vh' }}>
         <Sider width={250} theme="dark">
@@ -77,7 +70,7 @@ const MainLayout = () => {
             theme="dark"
             mode="inline"
             selectedKeys={[location.pathname]}
-            items={menuItems} // Truyền mảng menu đã được lọc quyền vào đây
+            items={menuItems}
             onClick={(e) => navigate(e.key)}
           />
         </Sider>
@@ -91,7 +84,6 @@ const MainLayout = () => {
             </Dropdown>
           </Header>
           <Content style={{ margin: '24px', padding: '24px', background: '#fff', borderRadius: '8px', minHeight: 280 }}>
-            {/* Các trang con sẽ được nhúng vào đây */}
             <Outlet />
           </Content>
         </Layout>
