@@ -159,7 +159,7 @@ builder.Services.AddHangfire(config => config
 
 builder.Services.AddHangfireServer(); 
 
-var redisConnection = ConnectionMultiplexer.Connect("localhost:6379");
+var redisConnection = ConnectionMultiplexer.Connect("localhost:6380");
 builder.Services.AddSingleton<IConnectionMultiplexer>(redisConnection);
 
 builder.Services.AddSingleton<IDistributedLockFactory>(provider =>

@@ -24,6 +24,7 @@ const UserManagement = () => {
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
   const [selectedUserForRole, setSelectedUserForRole] = useState(null);
   const [newRoleId, setNewRoleId] = useState(null);
+  const [auditReason, setAuditReason] = useState("");
 
   // STATE CHO PHÂN QUYỀN CÁ NHÂN (USER-LEVEL OVERRIDES)
   const [isPersonalRoleModalOpen, setIsPersonalRoleModalOpen] = useState(false);
@@ -146,24 +147,51 @@ const UserManagement = () => {
   const handleOpenRoleModal = (user) => {
     setSelectedUserForRole(user);
     setNewRoleId(user.roleId || user.RoleId); 
+    setAuditReason(""); // 👉 Reset lại ô nhập lý do mỗi khi mở Modal
     setIsRoleModalOpen(true);
   };
 
-// HÀM LƯU CẬP NHẬT VAI TRÒ CHO NHÂN SỰ
-const handleSaveRole = async () => {
-  try {
-    const targetId = selectedUserForRole.id || selectedUserForRole.Id; // 
+  // 6. XEM CHI TIẾT QUYỀN HẠN (ĐÃ FIX REAL-TIME)
+  const handleViewPermissions = async (user) => {
+    setSelectedUser(user);
+    setSelectedUserPermissions([]); // Reset data cũ
+    setIsViewRoleOpen(true); // Mở modal lên cho mượt
     
-    // Ép kiểu newRoleId về số nguyên trước khi gửi đi
-    await userApi.changeRole(targetId, Number(newRoleId)); 
+    try {
+      const targetId = user.id || user.Id;
+      // Dùng lại đúng cái API bạn đã code sẵn
+      const res = await userApi.getUserPermissions(targetId); 
+      setSelectedUserPermissions(res.data?.data || res.data || []);
+    } catch (error) {
+      message.error("Lỗi khi tải chi tiết quyền!");
+    }
+  };
+
+// HÀM LƯU CẬP NHẬT VAI TRÒ CHO NHÂN SỰ
+  const handleSaveRole = async () => {
+    // 👉 Validate chặn lại nếu Admin quên nhập lý do
+    if (!auditReason || auditReason.trim() === "") {
+      message.warning("Vui lòng nhập lý do thay đổi quyền để hệ thống ghi log bảo mật!");
+      return; 
+    }
+
+    try {
+      const targetId = selectedUserForRole.id || selectedUserForRole.Id; 
       
-    message.success(`Đã cập nhật vai trò cho ${selectedUserForRole.fullName}`); // [cite: 185]
-    setIsRoleModalOpen(false); // 
-    fetchUsers(); // Tải lại danh sách để đồng bộ UI [cite: 156]
-  } catch (error) {
-    message.error("Đổi vai trò thất bại! Vui lòng kiểm tra lại dữ liệu.");
-  }
-};
+      // 👉 Ép kiểu số và truyền thêm lý do (auditReason) vào hàm API
+      await userApi.changeRole(targetId, Number(newRoleId), auditReason); 
+        
+      message.success(`Đã cập nhật vai trò cho ${selectedUserForRole.fullName}`); 
+      setIsRoleModalOpen(false); 
+      fetchUsers(); 
+    } catch (error) {
+      // 👉 IN LỖI RA CONSOLE ĐỂ SAU NÀY DỄ DEBUG
+      console.error("Lỗi chi tiết từ API Đổi quyền:", error.response?.data || error);
+      
+      const serverMsg = error.response?.data?.message || "Vui lòng kiểm tra lại dữ liệu.";
+      message.error(`Đổi vai trò thất bại! ${serverMsg}`);
+    }
+  };
 
   // 6. PHÂN QUYỀN CÁ NHÂN (NGOẠI LỆ)
   const handleOpenPersonalRoleModal = async (user) => {
@@ -191,71 +219,77 @@ const handleSaveRole = async () => {
   };
 
   // 7. CẤU HÌNH CỘT
-  const columns = [
-    { title: 'Họ và tên', dataIndex: 'fullName', key: 'fullName', fontWeight: 'bold' },
-    { title: 'Email', dataIndex: 'email', key: 'email' },
-    { 
-      title: 'Số điện thoại', 
-      dataIndex: 'phone', 
-      key: 'phone',
-      render: (phone) => phone ? phone : <span style={{color: '#ccc', fontStyle: 'italic'}}>Chưa cập nhật</span>
+ const columns = [
+  { title: 'Họ và tên', dataIndex: 'fullName', key: 'fullName', fontWeight: 'bold' },
+  { title: 'Email', dataIndex: 'email', key: 'email' },
+  { 
+    title: 'Số điện thoại', 
+    dataIndex: 'phone', 
+    key: 'phone',
+    render: (phone) => phone ? phone : <span style={{color: '#ccc', fontStyle: 'italic'}}>Chưa cập nhật</span>
+  },
+  {
+    title: 'Vai trò', dataIndex: 'roleName', key: 'roleName',
+    render: (role) => {
+      let color = 'default';
+      if (role === 'Admin') color = 'red';
+      else if (role === 'Manager') color = 'green';
+      else if (role === 'Receptionist') color = 'orange';
+      return <Tag color={color}>{role || 'Chưa phân quyền'}</Tag>;
     },
-    {
-      title: 'Vai trò', dataIndex: 'roleName', key: 'roleName',
-      render: (role) => {
-        let color = 'default';
-        if (role === 'Admin') color = 'red';
-        else if (role === 'Manager') color = 'green';
-        else if (role === 'Receptionist') color = 'orange';
-        else if (role === 'Accountant') color = 'purple';
-        else if (role === 'Housekeeping') color = 'cyan';
-        else if (role === 'Security') color = 'blue';
-        return <Tag color={color}>{role || 'Chưa phân quyền'}</Tag>;
-      },
-    },
-    {
-      title: 'Trạng thái', dataIndex: 'status', key: 'status', align: 'center',
-      render: (status, record) => (
+  },
+  {
+    title: 'Trạng thái', dataIndex: 'status', key: 'status', align: 'center',
+    render: (status, record) => {
+      // 👉 KHÓA ADMIN: Nếu là Admin thì không cho gạt nút trạng thái [cite: 191]
+      const isTargetAdmin = record.roleName === 'Admin';
+      return (
         <Switch
           checked={status}
+          disabled={isTargetAdmin} 
           checkedChildren="Hoạt động" unCheckedChildren="Đã khóa"
           style={{ backgroundColor: status ? '#52c41a' : '#ff4d4f' }}
           onChange={(checked) => handleToggleStatus(record, checked)}
         />
-      ),
+      );
     },
-    {
-      title: 'Hành động', key: 'action', align: 'center',
-      render: (_, record) => (
+  },
+  {
+    title: 'Hành động', key: 'action', align: 'center',
+    render: (_, record) => {
+      // 👉 KHÓA ADMIN: Nếu dòng này là Admin thì vô hiệu hóa các nút chỉnh sửa [cite: 193]
+      const isTargetAdmin = record.roleName === 'Admin';
+      
+      return (
         <Space size="middle">
           <Tooltip title="Xem chi tiết quyền hạn">
-            <Button 
-              type="default" 
-              icon={<EyeOutlined />} 
-              size="small" 
-              onClick={async () => { 
-                setSelectedUser(record); 
-                setIsViewRoleOpen(true);
-                // 👉 FIX LỖI REAL-TIME: Gọi API lấy quyền thực tế
-                try {
-                  const res = await userApi.getUserPermissions(record.id || record.Id);
-                  setSelectedUserPermissions(res.data?.data || []);
-                } catch (error) {
-                  setSelectedUserPermissions([]);
-                }
-              }} 
+            <Button type="default" icon={<EyeOutlined />} size="small" 
+              onClick={() => handleViewPermissions(record)}
             />
           </Tooltip>
-          <Tooltip title="Phân vai trò (Quyền hạn)">
-            <Button type="primary" ghost icon={<SafetyOutlined />} size="small" onClick={() => handleOpenRoleModal(record)} />
+
+          <Tooltip title={isTargetAdmin ? "Không thể chỉnh sửa Admin" : "Phân vai trò (Quyền hạn)"}>
+            <Button 
+              type="primary" ghost icon={<SafetyOutlined />} size="small" 
+              disabled={isTargetAdmin} // Vô hiệu hóa nút Phân vai trò
+              onClick={() => handleOpenRoleModal(record)} 
+            />
           </Tooltip>
-          <Tooltip title="Chỉnh sửa ngoại lệ (Quyền riêng)">
-            <Button type="primary" style={{backgroundColor: '#faad14', borderColor: '#faad14'}} icon={<KeyOutlined />} size="small" onClick={() => handleOpenPersonalRoleModal(record)} />
+
+          <Tooltip title={isTargetAdmin ? "Không thể chỉnh sửa Admin" : "Chỉnh sửa ngoại lệ (Quyền riêng)"}>
+            <Button 
+              type="primary" 
+              style={{backgroundColor: isTargetAdmin ? '#f5f5f5' : '#faad14', borderColor: isTargetAdmin ? '#d9d9d9' : '#faad14'}} 
+              icon={<KeyOutlined />} size="small" 
+              disabled={isTargetAdmin} // Vô hiệu hóa nút Ngoại lệ
+              onClick={() => handleOpenPersonalRoleModal(record)} 
+            />
           </Tooltip>
         </Space>
-      ),
+      );
     },
-  ];
+  },
+];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -370,16 +404,29 @@ const handleSaveRole = async () => {
         okText="Xác nhận"
         cancelText="Hủy"
       >
-        <div style={{ padding: '20px 0' }}>
-          <p>Chọn vai trò mới cho nhân viên <b>{selectedUserForRole?.fullName || selectedUserForRole?.FullName}</b>:</p>
-          <Select
-            style={{ width: '100%' }}
-            value={newRoleId}
-            onChange={(value) => setNewRoleId(value)}
-            options={roles.map(r => ({ value: r.id, label: r.name }))}
-            placeholder="-- Vui lòng chọn vai trò --"
-            disabled={roles.length === 0}
-          />
+        <div style={{ padding: '20px 0', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div>
+            <p style={{ marginBottom: '8px' }}>Chọn vai trò mới cho nhân viên <b>{selectedUserForRole?.fullName || selectedUserForRole?.FullName}</b>:</p>
+            <Select
+              style={{ width: '100%' }}
+              value={newRoleId}
+              onChange={(value) => setNewRoleId(value)}
+              options={roles.map(r => ({ value: r.id, label: r.name }))}
+              placeholder="-- Vui lòng chọn vai trò --"
+              disabled={roles.length === 0}
+            />
+          </div>
+
+          {/* 👉 Ô NHẬP LÝ DO BẢO MẬT */}
+          <div>
+            <p style={{ marginBottom: '8px', color: '#cf1322' }}>Lý do thay đổi (Bắt buộc):</p>
+            <Input.TextArea
+              rows={3}
+              placeholder="Nhập lý do để ghi log... (Ví dụ: Thăng chức theo quyết định số 123...)"
+              value={auditReason}
+              onChange={(e) => setAuditReason(e.target.value)}
+            />
+          </div>
         </div>
       </Modal>
 
