@@ -1,6 +1,6 @@
 import React from 'react';
 import { Layout, Menu, Button, Typography, Dropdown, Spin } from 'antd';
-import { UserOutlined, TeamOutlined, SafetyCertificateOutlined, LogoutOutlined } from '@ant-design/icons';
+import { UserOutlined, TeamOutlined, SafetyCertificateOutlined, LogoutOutlined, AppstoreOutlined } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useLoadingStore } from '../store/loadingStore';
@@ -34,6 +34,12 @@ const MainLayout = () => {
       icon: <SafetyCertificateOutlined />,
       label: 'Phân quyền (RBAC)',
       requiredPermission: 'MANAGE_ROLES',
+    },
+    {
+      key: '/admin/room-types',
+      icon: <AppstoreOutlined />,
+      label: 'Loại phòng & Tiện ích',
+      requiredPermission: 'MANAGE_AMENITIES',
     },
   ];
 

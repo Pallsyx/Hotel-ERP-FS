@@ -1,0 +1,120 @@
+.room-type-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.room-type-hero {
+  padding: 28px;
+  border-radius: 22px;
+  color: #fff;
+  background:
+    linear-gradient(135deg, rgba(10, 31, 56, 0.98) 0%, rgba(18, 52, 88, 0.96) 58%, rgba(145, 108, 47, 0.96) 100%);
+  box-shadow: 0 18px 40px rgba(12, 34, 60, 0.22);
+}
+
+.room-type-hero__eyebrow {
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.room-type-hero__title {
+  margin: 14px 0 8px;
+  font-size: 30px;
+  font-weight: 800;
+}
+
+.room-type-hero__subtitle {
+  margin: 0;
+  max-width: 860px;
+  color: rgba(255, 255, 255, 0.86);
+  line-height: 1.7;
+  font-size: 15px;
+}
+
+.room-type-stat-card {
+  border-radius: 18px !important;
+  border: 1px solid #ead7b4 !important;
+  background: linear-gradient(180deg, #fffdf8 0%, #f7efe0 100%) !important;
+  box-shadow: 0 10px 24px rgba(27, 46, 73, 0.08);
+}
+
+.room-type-module-card {
+  border-radius: 20px !important;
+  box-shadow: 0 14px 28px rgba(15, 35, 60, 0.08);
+}
+
+.room-type-toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.room-type-toolbar__left,
+.room-type-toolbar__right {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.room-type-empty-image {
+  width: 88px;
+  height: 64px;
+  border-radius: 12px;
+  border: 1px dashed #d0d7e2;
+  background: #f7f9fc;
+  color: #8a94a6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 6px;
+  font-size: 12px;
+}
+
+.room-type-preview-image {
+  width: 190px;
+  height: 120px;
+  object-fit: cover;
+  border-radius: 16px;
+  border: 1px solid #e8e8e8;
+  box-shadow: 0 8px 20px rgba(12, 34, 60, 0.08);
+}
+
+.room-type-amenity-tag {
+  border-radius: 999px !important;
+  padding-inline: 10px !important;
+  margin-bottom: 6px;
+}
+
+.room-type-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.room-type-section-label {
+  margin-bottom: 10px;
+  font-weight: 700;
+  color: #133454;
+}
+
+.room-type-current-image {
+  margin-top: 12px;
+}
+
+.room-type-muted {
+  color: #8c8c8c;
+  font-style: italic;
+}
