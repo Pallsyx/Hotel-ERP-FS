@@ -7,6 +7,7 @@ import MainLayout from '../layouts/MainLayout';
 import { useAuthStore } from '../store/authStore';
 import UserManagement from '../pages/Users/UserManagement';
 import RoleManagement from '../pages/Users/RoleManagement';
+import RoomTypeManagement from '../pages/RoomTypes/RoomTypeManagement';
 
 // 2. COMPONENT GIỮ CHỖ (Placeholder)
 const Placeholder = ({ title }) => (
@@ -41,7 +42,7 @@ const AdminRoutes = () => {
         <Route path="audit-logs" element={<Placeholder title="Truy vết hệ thống (Audit Logs)" />} />
 
         {/* MODULE 3 */}
-        <Route path="room-types" element={<Placeholder title="Cấu hình Hạng phòng & Giá" />} />
+        <Route path="room-types" element={<RoomTypeManagement />} />
         <Route path="rooms" element={<Placeholder title="Quản lý Phòng vật lý" />} />
         <Route path="housekeeping" element={<Placeholder title="Checklist Buồng phòng & Minibar" />} />
         <Route path="damage-reports" element={<Placeholder title="Báo cáo Hư hỏng & Đền bù" />} />
