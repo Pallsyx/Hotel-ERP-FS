@@ -1796,16 +1796,13 @@ BEGIN
 END
 GO
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> 8d13ff5 (Minor Changes For new DB)
+
 -- 2. THÊM CỘT MỚI VÀO CÁC BẢNG HIỆN TẠI (Dùng IF để không lỗi nếu chạy nhiều lần)
 IF COL_LENGTH('dbo.Users', 'avatar_public_id') IS NULL ALTER TABLE [dbo].[Users] ADD [avatar_public_id] NVARCHAR(255) NULL;
 IF COL_LENGTH('dbo.Users', 'loyalty_points') IS NULL ALTER TABLE [dbo].[Users] ADD [loyalty_points] INT NOT NULL DEFAULT 0;
 IF COL_LENGTH('dbo.Users', 'updated_at') IS NULL ALTER TABLE [dbo].[Users] ADD [updated_at] DATETIME NULL;
 IF COL_LENGTH('dbo.Users', 'last_login_at') IS NULL ALTER TABLE [dbo].[Users] ADD [last_login_at] DATETIME NULL;
-<<<<<<< HEAD
+
 
 IF COL_LENGTH('dbo.Roles', 'status') IS NULL ALTER TABLE [dbo].[Roles] ADD [status] NVARCHAR(20) NOT NULL DEFAULT 'ACTIVE';
 IF COL_LENGTH('dbo.Roles', 'created_at') IS NULL ALTER TABLE [dbo].[Roles] ADD [created_at] DATETIME NOT NULL DEFAULT GETDATE();
@@ -1864,7 +1861,6 @@ IF COL_LENGTH('dbo.Booking_Details', 'actual_check_in_at') IS NULL ALTER TABLE [
 IF COL_LENGTH('dbo.Booking_Details', 'actual_check_out_at') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [actual_check_out_at] DATETIME NULL;
 IF COL_LENGTH('dbo.Booking_Details', 'created_at') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [created_at] DATETIME NOT NULL DEFAULT GETDATE();
 IF COL_LENGTH('dbo.Booking_Details', 'updated_at') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [updated_at] DATETIME NULL;
-=======
 -- 1. Xóa các bảng "Con của Con" (Cấp 3)
 IF OBJECT_ID(N'[dbo].[Refresh_Tokens]', N'U') IS NOT NULL DROP TABLE [dbo].[Refresh_Tokens];
 IF OBJECT_ID(N'[dbo].[Notifications]', N'U') IS NOT NULL DROP TABLE [dbo].[Notifications];
@@ -1873,18 +1869,6 @@ IF OBJECT_ID(N'[dbo].[Payments]', N'U') IS NOT NULL DROP TABLE [dbo].[Payments];
 IF OBJECT_ID(N'[dbo].[Order_Service_Details]', N'U') IS NOT NULL DROP TABLE [dbo].[Order_Service_Details];
 IF OBJECT_ID(N'[dbo].[Loss_And_Damages]', N'U') IS NOT NULL DROP TABLE [dbo].[Loss_And_Damages];
 IF OBJECT_ID(N'[dbo].[User_Permissions]', N'U') IS NOT NULL DROP TABLE [dbo].[User_Permissions]; -- BẢNG NGOẠI LỆ MỚI THÊM
-=======
->>>>>>> 8d13ff5 (Minor Changes For new DB)
-
-IF COL_LENGTH('dbo.Roles', 'status') IS NULL ALTER TABLE [dbo].[Roles] ADD [status] NVARCHAR(20) NOT NULL DEFAULT 'ACTIVE';
-IF COL_LENGTH('dbo.Roles', 'created_at') IS NULL ALTER TABLE [dbo].[Roles] ADD [created_at] DATETIME NOT NULL DEFAULT GETDATE();
-IF COL_LENGTH('dbo.Roles', 'updated_at') IS NULL ALTER TABLE [dbo].[Roles] ADD [updated_at] DATETIME NULL;
-
-IF COL_LENGTH('dbo.Permissions', 'description') IS NULL ALTER TABLE [dbo].[Permissions] ADD [description] NVARCHAR(500) NULL;
-IF COL_LENGTH('dbo.Permissions', 'group_name') IS NULL ALTER TABLE [dbo].[Permissions] ADD [group_name] NVARCHAR(100) NULL;
-IF COL_LENGTH('dbo.Permissions', 'created_at') IS NULL ALTER TABLE [dbo].[Permissions] ADD [created_at] DATETIME NOT NULL DEFAULT GETDATE();
-
-<<<<<<< HEAD
 -- 4. Xóa các bảng danh mục còn lại
 IF OBJECT_ID(N'[dbo].[Rooms]', N'U') IS NOT NULL DROP TABLE [dbo].[Rooms];
 IF OBJECT_ID(N'[dbo].[Room_Types]', N'U') IS NOT NULL DROP TABLE [dbo].[Room_Types];
@@ -1897,58 +1881,7 @@ IF OBJECT_ID(N'[dbo].[Permissions]', N'U') IS NOT NULL DROP TABLE [dbo].[Permiss
 IF OBJECT_ID(N'[dbo].[Amenities]', N'U') IS NOT NULL DROP TABLE [dbo].[Amenities];
 IF OBJECT_ID(N'[dbo].[Attractions]', N'U') IS NOT NULL DROP TABLE [dbo].[Attractions];
 IF OBJECT_ID(N'[dbo].[Article_Categories]', N'U') IS NOT NULL DROP TABLE [dbo].[Article_Categories];
->>>>>>> 7e395db (Tích hợp phân quyền cá nhân & thông báo SignalR)
-=======
-IF COL_LENGTH('dbo.Memberships', 'benefits') IS NULL ALTER TABLE [dbo].[Memberships] ADD [benefits] NVARCHAR(1000) NULL;
-IF COL_LENGTH('dbo.Memberships', 'status') IS NULL ALTER TABLE [dbo].[Memberships] ADD [status] NVARCHAR(20) NOT NULL DEFAULT 'ACTIVE';
-IF COL_LENGTH('dbo.Memberships', 'created_at') IS NULL ALTER TABLE [dbo].[Memberships] ADD [created_at] DATETIME NOT NULL DEFAULT GETDATE();
-IF COL_LENGTH('dbo.Memberships', 'updated_at') IS NULL ALTER TABLE [dbo].[Memberships] ADD [updated_at] DATETIME NULL;
 
-IF COL_LENGTH('dbo.Articles', 'summary') IS NULL ALTER TABLE [dbo].[Articles] ADD [summary] NVARCHAR(1000) NULL;
-IF COL_LENGTH('dbo.Articles', 'thumbnail_public_id') IS NULL ALTER TABLE [dbo].[Articles] ADD [thumbnail_public_id] NVARCHAR(255) NULL;
-IF COL_LENGTH('dbo.Articles', 'status') IS NULL ALTER TABLE [dbo].[Articles] ADD [status] NVARCHAR(20) NOT NULL DEFAULT 'ACTIVE';
-IF COL_LENGTH('dbo.Articles', 'created_at') IS NULL ALTER TABLE [dbo].[Articles] ADD [created_at] DATETIME NOT NULL DEFAULT GETDATE();
-IF COL_LENGTH('dbo.Articles', 'updated_at') IS NULL ALTER TABLE [dbo].[Articles] ADD [updated_at] DATETIME NULL;
-
-IF COL_LENGTH('dbo.Room_Types', 'early_checkin_fee_percent') IS NULL ALTER TABLE [dbo].[Room_Types] ADD [early_checkin_fee_percent] DECIMAL(5,2) NOT NULL DEFAULT 0;
-IF COL_LENGTH('dbo.Room_Types', 'late_checkout_fee_percent') IS NULL ALTER TABLE [dbo].[Room_Types] ADD [late_checkout_fee_percent] DECIMAL(5,2) NOT NULL DEFAULT 0;
-IF COL_LENGTH('dbo.Room_Types', 'extra_hour_price') IS NULL ALTER TABLE [dbo].[Room_Types] ADD [extra_hour_price] DECIMAL(18,2) NOT NULL DEFAULT 0;
-IF COL_LENGTH('dbo.Room_Types', 'status') IS NULL ALTER TABLE [dbo].[Room_Types] ADD [status] NVARCHAR(20) NOT NULL DEFAULT 'ACTIVE';
-IF COL_LENGTH('dbo.Room_Types', 'created_at') IS NULL ALTER TABLE [dbo].[Room_Types] ADD [created_at] DATETIME NOT NULL DEFAULT GETDATE();
-IF COL_LENGTH('dbo.Room_Types', 'updated_at') IS NULL ALTER TABLE [dbo].[Room_Types] ADD [updated_at] DATETIME NULL;
-
-IF COL_LENGTH('dbo.Rooms', 'notes') IS NULL ALTER TABLE [dbo].[Rooms] ADD [notes] NVARCHAR(500) NULL;
-IF COL_LENGTH('dbo.Rooms', 'created_at') IS NULL ALTER TABLE [dbo].[Rooms] ADD [created_at] DATETIME NOT NULL DEFAULT GETDATE();
-IF COL_LENGTH('dbo.Rooms', 'updated_at') IS NULL ALTER TABLE [dbo].[Rooms] ADD [updated_at] DATETIME NULL;
-
-IF COL_LENGTH('dbo.Room_Images', 'cloud_public_id') IS NULL ALTER TABLE [dbo].[Room_Images] ADD [cloud_public_id] NVARCHAR(255) NULL;
-IF COL_LENGTH('dbo.Room_Images', 'status') IS NULL ALTER TABLE [dbo].[Room_Images] ADD [status] NVARCHAR(20) NOT NULL DEFAULT 'ACTIVE';
-IF COL_LENGTH('dbo.Room_Images', 'created_at') IS NULL ALTER TABLE [dbo].[Room_Images] ADD [created_at] DATETIME NOT NULL DEFAULT GETDATE();
-
-IF COL_LENGTH('dbo.Bookings', 'booked_at') IS NULL ALTER TABLE [dbo].[Bookings] ADD [booked_at] DATETIME NOT NULL DEFAULT GETDATE();
-IF COL_LENGTH('dbo.Bookings', 'hold_expires_at') IS NULL ALTER TABLE [dbo].[Bookings] ADD [hold_expires_at] DATETIME NULL;
-IF COL_LENGTH('dbo.Bookings', 'booking_subtotal') IS NULL ALTER TABLE [dbo].[Bookings] ADD [booking_subtotal] DECIMAL(18,2) NOT NULL DEFAULT 0;
-IF COL_LENGTH('dbo.Bookings', 'discount_amount') IS NULL ALTER TABLE [dbo].[Bookings] ADD [discount_amount] DECIMAL(18,2) NOT NULL DEFAULT 0;
-IF COL_LENGTH('dbo.Bookings', 'final_amount') IS NULL ALTER TABLE [dbo].[Bookings] ADD [final_amount] DECIMAL(18,2) NOT NULL DEFAULT 0;
-IF COL_LENGTH('dbo.Bookings', 'payment_status') IS NULL ALTER TABLE [dbo].[Bookings] ADD [payment_status] NVARCHAR(50) NOT NULL DEFAULT 'UNPAID';
-IF COL_LENGTH('dbo.Bookings', 'notes') IS NULL ALTER TABLE [dbo].[Bookings] ADD [notes] NVARCHAR(1000) NULL;
-IF COL_LENGTH('dbo.Bookings', 'created_at') IS NULL ALTER TABLE [dbo].[Bookings] ADD [created_at] DATETIME NOT NULL DEFAULT GETDATE();
-IF COL_LENGTH('dbo.Bookings', 'updated_at') IS NULL ALTER TABLE [dbo].[Bookings] ADD [updated_at] DATETIME NULL;
-IF COL_LENGTH('dbo.Bookings', 'is_points_awarded') IS NULL ALTER TABLE [dbo].[Bookings] ADD [is_points_awarded] BIT DEFAULT 0;
-
-IF COL_LENGTH('dbo.Booking_Details', 'adults_count') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [adults_count] INT NOT NULL DEFAULT 1;
-IF COL_LENGTH('dbo.Booking_Details', 'children_count') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [children_count] INT NOT NULL DEFAULT 0;
-IF COL_LENGTH('dbo.Booking_Details', 'nights') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [nights] INT NOT NULL DEFAULT 1;
-IF COL_LENGTH('dbo.Booking_Details', 'early_check_in_fee') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [early_check_in_fee] DECIMAL(18,2) NOT NULL DEFAULT 0;
-IF COL_LENGTH('dbo.Booking_Details', 'late_check_out_fee') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [late_check_out_fee] DECIMAL(18,2) NOT NULL DEFAULT 0;
-IF COL_LENGTH('dbo.Booking_Details', 'line_total') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [line_total] DECIMAL(18,2) NOT NULL DEFAULT 0;
-IF COL_LENGTH('dbo.Booking_Details', 'status') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [status] NVARCHAR(50) NOT NULL DEFAULT 'Booked';
-IF COL_LENGTH('dbo.Booking_Details', 'identity_document_url') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [identity_document_url] NVARCHAR(MAX) NULL;
-IF COL_LENGTH('dbo.Booking_Details', 'actual_check_in_at') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [actual_check_in_at] DATETIME NULL;
-IF COL_LENGTH('dbo.Booking_Details', 'actual_check_out_at') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [actual_check_out_at] DATETIME NULL;
-IF COL_LENGTH('dbo.Booking_Details', 'created_at') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [created_at] DATETIME NOT NULL DEFAULT GETDATE();
-IF COL_LENGTH('dbo.Booking_Details', 'updated_at') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [updated_at] DATETIME NULL;
->>>>>>> 8d13ff5 (Minor Changes For new DB)
 GO
 
 -- 3. CHÈN QUYỀN MỚI CỦA BẠN (Kiểm tra tránh trùng)
@@ -2094,7 +2027,7 @@ AND NOT EXISTS (
     SELECT 1 FROM [dbo].[Role_Permissions] rp 
     WHERE rp.role_id = 1 AND rp.permission_id = [dbo].[Permissions].id
 );
-<<<<<<< HEAD
+/* -- Bỏ qua đoạn trùng lặp này do conflict
 GO
 
 
@@ -2811,6 +2744,4 @@ GO
 
 PRINT N'Database đã được thiết lập thành công với đầy đủ Cấu trúc chuẩn + Dữ liệu mới!';
 
-=======
-GO
->>>>>>> 8d13ff5 (Minor Changes For new DB)
+*/ GO

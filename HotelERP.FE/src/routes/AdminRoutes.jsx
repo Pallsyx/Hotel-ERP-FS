@@ -1,6 +1,6 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-
+import RoomManagement from '../pages/Admin/RoomManagement';
 // 1. IMPORT CÁC COMPONENT LÕI CỦA TEAM LEAD
 import Login from '../pages/Auth/Login';
 import MainLayout from '../layouts/MainLayout';
@@ -38,12 +38,12 @@ const AdminRoutes = () => {
 
         {/* MODULE 6 */}
         <Route path="users" element={<UserManagement />} />
-        <Route path="roles" element={<RoleManagement  />} />
+        <Route path="roles" element={<RoleManagement />} />
         <Route path="audit-logs" element={<Placeholder title="Truy vết hệ thống (Audit Logs)" />} />
 
         {/* MODULE 3 */}
         <Route path="room-types" element={<RoomTypeManagement />} />
-        <Route path="rooms" element={<Placeholder title="Quản lý Phòng vật lý" />} />
+        <Route path="rooms" element={<RoomManagement />} />
         <Route path="housekeeping" element={<Placeholder title="Checklist Buồng phòng & Minibar" />} />
         <Route path="damage-reports" element={<Placeholder title="Báo cáo Hư hỏng & Đền bù" />} />
 

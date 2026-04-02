@@ -1,6 +1,6 @@
 import React from 'react';
 import { Layout, Menu, Button, Typography, Dropdown, Spin } from 'antd';
-import { UserOutlined, TeamOutlined, SafetyCertificateOutlined, LogoutOutlined, AppstoreOutlined } from '@ant-design/icons';
+import { UserOutlined, TeamOutlined, SafetyCertificateOutlined, LogoutOutlined, AppstoreOutlined, HomeOutlined } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useLoadingStore } from '../store/loadingStore';
@@ -40,6 +40,12 @@ const MainLayout = () => {
       icon: <AppstoreOutlined />,
       label: 'Loại phòng & Tiện ích',
       requiredPermission: 'MANAGE_AMENITIES',
+    },
+    {
+      key: '/admin/rooms',
+      icon: <HomeOutlined />,
+      label: 'Quản lý phòng',
+      requiredPermission: 'MANAGE_ROOMS',
     },
   ];
 
