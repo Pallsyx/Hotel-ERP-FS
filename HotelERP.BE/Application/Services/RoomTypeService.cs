@@ -12,29 +12,63 @@ public class RoomTypeService(HotelDbContext context, ICloudinaryService cloudina
     public async Task<IEnumerable<RoomTypeResponseDto>> GetRoomTypesAsync()
     {
         return await context.RoomTypes
-            .Where(rt => rt.DeletedAt == null) 
+            .AsNoTracking()
+            .Where(rt => rt.DeletedAt == null)
             .Select(rt => new RoomTypeResponseDto(
-                rt.Id, rt.Name, rt.Description, rt.BasePrice, 
-                rt.CapacityAdults, rt.CapacityChildren, rt.ImageUrl)) 
+                rt.Id,
+                rt.Name,
+                rt.Description,
+                rt.BasePrice,
+                rt.CapacityAdults,
+                rt.CapacityChildren,
+                rt.ImageUrl,
+                rt.RoomTypeAmenities
+                    .Where(rta => rta.Amenity.DeletedAt == null)
+                    .Select(rta => new AmenitySimpleDto(
+                        rta.AmenityId,
+                        rta.Amenity.Name,
+                        rta.Amenity.IconUrl
+                    ))
+                    .ToList()
+            ))
             .ToListAsync();
     }
 
     public async Task<RoomTypeResponseDto?> GetRoomTypeByIdAsync(int id)
     {
-        var rt = await context.RoomTypes
-            .FirstOrDefaultAsync(rt => rt.Id == id && rt.DeletedAt == null);
-        if (rt == null) return null;
-        return new RoomTypeResponseDto(rt.Id, rt.Name, rt.Description, rt.BasePrice, rt.CapacityAdults, rt.CapacityChildren, rt.ImageUrl); //
+        var roomType = await context.RoomTypes
+            .AsNoTracking()
+            .Where(rt => rt.Id == id && rt.DeletedAt == null)
+            .Select(rt => new RoomTypeResponseDto(
+                rt.Id,
+                rt.Name,
+                rt.Description,
+                rt.BasePrice,
+                rt.CapacityAdults,
+                rt.CapacityChildren,
+                rt.ImageUrl,
+                rt.RoomTypeAmenities
+                    .Where(rta => rta.Amenity.DeletedAt == null)
+                    .Select(rta => new AmenitySimpleDto(
+                        rta.AmenityId,
+                        rta.Amenity.Name,
+                        rta.Amenity.IconUrl
+                    ))
+                    .ToList()
+            ))
+            .FirstOrDefaultAsync();
+
+        return roomType;
     }
 
     public async Task<int> CreateRoomTypeAsync(CreateRoomTypeRequest request)
     {
         var roomType = new RoomType
         {
-            Name = request.Name, 
-            Description = request.Description, 
-            BasePrice = request.BasePrice, 
-            CapacityAdults = request.CapacityAdults, 
+            Name = request.Name,
+            Description = request.Description,
+            BasePrice = request.BasePrice,
+            CapacityAdults = request.CapacityAdults,
             CapacityChildren = request.CapacityChildren,
             Status = "ACTIVE",
             CreatedAt = DateTime.UtcNow
@@ -85,7 +119,7 @@ public class RoomTypeService(HotelDbContext context, ICloudinaryService cloudina
         var roomType = await context.RoomTypes.FindAsync(id);
         if (roomType == null) return false;
 
-        roomType.DeletedAt = DateTime.UtcNow; 
+        roomType.DeletedAt = DateTime.UtcNow;
         await context.SaveChangesAsync();
         return true;
     }
