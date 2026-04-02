@@ -2,17 +2,23 @@ using HotelERP.BE.Application.DTOs.UserManagement;
 using HotelERP.BE.Application.Interfaces;
 using HotelERP.BE.Domain.Models;
 using HotelERP.BE.Infrastructure.Data;
+using MediatR;
 using Microsoft.EntityFrameworkCore;
+using HotelERP.BE.Events;
+using HotelERP.BE.Models; // Nhớ add thêm namespace này
 
 namespace HotelERP.BE.Application.Services;
 
 public class UserManagementService : IUserManagementService
 {
     private readonly HotelDbContext _context;
+    private readonly IMediator _mediator;
 
-    public UserManagementService(HotelDbContext context)
+    // Đã sửa lỗi thiếu IMediator ở tham số
+    public UserManagementService(HotelDbContext context, IMediator mediator) 
     {
         _context = context;
+        _mediator = mediator;
     }
 
     public async Task<IEnumerable<UserListItemResponse>> GetAllUsersAsync()
@@ -47,7 +53,15 @@ public class UserManagementService : IUserManagementService
         };
 
         await _context.Users.AddAsync(user);
-        return await _context.SaveChangesAsync() > 0;
+        var result = await _context.SaveChangesAsync() > 0;
+
+        if (result)
+        {
+            // PHÁT SỰ KIỆN: Báo cho hệ thống biết có User mới
+            await _mediator.Publish(new UserActivityEvent(user.FullName, "Create"));
+        }
+
+        return result;
     }
 
     public async Task<bool> DeleteUserAsync(int id)
@@ -55,9 +69,16 @@ public class UserManagementService : IUserManagementService
         var user = await _context.Users.FindAsync(id);
         if (user == null) return false;
 
-        // Thay vì xóa cứng, ta dùng xóa mềm bằng cách đổi Status
         user.Status = false; 
-        return await _context.SaveChangesAsync() > 0;
+        var isSuccess = await _context.SaveChangesAsync() > 0;
+
+        if (isSuccess)
+        {
+            // PHÁT SỰ KIỆN: Khóa tài khoản
+            await _mediator.Publish(new UserActivityEvent(user.FullName, "Lock"));
+        }
+
+        return isSuccess;
     }
 
     public async Task<bool> ChangeUserRoleAsync(int id, int newRoleId)
@@ -66,19 +87,43 @@ public class UserManagementService : IUserManagementService
         if (user == null) return false;
 
         user.RoleId = newRoleId;
-        return await _context.SaveChangesAsync() > 0;
+        var isSuccess = await _context.SaveChangesAsync() > 0;
+
+        if (isSuccess)
+        {
+            // PHÁT SỰ KIỆN: Đổi quyền
+            await _mediator.Publish(new UserActivityEvent(user.FullName, "ChangeRole"));
+        }
+
+        return isSuccess;
     }
 
     public async Task<bool> UpdateUserAsync(int id, AdminUpdateUserRequest request)
     {
-        var user = await _context.Users.FindAsync(id);
-        if (user == null) return false;
+    var user = await _context.Users.FindAsync(id);
+    if (user == null) return false;
 
-        user.FullName = request.FullName;
-        user.Phone = request.Phone;
-        user.Status = request.Status;
-        
-        return await _context.SaveChangesAsync() > 0;
+    // 1. Lưu lại trạng thái cũ để biết là đang Khóa hay Mở khóa
+    bool oldStatus = user.Status;
+
+    // 2. FIX 500: Chỉ cập nhật nếu FE có gửi dữ liệu
+    if (!string.IsNullOrEmpty(request.FullName)) user.FullName = request.FullName;
+    if (!string.IsNullOrEmpty(request.Phone)) user.Phone = request.Phone;
+    if (request.RoleId.HasValue) user.RoleId = request.RoleId.Value;
+    
+    user.Status = request.Status;
+
+    // 3. Lưu vào DB
+    var isSuccess = await _context.SaveChangesAsync() > 0;
+
+    // 4. PHÁT SỰ KIỆN MEDIATR (Chỉ phát chuông khi trạng thái bị gạt đổi)
+    if (oldStatus != request.Status)
+    {
+        var actionType = request.Status ? "Unlock" : "Lock"; 
+        await _mediator.Publish(new UserActivityEvent(user.FullName, actionType));
+    }
+
+    return true;
     }
 
     public async Task<IEnumerable<RolePermissionResponse>> GetRolesWithPermissionsAsync()
@@ -105,27 +150,43 @@ public async Task<List<PermissionTree>> GetGroupedPermissionsAsync()
     {
         new PermissionTree 
         { 
-            Title = "1. Hệ thống & Quản trị", Key = "g1",
-            Children = allPermissions.Where(p => p.Name == "VIEW_DASHBOARD" || p.Name == "MANAGE_USERS" || p.Name == "MANAGE_ROLES")
-                .Select(p => new PermissionNode { Title = p.Name, Key = p.Name }).ToList()
+            Title = "1. Hệ thống & Báo cáo", Key = "g1",
+            Children = allPermissions.Where(p => new[] { 
+                "VIEW_DASHBOARD", "VIEW_REPORTS", "VIEW_SYSTEM_LOGS", "VIEW_NOTIFICATIONS" 
+            }.Contains(p.Name))
+            .Select(p => new PermissionNode { Title = p.Name, Key = p.Name }).ToList()
         },
         new PermissionTree 
         { 
-            Title = "2. Quản lý Đặt phòng & Phòng", Key = "g2",
-            Children = allPermissions.Where(p => p.Name == "MANAGE_ROOMS" || p.Name == "MANAGE_BOOKINGS")
-                .Select(p => new PermissionNode { Title = p.Name, Key = p.Name }).ToList()
+            Title = "2. Quản lý Nhân sự & Phân quyền", Key = "g2",
+            Children = allPermissions.Where(p => new[] { 
+                "MANAGE_USERS", "MANAGE_ROLES" 
+            }.Contains(p.Name))
+            .Select(p => new PermissionNode { Title = p.Name, Key = p.Name }).ToList()
         },
         new PermissionTree 
         { 
-            Title = "3. Quản lý Dịch vụ & Tài chính", Key = "g3",
-            Children = allPermissions.Where(p => p.Name == "MANAGE_INVOICES" || p.Name == "MANAGE_SERVICES" || p.Name == "VIEW_REPORTS")
-                .Select(p => new PermissionNode { Title = p.Name, Key = p.Name }).ToList()
+            Title = "3. Quản lý Phòng & Tiện nghi", Key = "g3",
+            Children = allPermissions.Where(p => new[] { 
+                "VIEW_ROOMS", "MANAGE_ROOMS", "UPDATE_ROOM_STATUS", "MANAGE_AMENITIES", "MANAGE_MAINTENANCE" 
+            }.Contains(p.Name))
+            .Select(p => new PermissionNode { Title = p.Name, Key = p.Name }).ToList()
         },
         new PermissionTree 
         { 
-            Title = "4. Quản lý Nội dung & Kho", Key = "g4",
-            Children = allPermissions.Where(p => p.Name == "MANAGE_CONTENT" || p.Name == "MANAGE_INVENTORY")
-                .Select(p => new PermissionNode { Title = p.Name, Key = p.Name }).ToList()
+            Title = "4. Quản lý Đặt phòng & Tài chính", Key = "g4",
+            Children = allPermissions.Where(p => new[] { 
+                "MANAGE_BOOKINGS", "MANAGE_INVOICES", "CHECK_IN_OUT" 
+            }.Contains(p.Name))
+            .Select(p => new PermissionNode { Title = p.Name, Key = p.Name }).ToList()
+        },
+        new PermissionTree 
+        { 
+            Title = "5. Dịch vụ, Nội dung & Kho", Key = "g5",
+            Children = allPermissions.Where(p => new[] { 
+                "MANAGE_SERVICES", "MANAGE_CONTENT", "MANAGE_INVENTORY" 
+            }.Contains(p.Name))
+            .Select(p => new PermissionNode { Title = p.Name, Key = p.Name }).ToList()
         }
     };
 
@@ -187,4 +248,70 @@ public async Task<bool> UpdateRolePermissionsAsync(int roleId, RolePermissionsRe
 
     return roles;
     }
+    // HÀM 1: Lấy danh sách quyền thực tế của cá nhân (Gộp Role + Ngoại lệ)
+public async Task<List<string>> GetUserEffectivePermissionsAsync(int userId)
+{
+    var user = await _context.Users
+        .Include(u => u.Role).ThenInclude(r => r!.RolePermissions).ThenInclude(rp => rp.Permission)
+        .Include(u => u.UserPermissions).ThenInclude(up => up.Permission)
+        .FirstOrDefaultAsync(u => u.Id == userId);
+
+    if (user == null) return new List<string>();
+
+    var finalPermissions = new HashSet<string>();
+    
+    // A. Lấy quyền gốc từ chức vụ (Role)
+    if (user.Role?.RolePermissions != null)
+        foreach (var rp in user.Role.RolePermissions) finalPermissions.Add(rp.Permission!.Name);
+
+    // B. Ghi đè bằng Ngoại lệ cá nhân (UserPermissions)
+    if (user.UserPermissions != null)
+    {
+        foreach (var up in user.UserPermissions)
+        {
+            if (up.IsGranted) finalPermissions.Add(up.Permission!.Name); // Cấp thêm
+            else finalPermissions.Remove(up.Permission!.Name); // Tước đi
+        }
+    }
+    return finalPermissions.ToList();
+}
+
+// HÀM 2: Thuật toán so sánh và lưu ngoại lệ
+public async Task<bool> UpdateUserSpecificPermissionsAsync(int userId, List<string> selectedPermissionCodes)
+{
+    var user = await _context.Users
+        .Include(u => u.Role).ThenInclude(r => r!.RolePermissions)
+        .FirstOrDefaultAsync(u => u.Id == userId);
+    
+    if (user == null) return false;
+
+    // Lấy ID các quyền mà Chức vụ (Role) đang có
+    var rolePermissionIds = user.Role?.RolePermissions.Select(rp => rp.PermissionId).ToList() ?? new List<int>();
+
+    // Lấy ID các quyền mà Frontend gửi lên (Quyền mong muốn)
+    var selectedPermissionIds = await _context.Permissions
+        .Where(p => selectedPermissionCodes.Contains(p.Name))
+        .Select(p => p.Id).ToListAsync();
+
+    // Xóa toàn bộ ngoại lệ cũ của user này để tính toán lại từ đầu
+    var existingOverrides = await _context.UserPermissions.Where(up => up.UserId == userId).ToListAsync();
+    _context.UserPermissions.RemoveRange(existingOverrides);
+
+    // THUẬT TOÁN LỌC NGOẠI LỆ: So sánh [Quyền mong muốn] với [Quyền gốc của Role]
+    var allPermissionIds = await _context.Permissions.Select(p => p.Id).ToListAsync();
+    foreach (var pId in allPermissionIds)
+    {
+        bool shouldHave = selectedPermissionIds.Contains(pId);
+        bool roleHas = rolePermissionIds.Contains(pId);
+
+        if (shouldHave && !roleHas) // Role không có, nhưng User cần có -> CẤP THÊM
+            _context.UserPermissions.Add(new UserPermission { UserId = userId, PermissionId = pId, IsGranted = true });
+        
+        else if (!shouldHave && roleHas) // Role có, nhưng User không được phép có -> TƯỚC ĐI
+            _context.UserPermissions.Add(new UserPermission { UserId = userId, PermissionId = pId, IsGranted = false });
+    }
+
+    await _context.SaveChangesAsync();
+    return true;
+}
 }

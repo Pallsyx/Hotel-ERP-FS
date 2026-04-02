@@ -1,0 +1,66 @@
+import React from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
+
+// 1. IMPORT CÁC COMPONENT LÕI CỦA TEAM LEAD
+import Login from '../pages/Auth/Login';
+import MainLayout from '../layouts/MainLayout';
+import { useAuthStore } from '../store/authStore';
+import UserManagement from '../pages/Users/UserManagement';
+import RoleManagement from '../pages/Users/RoleManagement';
+
+// 2. COMPONENT GIỮ CHỖ (Placeholder)
+const Placeholder = ({ title }) => (
+  <div style={{ padding: 24, textAlign: 'center' }}>
+    <h2 style={{ color: '#1890ff' }}>{title}</h2>
+    <p>Giao diện đang được xây dựng...</p>
+  </div>
+);
+
+// 3. COMPONENT BẢO VỆ ROUTE (Chặn người lạ)
+const ProtectedRoute = ({ children }) => {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  return isAuthenticated ? children : <Navigate to="/login" replace />;
+};
+
+const AdminRoutes = () => {
+  return (
+    <Routes>
+      {/* ROUTES KHÔNG CẦN ĐĂNG NHẬP */}
+      <Route path="/login" element={<Login />} />
+      <Route path="/booking/search" element={<Placeholder title="Tìm kiếm & Chọn phòng trống" />} />
+      <Route path="/booking/checkout" element={<Placeholder title="Thanh toán & Nhập Voucher" />} />
+
+      {/* ROUTES BẮT BUỘC ĐĂNG NHẬP (PRIVATE ADMIN) */}
+      <Route path="/admin" element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
+        <Route index element={<Navigate to="dashboard" replace />} />
+        <Route path="dashboard" element={<Placeholder title="Dashboard Thống kê" />} />
+
+        {/* MODULE 6 */}
+        <Route path="users" element={<UserManagement />} />
+        <Route path="roles" element={<RoleManagement  />} />
+        <Route path="audit-logs" element={<Placeholder title="Truy vết hệ thống (Audit Logs)" />} />
+
+        {/* MODULE 3 */}
+        <Route path="room-types" element={<Placeholder title="Cấu hình Hạng phòng & Giá" />} />
+        <Route path="rooms" element={<Placeholder title="Quản lý Phòng vật lý" />} />
+        <Route path="housekeeping" element={<Placeholder title="Checklist Buồng phòng & Minibar" />} />
+        <Route path="damage-reports" element={<Placeholder title="Báo cáo Hư hỏng & Đền bù" />} />
+
+        {/*  MODULE 1 */}
+        <Route path="article-categories" element={<Placeholder title="Danh mục Bài viết" />} />
+        <Route path="posts" element={<Placeholder title="Quản lý Bài viết (Blog)" />} />
+        <Route path="attractions" element={<Placeholder title="Địa điểm lân cận (Bản đồ)" />} />
+        <Route path="reviews" element={<Placeholder title="Kiểm duyệt Đánh giá (Review)" />} />
+
+        {/*  MODULE 2 */}
+        <Route path="reception-calendar" element={<Placeholder title="Lịch Lễ Tân (Gantt Chart)" />} />
+        <Route path="bookings" element={<Placeholder title="Quản lý Đơn Đặt Phòng (Check-in/Out)" />} />
+      </Route>
+
+      {/* ROUTE 404 */}
+      <Route path="*" element={<Placeholder title="404 - Trang không tồn tại" />} />
+    </Routes>
+  );
+};
+
+export default AdminRoutes;

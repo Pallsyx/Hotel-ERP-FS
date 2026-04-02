@@ -61,6 +61,7 @@ const RoleManagement = () => {
   };
 
   // 3. LƯU CẬP NHẬT PHÂN QUYỀN
+  // 3. LƯU CẬP NHẬT PHÂN QUYỀN
   const handleSubmitPermissions = async (values) => {
     try {
       message.loading({ content: 'Đang lưu cập nhật...', key: 'save_permissions' });
@@ -77,7 +78,15 @@ const RoleManagement = () => {
       handleCloseEditModal();
       fetchRolesData(); 
     } catch (error) {
-      message.error({ content: 'Lỗi khi lưu cập nhật phân quyền!', key: 'save_permissions' });
+      // Ép log lỗi ra Console để xem chi tiết
+      console.error("LỖI 400 TỪ BACKEND:", error.response?.data);
+      
+      // Lấy câu thông báo lỗi chính xác từ C# trả về
+      const errorMsg = error.response?.data?.message 
+                    || error.response?.data?.title 
+                    || 'Lỗi khi lưu cập nhật phân quyền!';
+                    
+      message.error({ content: `Lỗi: ${errorMsg}`, key: 'save_permissions' });
     }
   };
 
@@ -89,16 +98,23 @@ const RoleManagement = () => {
     {
       title: 'Thao Tác', key: 'action', align: 'center', width: 160,
       render: (_, record) => {
-        // Kiểm tra xem dòng hiện tại có phải là Guest hay không
+        // 👉 KIỂM TRA XEM CÓ PHẢI GUEST HOẶC ADMIN KHÔNG
         const isGuest = record.name === 'Guest'; 
+        const isAdmin = record.name === 'Admin' || record.id === 1; // Khóa luôn Admin
+        const isDisabled = isGuest || isAdmin;
         
+        // Tùy chỉnh câu thông báo khi di chuột vào nút bị khóa
+        let tooltipText = 'Chỉnh sửa phân quyền';
+        if (isAdmin) tooltipText = 'Admin tối cao có toàn quyền (Không thể sửa)';
+        if (isGuest) tooltipText = 'Khách hàng không có quyền quản trị';
+
         return (
-          <Tooltip title={isGuest ? 'Khách hàng không có quyền quản trị' : 'Chỉnh sửa phân quyền'}>
+          <Tooltip title={tooltipText}>
             <Button 
-              type={isGuest ? 'default' : 'primary'} 
+              type={isDisabled ? 'default' : 'primary'} 
               icon={<SafetyOutlined />} 
               size="small" 
-              disabled={isGuest} 
+              disabled={isDisabled} // Nút sẽ bị mờ đi nếu là Admin hoặc Guest
               onClick={() => handleOpenEditModal(record)}
             >
               Phân quyền
