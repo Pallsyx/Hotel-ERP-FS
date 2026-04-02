@@ -1860,7 +1860,40 @@ IF COL_LENGTH('dbo.Booking_Details', 'actual_check_out_at') IS NULL ALTER TABLE 
 IF COL_LENGTH('dbo.Booking_Details', 'created_at') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [created_at] DATETIME NOT NULL DEFAULT GETDATE();
 IF COL_LENGTH('dbo.Booking_Details', 'updated_at') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [updated_at] DATETIME NULL;
 GO
+-- =========================
+-- PATCH CHO AMENITIES
+-- =========================
+IF COL_LENGTH('dbo.Amenities', 'status') IS NULL
+    ALTER TABLE [dbo].[Amenities]
+    ADD [status] NVARCHAR(20) NOT NULL CONSTRAINT DF_Amenities_Status_New DEFAULT 'ACTIVE';
 
+IF COL_LENGTH('dbo.Amenities', 'created_at') IS NULL
+    ALTER TABLE [dbo].[Amenities]
+    ADD [created_at] DATETIME NOT NULL CONSTRAINT DF_Amenities_CreatedAt_New DEFAULT GETDATE();
+
+IF COL_LENGTH('dbo.Amenities', 'updated_at') IS NULL
+    ALTER TABLE [dbo].[Amenities]
+    ADD [updated_at] DATETIME NULL;
+
+IF COL_LENGTH('dbo.Amenities', 'DeletedAt') IS NULL
+    ALTER TABLE [dbo].[Amenities]
+    ADD [DeletedAt] DATETIME NULL;
+
+
+-- =========================
+-- PATCH CHO ROOM_TYPES
+-- =========================
+IF COL_LENGTH('dbo.Room_Types', 'DeletedAt') IS NULL
+    ALTER TABLE [dbo].[Room_Types]
+    ADD [DeletedAt] DATETIME NULL;
+
+IF COL_LENGTH('dbo.Room_Types', 'ImageUrl') IS NULL
+    ALTER TABLE [dbo].[Room_Types]
+    ADD [ImageUrl] NVARCHAR(MAX) NULL;
+
+IF COL_LENGTH('dbo.Room_Types', 'CloudinaryPublicId') IS NULL
+    ALTER TABLE [dbo].[Room_Types]
+    ADD [CloudinaryPublicId] NVARCHAR(255) NULL;
 -- 3. CHÈN QUYỀN MỚI CỦA BẠN (Kiểm tra tránh trùng)
 INSERT INTO [dbo].[Permissions] ([name], [description])
 SELECT N'VIEW_SYSTEM_LOGS', N'Xem nhật ký hệ thống'
@@ -1984,6 +2017,7 @@ GO
 ALTER TABLE [dbo].[Users] ADD CONSTRAINT DF_Users_Status_Bit DEFAULT ((1)) FOR [status];
 GO
 
+
 UPDATE [dbo].[Users] SET [created_at] = GETDATE() WHERE [created_at] IS NULL;
 UPDATE [dbo].[Users] SET [updated_at] = GETDATE() WHERE [updated_at] IS NULL;
 GO
@@ -2005,3 +2039,83 @@ AND NOT EXISTS (
     WHERE rp.role_id = 1 AND rp.permission_id = [dbo].[Permissions].id
 );
 GO
+
+
+IF COL_LENGTH('dbo.Room_Types', 'DeletedAt') IS NULL
+    ALTER TABLE [dbo].[Room_Types]
+    ADD [DeletedAt] DATETIME NULL;
+
+IF COL_LENGTH('dbo.Room_Types', 'ImageUrl') IS NULL
+    ALTER TABLE [dbo].[Room_Types]
+    ADD [ImageUrl] NVARCHAR(MAX) NULL;
+
+IF COL_LENGTH('dbo.Room_Types', 'CloudinaryPublicId') IS NULL
+    ALTER TABLE [dbo].[Room_Types]
+    ADD [CloudinaryPublicId] NVARCHAR(255) NULL;
+
+	IF COL_LENGTH('dbo.RoomType_Amenities', 'created_at') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[RoomType_Amenities]
+    ADD [created_at] DATETIME NOT NULL
+        CONSTRAINT [DF_RoomTypeAmenities_CreatedAt] DEFAULT GETDATE();
+END
+
+IF COL_LENGTH('dbo.Amenities', 'status') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Amenities]
+    ADD [status] NVARCHAR(20) NOT NULL
+        CONSTRAINT [DF_Amenities_Status] DEFAULT 'ACTIVE';
+END
+
+IF COL_LENGTH('dbo.Amenities', 'created_at') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Amenities]
+    ADD [created_at] DATETIME NOT NULL
+        CONSTRAINT [DF_Amenities_CreatedAt] DEFAULT GETDATE();
+END
+
+IF COL_LENGTH('dbo.Amenities', 'UpdatedAt') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Amenities]
+    ADD [UpdatedAt] DATETIME NULL;
+END
+
+
+IF COL_LENGTH('dbo.Amenities', 'DeletedAt') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Amenities]
+    ADD [DeletedAt] DATETIME NULL;
+END
+
+IF COL_LENGTH('dbo.Amenities', 'status') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Amenities]
+    ADD [status] NVARCHAR(20) NOT NULL
+        CONSTRAINT [DF_Amenities_Status] DEFAULT 'ACTIVE';
+END
+
+IF COL_LENGTH('dbo.Amenities', 'created_at') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Amenities]
+    ADD [created_at] DATETIME NOT NULL
+        CONSTRAINT [DF_Amenities_CreatedAt] DEFAULT GETDATE();
+END
+
+IF COL_LENGTH('dbo.Amenities', 'updated_at') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Amenities]
+    ADD [updated_at] DATETIME NULL;
+END
+
+IF COL_LENGTH('dbo.Amenities', 'UpdatedAt') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Amenities]
+    ADD [UpdatedAt] DATETIME NULL;
+END
+
+IF COL_LENGTH('dbo.Amenities', 'DeletedAt') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Amenities]
+    ADD [DeletedAt] DATETIME NULL;
+END
+
