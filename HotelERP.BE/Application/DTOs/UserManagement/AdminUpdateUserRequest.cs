@@ -7,4 +7,5 @@ public class AdminUpdateUserRequest
     
     // Admin có quyền bật/khóa tài khoản nhân viên
     public bool Status { get; set; }
+    public int? RoleId { get; set; } // Cho phép admin thay đổi quyền của user
 }

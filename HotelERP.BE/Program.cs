@@ -7,6 +7,26 @@ using HotelERP.BE.DTOs.Hubs;
 using HotelERP.BE.Infrastructure.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
+using StackExchange.Redis;
+using RedLockNet;
+using RedLockNet.SERedis;
+using RedLockNet.SERedis.Configuration;
+using Hangfire;
+using HotelERP.BE.Utils;
+using HotelERP.BE.Services;
+using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Mvc;
+using HotelERP.BE.DTOs.Configurations;
+using HotelERP.BE.DTOs.Common;
+using HotelERP.BE.Helpers.AuditLogs;
+using HotelERP.BE.DTOs.Hubs;
+using HotelERP.BE.Services.Bookings;
+using HotelERP.BE.Services.Loyalty;
+using HotelERP.BE.Services.RoomTypes;
+using HotelERP.BE.Services.Vouchers;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,9 +34,169 @@ var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' was not found.");
 
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddDbContext<HotelDbContext>(options =>
+    options.UseSqlServer(connectionString));
 
+// --- 2. CẤU HÌNH JSON VÀ VALIDATION (Gộp của bạn & Long) ---
+builder.Services.AddControllers().AddJsonOptions(options =>
+{
+    options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+});
+
+// Bộ lọc lỗi Validation xịn của Long
+builder.Services.Configure<ApiBehaviorOptions>(options =>
+{
+    options.InvalidModelStateResponseFactory = context =>
+    {
+        var errors = context.ModelState
+            .Where(x => x.Value is not null && x.Value.Errors.Count > 0)
+            .Select(x => new
+            {
+                field = x.Key,
+                errors = x.Value!.Errors.Select(e =>
+                    string.IsNullOrWhiteSpace(e.ErrorMessage)
+                        ? "Invalid value."
+                        : e.ErrorMessage)
+            });
+
+        var response = ApiResult<object>.Fail(
+            StatusCodes.Status400BadRequest,
+            "VALIDATION_ERROR",
+            "Dữ liệu đầu vào không hợp lệ.",
+            errors);
+
+        return new BadRequestObjectResult(response);
+    };
+});
+
+// Cấu hình CORS cho SignalR của Long
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowSignalR", policy =>
+    {
+        policy.SetIsOriginAllowed(_ => true)
+              .AllowAnyMethod()
+              .AllowAnyHeader()
+              .AllowCredentials();
+    });
+});
+
+// SignalR của Long
+builder.Services.AddSignalR();
+
+// --- 3. CẤU HÌNH JWT AUTHENTICATION ---
+var jwtSettings = builder.Configuration.GetSection("JwtSettings");
+var secretKeyString = jwtSettings["Secret"] ?? "HotelERP_Super_Secret_Key_Must_Be_Long_Enough_2026_DotNet10";
+var secretKey = Encoding.UTF8.GetBytes(secretKeyString);
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.RequireHttpsMetadata = true;
+    options.SaveToken = true;
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = new SymmetricSecurityKey(secretKey),
+        ValidateIssuer = true,
+        ValidIssuer = jwtSettings["Issuer"] ?? "HotelERP.BE",
+        ValidateAudience = true,
+        ValidAudience = jwtSettings["Audience"] ?? "HotelERP.Clients",
+        ValidateLifetime = true,
+        ClockSkew = TimeSpan.Zero
+    };
+});
+
+// --- 4. CẤU HÌNH HANGFIRE & REDIS ---
+builder.Services.AddHangfire(config => config
+    .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+    .UseSimpleAssemblyNameTypeSerializer()
+    .UseRecommendedSerializerSettings()
+    .UseSqlServerStorage(connectionString));
+
+builder.Services.AddHangfireServer(); 
+
+var redisConnection = ConnectionMultiplexer.Connect("localhost:6379");
+builder.Services.AddSingleton<IConnectionMultiplexer>(redisConnection);
+
+builder.Services.AddSingleton<IDistributedLockFactory>(provider =>
+{
+    var multiplexers = new List<RedLockMultiplexer> { new RedLockMultiplexer(redisConnection) };
+    return RedLockFactory.Create(multiplexers);
+});
+
+// --- 5. ĐĂNG KÝ SERVICES ---
+
+// Options của Loyalty Points
+builder.Services.Configure<LoyaltyPointsOptions>(
+    builder.Configuration.GetSection(LoyaltyPointsOptions.SectionName));
+
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IUserProfileService, UserProfileService>();
+builder.Services.AddScoped<IPhotoService, PhotoService>();
+builder.Services.AddScoped<IUserManagementService, UserManagementService>();
+builder.Services.AddScoped<IBookingEngineService, BookingEngineService>();
+builder.Services.AddScoped<IRoomInventoryService, RoomInventoryService>();
+builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
+builder.Services.AddScoped<ArticleService>();
+builder.Services.AddScoped<ILoyaltyPointService, LoyaltyPointService>();
+builder.Services.AddScoped<IVoucherService, VoucherService>();
+builder.Services.AddScoped<IVoucherAuditLogHelper, VoucherAuditLogHelper>();
+builder.Services.AddScoped<IRoomTypeQueryService, RoomTypeQueryService>();
+builder.Services.AddScoped<IBookingVoucherService, BookingVoucherService>();
+builder.Services.AddScoped<IRoomService, RoomService>();
+builder.Services.AddScoped<ArticleCategoryService>();
+builder.Services.AddScoped<IAmenityService, AmenityService>();
+
+
+
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddAuthorization();
+builder.Services.AddEndpointsApiExplorer();
+
+// --- 6. CẤU HÌNH SWAGGER ---
+builder.Services.AddSwaggerGen(c =>
+{
+    c.OperationFilter<AuditReasonHeaderFilter>(); 
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "Hotel ERP Backend API v1", Version = "v1" });
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Description = "Nhập 'Bearer' [khoảng trắng] và token của bạn vào ô bên dưới.",
+        Name = "Authorization",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer"
+    });
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
+            },
+            Array.Empty<string>()
+        }
+    });
+});
+// Cấu hình CORS cho Swagger UI (nếu cần, thường là không cần vì Swagger UI chạy cùng domain với API)
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy.WithOrigins("http://localhost:5173") // Link Frontend của bạn
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials(); // Bắt buộc để sau này xài SignalR
+    });
+});
+
+// ==========================================
+// BUILD APP
+// ==========================================
 var app = builder.Build();
 
 app.UseSwagger();
@@ -37,10 +217,12 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.UseHttpsRedirection(); 
-app.UseCors("AllowFrontend");
+app.UseCors("AllowSignalR"); // Dùng cái này là đủ cho cả API và SignalR
 app.UseAuthentication();
 app.UseAuthorization();
+app.MapHub<NotificationHub>("/notificationHub"); // SignalR Hub
 app.MapControllers();
+
 
 // SignalR Hub của Long
 app.MapHub<RoomHub>("/roomHub");
