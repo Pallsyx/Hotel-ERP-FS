@@ -192,7 +192,6 @@ builder.Services.AddScoped<IRoomService, RoomService>();
 builder.Services.AddScoped<ArticleCategoryService>();
 builder.Services.AddScoped<IAmenityService, AmenityService>();
 builder.Services.AddScoped<IRoomTypeAmenityService, RoomTypeAmenityService>();
-builder.Services.AddSignalR();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(Program).Assembly));
 
@@ -269,7 +268,7 @@ app.MapControllers();
 
 
 // SignalR Hub của Long
-app.MapHub<RoomHub>("/roomHub");
+app.MapHub<HotelERP.BE.DTOs.Hubs.RoomHub>("/roomHub");
 
 // --- 8. MINIMAL APIS (Health Checks & Summary) ---
 app.MapGet("/", () => Results.Redirect("/swagger")).ExcludeFromDescription();

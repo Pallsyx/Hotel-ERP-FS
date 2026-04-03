@@ -1,23 +1,22 @@
 import axios from 'axios';
 import { useAuthStore } from '../store/authStore';
 
-const API_BASE_URL = 'https://localhost:7100/api';
-
 const axiosClient = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: 'https://localhost:7100/api',
   headers: { 'Content-Type': 'application/json' },
 });
 
 let isRefreshing = false;
 let refreshSubscribers = [];
 
-
+// Hàm để đẩy các request bị chờ vào hàng đợi
 const subscribeTokenRefresh = (cb) => {
   refreshSubscribers.push(cb);
 };
 
+// Hàm để thực thi lại các request sau khi đã có token mới
 const onRefreshed = (token) => {
-  refreshSubscribers.forEach((cb) => cb(token));
+  refreshSubscribers.map((cb) => cb(token));
   refreshSubscribers = [];
 };
 
@@ -30,52 +29,47 @@ axiosClient.interceptors.request.use((config) => {
 axiosClient.interceptors.response.use(
   (response) => response,
   async (error) => {
-    const originalRequest = error.config;
-    const status = error.response?.status;
+    const { config, response: { status } } = error;
+    const originalRequest = config;
 
-    if (status !== 401 || !originalRequest || originalRequest._retry) {
-      return Promise.reject(error);
-    }
+    if (status === 401) {
+      if (!isRefreshing) {
+        isRefreshing = true;
+        const refreshToken = localStorage.getItem('refreshToken');
 
-    originalRequest._retry = true;
+        try {
+          // Gọi API Refresh Token của Backend
+          const response = await axios.post('https://localhost:7100/api/Auth/refresh-token', {
+            token: localStorage.getItem('token'),
+            refreshToken: refreshToken
+          });
 
-    if (!isRefreshing) {
-      isRefreshing = true;
-      const refreshToken = localStorage.getItem('refreshToken');
+          const { accessToken, newRefreshToken } = response.data.data;
 
-      try {
-        const response = await axios.post(`${API_BASE_URL}/Auth/refresh-token`, {
-          token: localStorage.getItem('token'),
-          refreshToken: refreshToken,
-        });
+          // Lưu token mới
+          localStorage.setItem('token', accessToken);
+          localStorage.setItem('refreshToken', newRefreshToken);
+          useAuthStore.getState().login(useAuthStore.getState().user, accessToken, newRefreshToken);
 
-        const { accessToken, newRefreshToken } = response.data.data;
-
-        localStorage.setItem('token', accessToken);
-        localStorage.setItem('refreshToken', newRefreshToken);
-        useAuthStore.getState().login(
-          useAuthStore.getState().user,
-          accessToken,
-          newRefreshToken
-        );
-
-        isRefreshing = false;
-        onRefreshed(accessToken);
-      } catch (refreshError) {
-        isRefreshing = false;
-        refreshSubscribers = [];
-        useAuthStore.getState().logout();
-        window.location.href = '/login';
-        return Promise.reject(refreshError);
+          isRefreshing = false;
+          onRefreshed(accessToken); // Thông báo cho các request đang chờ
+        } catch (refreshError) {
+          isRefreshing = false;
+          useAuthStore.getState().logout(); // Nếu refresh thất bại thì ép đăng xuất
+          window.location.href = '/login';
+          return Promise.reject(refreshError);
+        }
       }
-    }
 
-    return new Promise((resolve) => {
-      subscribeTokenRefresh((token) => {
-        originalRequest.headers.Authorization = `Bearer ${token}`;
-        resolve(axiosClient(originalRequest));
+      // Đưa request hiện tại vào hàng đợi chờ token mới
+      return new Promise((resolve) => {
+        subscribeTokenRefresh((token) => {
+          originalRequest.headers.Authorization = `Bearer ${token}`;
+          resolve(axiosClient(originalRequest));
+        });
       });
-    });
+    }
+    return Promise.reject(error);
   }
 );
 

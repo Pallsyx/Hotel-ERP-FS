@@ -7,7 +7,8 @@ import {
 const { Step } = Steps;
 import {
   AppstoreOutlined, PlusOutlined, UploadOutlined,
-  CopyOutlined, SearchOutlined, EditOutlined
+  CopyOutlined, SearchOutlined, EditOutlined, DeleteOutlined,
+  EyeOutlined, TableOutlined, ToolOutlined, SettingOutlined
 } from '@ant-design/icons';
 import axios from 'axios';
 import axiosClient from '../../api/axiosClient';
@@ -28,12 +29,19 @@ export default function App() {
   const [amenitiesList, setAmenitiesList] = useState([]); // State mới lưu tiện ích từ API
   const [loading, setLoading] = useState(false);
   const [filterFloor, setFilterFloor] = useState(null);
+  const [isAmenitiesModalVisible, setIsAmenitiesModalVisible] = useState(false);
+  const [isInventoryModalVisible, setIsInventoryModalVisible] = useState(false);
+  const [selectedRoom, setSelectedRoom] = useState(null);
+  const [currentRoomInventory, setCurrentRoomInventory] = useState([]);
+  const [roomAmenities, setRoomAmenities] = useState([]);
+  const [equipments, setEquipments] = useState([]);
 
   // GỌI API KHI COMPONENT ĐƯỢC RENDER LẦN ĐẦU
   useEffect(() => {
     fetchRooms();
     fetchRoomTypes();
     fetchAmenities(); // Gọi thêm API lấy tiện ích
+    fetchEquipments();
   }, []);
 
   const fetchRooms = async () => {
@@ -67,6 +75,35 @@ export default function App() {
     } catch (error) {
       message.warning("Lỗi mạng: Không thể tải danh sách tiện ích từ Backend.");
       console.error("fetchAmenities error:", error);
+    }
+  };
+
+  const fetchRoomTypeAmenities = async (typeId) => {
+    if (!typeId) return;
+    try {
+      // Thử endpoint chuẩn của project
+      const response = await axiosClient.get(`/RoomTypes/${typeId}/amenities`);
+      setRoomAmenities(response.data.data || []);
+    } catch (error) {
+       console.error("fetchRoomTypeAmenities error:", error);
+    }
+  };
+
+  const fetchRoomInventory = async (roomId) => {
+    try {
+      const response = await axiosClient.get(`/rooms/${roomId}/inventories`);
+      setCurrentRoomInventory(response.data.data || []);
+    } catch (error) {
+      console.error("fetchRoomInventory error:", error);
+    }
+  };
+
+  const fetchEquipments = async () => {
+    try {
+      const res = await axiosClient.get('/Equipments');
+      setEquipments(res.data.data || []);
+    } catch (error) {
+      console.error("fetchEquipments error:", error);
     }
   };
 
@@ -160,12 +197,40 @@ export default function App() {
         title: 'Thao tác',
         key: 'action',
         render: (_, record) => (
-          <Button
-            type="text"
-            className="text-blue-600 hover:text-blue-800"
-            icon={<EditOutlined />}
-            onClick={() => setCurrentView('edit')}
-          />
+          <Space>
+            <Button
+              type="text"
+              className="text-purple-600 hover:text-purple-800"
+              icon={<AppstoreOutlined />}
+              title="Xem tiện ích"
+              onClick={() => {
+                setSelectedRoom(record);
+                fetchRoomTypeAmenities(record.roomTypeId);
+                setIsAmenitiesModalVisible(true);
+              }}
+            />
+            <Button
+              type="text"
+              className="text-orange-600 hover:text-orange-800"
+              icon={<TableOutlined />}
+              title="Quản lý vật tư"
+              onClick={() => {
+                setSelectedRoom(record);
+                fetchRoomInventory(record.id);
+                setIsInventoryModalVisible(true);
+              }}
+            />
+            <Button
+              type="text"
+              className="text-blue-600 hover:text-blue-800"
+              icon={<EditOutlined />}
+              title="Sửa phòng"
+              onClick={() => {
+                setSelectedRoom(record);
+                setCurrentView('edit');
+              }}
+            />
+          </Space>
         )
       }
     ];
@@ -202,12 +267,48 @@ export default function App() {
   const RoomForm = () => {
     const [form] = Form.useForm();
     const [inventoryData, setInventoryData] = useState([]);
+    const [equipments, setEquipments] = useState([]);
+    const [selectedEquipment, setSelectedEquipment] = useState(null);
     const [imageUrl, setImageUrl] = useState("");
     const [isCloneModalVisible, setIsCloneModalVisible] = useState(false);
     const [isAddSupplyModalVisible, setIsAddSupplyModalVisible] = useState(false);
     const [supplyForm] = Form.useForm();
     const [submitting, setSubmitting] = useState(false);
     const [currentStep, setCurrentStep] = useState(0);
+    const isEdit = currentView === 'edit';
+
+    useEffect(() => {
+      if (isEdit && selectedRoom) {
+        form.setFieldsValue({
+          roomNumber: selectedRoom.roomNumber,
+          floor: selectedRoom.floor,
+          typeId: selectedRoom.roomTypeId
+        });
+        
+        // Find and set initial image from room type
+        const type = roomTypes.find(t => t.id === selectedRoom.roomTypeId);
+        setImageUrl(type?.imageUrl || "");
+        
+        // Load inventory for the room
+        (async () => {
+          try {
+            const res = await axiosClient.get(`/rooms/${selectedRoom.id}/inventories`);
+            const mappedInventories = (res.data.data || []).map((item, idx) => ({
+              id: item.id || Date.now() + idx,
+              equipmentId: item.equipmentId,
+              name: item.itemName,
+              unit: item.unit || 'Cái',
+              quantity: item.quantity,
+              penaltyPrice: item.priceIfLost
+            }));
+            setInventoryData(mappedInventories);
+          } catch (e) {
+            console.error("fetch inventories for edit error:", e);
+          }
+        })();
+      }
+    }, [isEdit, selectedRoom]);
+
 
     // Tính năng: Clone từ phòng mẫu gọi API Backend
     const handleCloneRoom = async (sampleRoomId) => {
@@ -221,7 +322,7 @@ export default function App() {
 
         const mappedInventories = (response.data.data || []).map((item, idx) => ({
           id: item.id || Date.now() + idx,
-          code: item.code || 'SYS',
+          equipmentId: item.equipmentId,
           name: item.itemName,
           unit: item.unit || 'Cái',
           quantity: item.quantity,
@@ -263,34 +364,46 @@ export default function App() {
     const onFinish = async (values) => {
       setSubmitting(true);
       try {
-        const submitData = {
-          roomNumber: values.roomNumber,
-          roomTypeId: values.typeId,
-          status: 'AVAILABLE',
-          cleaningStatus: 'CLEAN',
-        };
+        if (isEdit) {
+          // Chỉ cập nhật hạng phòng (và các thông tin cho phép)
+          await axiosClient.put(`/Rooms/${selectedRoom.id}`, {
+            roomNumber: selectedRoom.roomNumber,
+            floor: selectedRoom.floor,
+            roomTypeId: values.typeId
+          });
+          message.success("Cập nhật hạng phòng thành công!");
+        } else {
+          // Tạo phòng mới và lưu inventory
+          const submitData = {
+            roomNumber: values.roomNumber,
+            floor: values.floor,
+            roomTypeId: values.typeId,
+            status: 'AVAILABLE',
+            cleaningStatus: 'CLEAN',
+          };
 
-        const res = await axiosClient.post('/Rooms', submitData);
-        const newRoomId = res.data?.roomId || res.data?.data?.roomId;
+          const res = await axiosClient.post('/Rooms', submitData);
+          const newRoomId = res.data?.roomId || res.data?.data?.roomId;
 
-        // Lưu inventoryData xuống API RoomInventories
-        if (newRoomId && inventoryData.length > 0) {
-          for (const item of inventoryData) {
-            await axiosClient.post(`/rooms/${newRoomId}/inventories`, {
-              ItemName: item.name,
-              Quantity: item.quantity,
-              Condition: "NEW",
-              IsMinibar: false,
-              PriceIfLost: item.penaltyPrice || 0
-            });
+          if (newRoomId && inventoryData.length > 0) {
+            for (const item of inventoryData) {
+              await axiosClient.post(`/rooms/${newRoomId}/inventories`, {
+                equipmentId: item.equipmentId,
+                quantity: item.quantity,
+                condition: item.condition || "Tốt",
+                isMinibar: item.name.toLowerCase().includes("minibar"),
+                priceIfLost: item.penaltyPrice || 0
+              });
+            }
           }
+          message.success("Tạo phòng mới thành công!");
         }
 
-        message.success("Lưu phòng và cập nhật vật tư thành công!");
         setCurrentView('list');
         fetchRooms();
       } catch (error) {
-        message.error("Lỗi khi lưu phòng! Vui lòng kiểm tra lại kết nối Backend.");
+        const errorMsg = error.response?.data?.message || "Lỗi khi xử lý! Vui lòng kiểm tra lại.";
+        message.error(errorMsg);
         console.error("onFinish error:", error);
       } finally {
         setSubmitting(false);
@@ -301,8 +414,48 @@ export default function App() {
       { title: 'Mã VT', dataIndex: 'code' },
       { title: 'Tên vật tư', dataIndex: 'name' },
       { title: 'ĐVT', dataIndex: 'unit' },
-      { title: 'Số lượng', dataIndex: 'quantity', render: (val) => <InputNumber min={1} defaultValue={val} /> },
+      { 
+        title: 'Số lượng', 
+        dataIndex: 'quantity', 
+        render: (val, record) => (
+          <InputNumber 
+            min={1} 
+            value={val} 
+            onChange={(newVal) => {
+              setInventoryData(prev => prev.map(item => 
+                item.id === record.id ? { ...item, quantity: newVal } : item
+              ));
+            }} 
+          />
+        ) 
+      },
       { title: 'Giá đền bù (VNĐ)', dataIndex: 'penaltyPrice', render: (val) => val?.toLocaleString() + ' đ' },
+      {
+        title: 'Thao tác',
+        key: 'action',
+        render: (_, record) => (
+          <Button 
+            type="text" 
+            danger 
+            icon={<DeleteOutlined />} 
+            onClick={async () => {
+              if (isEdit && record.id > 1000000000) { // New item not yet in DB
+                setInventoryData(prev => prev.filter(item => item.id !== record.id));
+              } else if (isEdit) {
+                try {
+                  await axiosClient.delete(`/rooms/${selectedRoom.id}/inventories/${record.id}`);
+                  message.success(`Đã xóa ${record.name}`);
+                  setInventoryData(prev => prev.filter(item => item.id !== record.id));
+                } catch (e) {
+                  message.error("Lỗi khi xóa vật tư.");
+                }
+              } else {
+                setInventoryData(prev => prev.filter(item => item.id !== record.id));
+              }
+            }}
+          />
+        )
+      }
     ];
 
     return (
@@ -320,23 +473,31 @@ export default function App() {
             </Steps>
 
             <div style={{ display: currentStep === 0 ? 'block' : 'none' }}>
-              <Row gutter={24}>
+              <Row gutter={24} align="middle">
                 <Col span={12}>
-                  <Row gutter={16}>
-                    <Col span={12}>
-                      <Form.Item name="roomNumber" label="Số phòng" rules={[{ required: true }]}>
-                        <Input placeholder="VD: 101" />
-                      </Form.Item>
-                    </Col>
-                    <Col span={12}>
-                      <Form.Item name="floor" label="Tầng" rules={[{ required: true }]}>
-                        <InputNumber className="w-full" placeholder="VD: 1" />
-                      </Form.Item>
-                    </Col>
-                  </Row>
+                  {!isEdit && (
+                    <Row gutter={16}>
+                      <Col span={12}>
+                        <Form.Item name="roomNumber" label="Số phòng" rules={[{ required: true }]}>
+                          <Input placeholder="VD: 101" />
+                        </Form.Item>
+                      </Col>
+                      <Col span={12}>
+                        <Form.Item name="floor" label="Tầng" rules={[{ required: true }]}>
+                          <InputNumber className="w-full" placeholder="VD: 1" />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                  )}
                   {/* Hạng phòng Dropdown gọi từ API */}
                   <Form.Item name="typeId" label="Hạng phòng" rules={[{ required: true }]}>
-                    <Select placeholder="Chọn hạng phòng">
+                    <Select 
+                      placeholder="Chọn hạng phòng"
+                      onChange={(id) => {
+                        const type = roomTypes.find(t => t.id === id);
+                        setImageUrl(type?.imageUrl || "");
+                      }}
+                    >
                       {roomTypes.map(type => (
                         <Option key={type.id} value={type.id}>{type.name}</Option>
                       ))}
@@ -344,27 +505,20 @@ export default function App() {
                   </Form.Item>
                 </Col>
                 <Col span={12}>
-                  <Form.Item label="Hình ảnh hạng phòng" name="imageUrl">
-                    <Upload
-                      customRequest={customUpload}
-                      showUploadList={false}
-                      accept="image/*"
-                    >
-                      <div className="border-2 border-dashed border-gray-300 rounded p-8 text-center cursor-pointer hover:bg-gray-50 flex flex-col items-center justify-center h-48">
-                        {imageUrl ? (
-                          <img src={imageUrl} alt="Room" className="h-full object-contain" />
-                        ) : (
-                          <div>
-                            <UploadOutlined className="text-2xl text-blue-500 mb-2" />
-                            <div className="text-gray-500">Click để chọn ảnh từ máy</div>
-                          </div>
-                        )}
+                  <div className="border rounded bg-gray-50 flex items-center justify-center h-40 overflow-hidden">
+                    {imageUrl ? (
+                      <img src={imageUrl} alt="Hạng phòng" className="h-full w-full object-contain" />
+                    ) : (
+                      <div className="text-gray-400 italic text-sm text-center">
+                        <AppstoreOutlined className="text-2xl mb-1 block" />
+                        Chưa chọn hạng phòng / <br/> Hạng phòng chưa có ảnh
                       </div>
-                    </Upload>
-                  </Form.Item>
+                    )}
+                  </div>
                 </Col>
               </Row>
             </div>
+
 
 
 
@@ -422,47 +576,89 @@ export default function App() {
           onCancel={() => setIsAddSupplyModalVisible(false)}
           onOk={() => supplyForm.submit()}
         >
-          <Form form={supplyForm} layout="vertical" onFinish={(vals) => {
-            const actualName = Array.isArray(vals.name) ? vals.name[0] : vals.name;
-            setInventoryData(prev => [...prev, { ...vals, name: actualName, id: Date.now(), code: vals.code || 'MNB' }]);
+          <Form form={supplyForm} layout="vertical" onFinish={async (vals) => {
+            const eq = equipments.find(e => e.id === vals.equipmentId);
+            
+            if (isEdit) {
+              try {
+                const res = await axiosClient.post(`/rooms/${selectedRoom.id}/inventories`, {
+                  equipmentId: vals.equipmentId,
+                  quantity: vals.quantity,
+                  condition: vals.condition || "Tốt",
+                  isMinibar: eq?.name.toLowerCase().includes("minibar"),
+                  priceIfLost: vals.penaltyPrice || 0
+                });
+                
+                const newItem = {
+                  ...vals,
+                  id: res.data.inventoryId || Date.now(),
+                  name: eq?.name || 'Unknown',
+                  code: eq?.id || 'N/A'
+                };
+                setInventoryData(prev => [...prev, newItem]);
+                message.success(`Đã thêm ${eq?.name} vào phòng.`);
+              } catch (e) {
+                message.error(e.response?.data?.message || "Lỗi khi thêm vật tư vào phòng.");
+                return;
+              }
+            } else {
+              setInventoryData(prev => [...prev, { 
+                ...vals, 
+                name: eq?.name || 'Unknown', 
+                id: Date.now(), 
+                code: eq?.id || 'N/A' 
+              }]);
+            }
+            
             setIsAddSupplyModalVisible(false);
             supplyForm.resetFields();
+            setSelectedEquipment(null);
           }}>
-            <Form.Item name="name" label="Tên vật tư" rules={[{ required: true, message: 'Vui lòng chọn hoặc nhập tên vật tư' }]}>
+            <Form.Item name="equipmentId" label="Tên vật tư (từ kho)" rules={[{ required: true, message: 'Vui lòng chọn vật tư từ kho' }]}>
               <Select
-                mode="tags"
-                maxTagCount={1}
                 showSearch
                 allowClear
-                placeholder="Chọn vật tư có sẵn hoặc gõ tên mới..."
-                options={[
-                  { value: 'Tivi', label: 'Tivi' },
-                  { value: 'Tủ Lạnh', label: 'Tủ Lạnh' },
-                  { value: 'Điều hòa', label: 'Điều hòa' },
-                  { value: 'Giường', label: 'Giường' },
-                  { value: 'Tủ quần áo', label: 'Tủ quần áo' },
-                  { value: 'Két sắt', label: 'Két sắt' },
-                  { value: 'Bàn làm việc', label: 'Bàn làm việc' },
-                  { value: 'Máy sấy tóc', label: 'Máy sấy tóc' },
-                  { value: 'Bình đun siêu tốc', label: 'Bình đun siêu tốc' },
-                  { value: 'Mắc áo', label: 'Mắc áo' },
-                  { value: 'Dép đi trong nhà', label: 'Dép đi trong nhà' },
-                  { value: 'Khăn tắm', label: 'Khăn tắm' },
-                  { value: 'Khăn mặt', label: 'Khăn mặt' },
-                  { value: 'Áo choàng tắm', label: 'Áo choàng tắm' },
-                  { value: 'Bàn chải đánh răng', label: 'Bàn chải đánh răng' },
-                  { value: 'Sữa tắm', label: 'Sữa tắm' },
-                  { value: 'Dầu gội', label: 'Dầu gội' },
-                  { value: 'Nước suối (Minibar)', label: 'Nước suối (Minibar)' },
-                  { value: 'Bia (Minibar)', label: 'Bia (Minibar)' },
-                  { value: 'Nước ngọt (Minibar)', label: 'Nước ngọt (Minibar)' },
-                  { value: 'Snack (Minibar)', label: 'Snack (Minibar)' }
-                ]}
+                placeholder="Tìm vật tư trong kho..."
+                onChange={(id) => {
+                  const eq = equipments.find(e => e.id === id);
+                  setSelectedEquipment(eq);
+                  if (eq) {
+                    supplyForm.setFieldsValue({
+                      unit: eq.unit,
+                      penaltyPrice: eq.defaultPriceIfLost,
+                      quantity: 1
+                    });
+                  }
+                }}
+                filterOption={(input, option) =>
+                  (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                }
+                options={equipments.map(e => ({
+                  value: e.id,
+                  label: `${e.name} (Tồn: ${e.inStockQuantity} ${e.unit})`,
+                  disabled: e.inStockQuantity <= 0
+                }))}
               />
             </Form.Item>
-            <Form.Item name="unit" label="ĐVT (VD: Cái, Chai)" rules={[{ required: true }]}><Input /></Form.Item>
-            <Form.Item name="quantity" label="Số lượng" rules={[{ required: true }]}><InputNumber min={1} className="w-full" /></Form.Item>
-            <Form.Item name="penaltyPrice" label="Giá đền bù (VNĐ)"><InputNumber min={0} className="w-full" /></Form.Item>
+            <Form.Item name="unit" label="ĐVT" rules={[{ required: true }]}><Input disabled /></Form.Item>
+            <Form.Item 
+              name="quantity" 
+              label={selectedEquipment ? `Số lượng (Tối đa: ${selectedEquipment.inStockQuantity})` : "Số lượng"} 
+              rules={[
+                { required: true },
+                { 
+                  validator: (_, value) => {
+                    if (selectedEquipment && value > selectedEquipment.inStockQuantity) {
+                      return Promise.reject(new Error(`${selectedEquipment.name} không đủ số lượng`));
+                    }
+                    return Promise.resolve();
+                  }
+                }
+              ]}
+            >
+              <InputNumber min={1} max={selectedEquipment?.inStockQuantity} className="w-full" />
+            </Form.Item>
+            <Form.Item name="penaltyPrice" label="Giá đền bù mặc định (VNĐ)"><InputNumber min={0} className="w-full" /></Form.Item>
           </Form>
         </Modal>
       </div>
@@ -473,6 +669,92 @@ export default function App() {
     <div className="font-sans">
       {currentView === 'list' && renderRoomList()}
       {currentView !== 'list' && <RoomForm />}
+      {/* Modal Xem Tiện ích */}
+      <Modal
+        title={selectedRoom ? `Tiện ích hạng phòng: ${selectedRoom.roomTypeName}` : "Tiện ích"}
+        open={isAmenitiesModalVisible}
+        onCancel={() => setIsAmenitiesModalVisible(false)}
+        footer={[<Button key="close" onClick={() => setIsAmenitiesModalVisible(false)}>Đóng</Button>]}
+      >
+        <div className="grid grid-cols-2 gap-2">
+          {roomAmenities.length > 0 ? roomAmenities.map(am => (
+            <div key={am.id} className="p-2 bg-purple-50 rounded border border-purple-100 flex items-center">
+              <PlusOutlined className="mr-2 text-purple-400 text-xs" /> {am.name}
+            </div>
+          )) : <p className="text-gray-500 italic">Hạng phòng chưa được thiết lập tiện ích.</p>}
+        </div>
+      </Modal>
+
+      {/* Modal Quản lý Vật tư nhanh */}
+      <Modal
+        title={selectedRoom ? `Vật tư trong phòng: ${selectedRoom.roomNumber}` : "Vật tư"}
+        open={isInventoryModalVisible}
+        width={800}
+        onCancel={() => setIsInventoryModalVisible(false)}
+        footer={[
+          <Button key="close" onClick={() => setIsInventoryModalVisible(false)}>Đóng</Button>
+        ]}
+      >
+        <Table 
+          dataSource={currentRoomInventory} 
+          rowKey="id"
+          size="small"
+          pagination={false}
+          columns={[
+            { title: 'Tên vật tư', dataIndex: 'itemName' },
+            { 
+              title: 'Số lượng', 
+              dataIndex: 'quantity', 
+              render: (val, record) => {
+                const eq = equipments.find(e => e.id === record.equipmentId);
+                const stock = eq ? (eq.inStockQuantity || 0) : 0;
+                const maxAllowed = val + stock;
+
+                return (
+                  <InputNumber 
+                    min={1} 
+                    defaultValue={val} 
+                    onChange={async (newVal) => {
+                      if (newVal > maxAllowed) {
+                        message.error(`${record.itemName} không đủ số lượng`);
+                        return;
+                      }
+                      try {
+                        await axiosClient.put(`/rooms/${selectedRoom.id}/inventories/${record.id}`, {
+                          equipmentId: record.equipmentId,
+                          quantity: newVal,
+                          condition: record.status || "Tốt",
+                          isMinibar: record.itemName.toLowerCase().includes("minibar"),
+                          priceIfLost: record.priceIfLost
+                        });
+                        message.success(`Đã cập nhật ${record.itemName}`);
+                        fetchRoomInventory(selectedRoom.id);
+                        fetchEquipments(); // Refresh stock info
+                      } catch (e) {
+                        message.error(e.response?.data?.message || "Lỗi khi cập nhật số lượng.");
+                      }
+                    }} 
+                  />
+                );
+              }
+            },
+            { 
+              title: 'Tồn kho khả dụng', 
+              key: 'stock',
+              render: (_, record) => {
+                const eq = equipments.find(e => e.id === record.equipmentId);
+                const stock = eq ? (eq.inStockQuantity || 0) : 0;
+                return <span className={stock > 0 ? "text-green-600" : "text-red-500"}>{stock} {record.unit}</span>;
+              }
+            },
+            { title: 'ĐVT', dataIndex: 'unit' },
+            { title: 'Giá đền bù', dataIndex: 'priceIfLost', render: (val) => val?.toLocaleString() + ' đ' },
+          ]}
+        />
+        <div className="mt-4 p-3 bg-blue-50 text-blue-700 rounded text-xs">
+          💡 Bạn có thể thay đổi số lượng trực tiếp trên bảng. Để thêm vật tư mới hoặc xóa, hãy sử dụng chức năng <b>Sửa phòng</b>.
+        </div>
+      </Modal>
     </div>
   );
 }
