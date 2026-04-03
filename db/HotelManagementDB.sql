@@ -390,8 +390,7 @@ CREATE TABLE [dbo].[Room_Inventory](
     [price_if_lost] DECIMAL(18,2) NOT NULL CONSTRAINT [DF_RoomInventory_PriceIfLost] DEFAULT ((0)),
     [status] NVARCHAR(20) NOT NULL CONSTRAINT [DF_RoomInventory_Status] DEFAULT (N'ACTIVE'),
     [created_at] DATETIME NOT NULL CONSTRAINT [DF_RoomInventory_CreatedAt] DEFAULT (GETDATE()),
-    [updated_at] DATETIME NULL,
-    CONSTRAINT [FK_RoomInventory_Rooms] FOREIGN KEY ([room_id]) REFERENCES [dbo].[Rooms]([id])
+    [updated_at] DATETIME NULL
 );
 GO
 /****** Object:  Table [dbo].[Room_Types]    Script Date: 3/28/2026 9:25:30 AM ******/
@@ -1827,9 +1826,8 @@ IF COL_LENGTH('dbo.Room_Types', 'created_at') IS NULL ALTER TABLE [dbo].[Room_Ty
 IF COL_LENGTH('dbo.Room_Types', 'updated_at') IS NULL ALTER TABLE [dbo].[Room_Types] ADD [updated_at] DATETIME NULL;
 GO
 -- DATABASE SETTINGS RESTORED
-GO
-    CONSTRAINT [FK_AuditLogs_Users] FOREIGN KEY ([user_id]) REFERENCES [dbo].[Users]([id])
-);
+ALTER TABLE [dbo].[Audit_Logs]
+ADD CONSTRAINT [FK_AuditLogs_Users] FOREIGN KEY ([user_id]) REFERENCES [dbo].[Users]([id])
 GO
 
 CREATE TABLE [dbo].[Notifications] (
@@ -1926,7 +1924,8 @@ INSERT [dbo].[Users] ([id], [role_id], [membership_id], [full_name], [email], [p
 (7, 10, 2, N'Khách Hàng B', N'guestB@gmail.com', N'0900000007', N'$2y$10$wN7KjZt59g0xK5A03v0s/eTq8P9g9B1N0jU3zR5M5N0x3B8b6Q1Oa', 1, 0, GETDATE()),
 (8, 10, 3, N'Khách Hàng C', N'guestC@gmail.com', N'0900000008', N'$2y$10$wN7KjZt59g0xK5A03v0s/eTq8P9g9B1N0jU3zR5M5N0x3B8b6Q1Oa', 1, 0, GETDATE()),
 (9, 10, 4, N'Khách Hàng D', N'guestD@gmail.com', N'0900000009', N'$2y$10$wN7KjZt59g0xK5A03v0s/eTq8P9g9B1N0jU3zR5M5N0x3B8b6Q1Oa', 1, 0, GETDATE()),
-(10, 10, 5, N'Khách Hàng E', N'guestE@gmail.com', N'0900000010', N'$2y$10$wN7KjZt59g0xK5A03v0s/eTq8P9g9B1N0jU3zR5M5N0x3B8b6Q1Oa', 1, 0, GETDATE())
+(10, 10, 5, N'Khách Hàng E', N'guestE@gmail.com', N'0900000010', N'$2y$10$wN7KjZt59g0xK5A03v0s/eTq8P9g9B1N0jU3zR5M5N0x3B8b6Q1Oa', 1, 0, GETDATE()),
+(11, 1, NULL, N'ADMIN', N'admin', N'0900000011', N'$2a$12$IixaEtGC4T0xY8qfd7Ui0un5RBu/M3.OZnkhFF19aQE0FeN31TBKC', 1, 0, GETDATE())
 SET IDENTITY_INSERT [dbo].[Users] OFF
 GO
 
@@ -2132,4 +2131,23 @@ AND NOT EXISTS (
     SELECT 1 FROM [dbo].[Role_Permissions] rp 
     WHERE rp.role_id = 1 AND rp.permission_id = [dbo].[Permissions].id
 );
+GO
+
+-- 1. Bổ sung username (nếu chưa có)
+IF COL_LENGTH('dbo.Users', 'username') IS NULL 
+BEGIN
+    ALTER TABLE [dbo].[Users] ADD [username] NVARCHAR(100) NULL;
+    IF NOT EXISTS (SELECT * FROM sys.objects WHERE name = 'UQ_Users_Username' AND type = 'UQ')
+    BEGIN
+        ALTER TABLE [dbo].[Users] ADD CONSTRAINT UQ_Users_Username UNIQUE ([username]);
+    END
+END
+GO
+
+-- 2. Đảm bảo tất cả các trường thời gian không bị NULL (Tránh lỗi 500 get_DateTime)
+UPDATE [dbo].[Users] SET [created_at] = GETDATE() WHERE [created_at] IS NULL;
+UPDATE [dbo].[Users] SET [updated_at] = GETDATE() WHERE [updated_at] IS NULL;
+GO
+-- Thêm khóa ngoại cho Room_Inventory sau khi bảng Rooms đã được tạo xong
+ALTER TABLE [dbo].[Room_Inventory] ADD CONSTRAINT [FK_RoomInventory_Rooms] FOREIGN KEY ([room_id]) REFERENCES [dbo].[Rooms]([id]);
 GO
