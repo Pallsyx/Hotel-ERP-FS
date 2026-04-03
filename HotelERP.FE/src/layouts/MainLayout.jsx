@@ -8,6 +8,7 @@ import {
   AppstoreOutlined,
   HomeOutlined,
   DatabaseOutlined,
+  FormatPainterOutlined
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
@@ -57,6 +58,11 @@ const MainLayout = () => {
       key: '/admin/room-inventory',
       icon: <DatabaseOutlined />,
       label: 'Kho quản lý vật tư',
+    },
+    {
+      key: '/admin/housekeeping',
+      icon: <FormatPainterOutlined />,
+      label: 'Dọn phòng',
     },
   ];
 
