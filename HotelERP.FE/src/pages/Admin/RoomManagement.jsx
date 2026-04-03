@@ -42,6 +42,36 @@ export default function App() {
     fetchRoomTypes();
     fetchAmenities(); // Gọi thêm API lấy tiện ích
     fetchEquipments();
+
+    let isMounted = true;
+    import('@microsoft/signalr').then(signalR => {
+      const connection = new signalR.HubConnectionBuilder()
+        .withUrl("https://localhost:7100/roomHub")
+        .withAutomaticReconnect()
+        .build();
+
+      const startSignalR = async () => {
+        try {
+          await connection.start();
+          if (isMounted) {
+            connection.on("ReceiveRoomStatusUpdate", (roomId, status, cleaningStatus) => {
+               setRooms(prevRooms => prevRooms.map(r => 
+                 r.id === roomId ? { ...r, status, cleaningStatus } : r
+               ));
+            });
+          }
+        } catch (err) {
+          console.log("SignalR Error in RoomManagement: ", err);
+        }
+      };
+
+      startSignalR();
+
+      return () => {
+        isMounted = false;
+        connection.stop();
+      };
+    });
   }, []);
 
   const fetchRooms = async () => {

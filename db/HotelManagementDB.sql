@@ -384,14 +384,13 @@ GO
 CREATE TABLE [dbo].[Room_Inventory](
     [id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
     [room_id] INT NULL,
-    [item_type] NVARCHAR(50) NOT NULL,
-    [quantity] INT NOT NULL,
+    [item_type] NVARCHAR(50) NOT NULL, 
+    [quantity] INT NOT NULL,           
     [price_if_lost] DECIMAL(18, 2) NOT NULL,
     [note] NVARCHAR(MAX) NULL,
     [is_active] BIT NULL,
     [EquipmentId] INT NOT NULL
 );
-GO
 /****** Object:  Table [dbo].[Room_Types]    Script Date: 3/28/2026 9:25:30 AM ******/
 SET ANSI_NULLS ON
 GO
@@ -1739,20 +1738,57 @@ IF COL_LENGTH('dbo.Articles', 'status') IS NULL ALTER TABLE [dbo].[Articles] ADD
 IF COL_LENGTH('dbo.Articles', 'created_at') IS NULL ALTER TABLE [dbo].[Articles] ADD [created_at] DATETIME NOT NULL DEFAULT GETDATE();
 IF COL_LENGTH('dbo.Articles', 'updated_at') IS NULL ALTER TABLE [dbo].[Articles] ADD [updated_at] DATETIME NULL;
 
+IF COL_LENGTH('dbo.Room_Types', 'early_checkin_fee_percent') IS NULL ALTER TABLE [dbo].[Room_Types] ADD [early_checkin_fee_percent] DECIMAL(5,2) NOT NULL DEFAULT 0;
 IF COL_LENGTH('dbo.Room_Types', 'late_checkout_fee_percent') IS NULL ALTER TABLE [dbo].[Room_Types] ADD [late_checkout_fee_percent] DECIMAL(5,2) NOT NULL DEFAULT 0;
 IF COL_LENGTH('dbo.Room_Types', 'extra_hour_price') IS NULL ALTER TABLE [dbo].[Room_Types] ADD [extra_hour_price] DECIMAL(18,2) NOT NULL DEFAULT 0;
 IF COL_LENGTH('dbo.Room_Types', 'status') IS NULL ALTER TABLE [dbo].[Room_Types] ADD [status] NVARCHAR(20) NOT NULL DEFAULT 'ACTIVE';
 IF COL_LENGTH('dbo.Room_Types', 'created_at') IS NULL ALTER TABLE [dbo].[Room_Types] ADD [created_at] DATETIME NOT NULL DEFAULT GETDATE();
 IF COL_LENGTH('dbo.Room_Types', 'updated_at') IS NULL ALTER TABLE [dbo].[Room_Types] ADD [updated_at] DATETIME NULL;
+
+IF COL_LENGTH('dbo.Rooms', 'notes') IS NULL ALTER TABLE [dbo].[Rooms] ADD [notes] NVARCHAR(500) NULL;
+IF COL_LENGTH('dbo.Rooms', 'created_at') IS NULL ALTER TABLE [dbo].[Rooms] ADD [created_at] DATETIME NOT NULL DEFAULT GETDATE();
+IF COL_LENGTH('dbo.Rooms', 'updated_at') IS NULL ALTER TABLE [dbo].[Rooms] ADD [updated_at] DATETIME NULL;
+
+IF COL_LENGTH('dbo.Room_Images', 'cloud_public_id') IS NULL ALTER TABLE [dbo].[Room_Images] ADD [cloud_public_id] NVARCHAR(255) NULL;
+IF COL_LENGTH('dbo.Room_Images', 'status') IS NULL ALTER TABLE [dbo].[Room_Images] ADD [status] NVARCHAR(20) NOT NULL DEFAULT 'ACTIVE';
+IF COL_LENGTH('dbo.Room_Images', 'created_at') IS NULL ALTER TABLE [dbo].[Room_Images] ADD [created_at] DATETIME NOT NULL DEFAULT GETDATE();
+
+IF COL_LENGTH('dbo.Bookings', 'booked_at') IS NULL ALTER TABLE [dbo].[Bookings] ADD [booked_at] DATETIME NOT NULL DEFAULT GETDATE();
+IF COL_LENGTH('dbo.Bookings', 'hold_expires_at') IS NULL ALTER TABLE [dbo].[Bookings] ADD [hold_expires_at] DATETIME NULL;
+IF COL_LENGTH('dbo.Bookings', 'booking_subtotal') IS NULL ALTER TABLE [dbo].[Bookings] ADD [booking_subtotal] DECIMAL(18,2) NOT NULL DEFAULT 0;
+IF COL_LENGTH('dbo.Bookings', 'discount_amount') IS NULL ALTER TABLE [dbo].[Bookings] ADD [discount_amount] DECIMAL(18,2) NOT NULL DEFAULT 0;
+IF COL_LENGTH('dbo.Bookings', 'final_amount') IS NULL ALTER TABLE [dbo].[Bookings] ADD [final_amount] DECIMAL(18,2) NOT NULL DEFAULT 0;
+IF COL_LENGTH('dbo.Bookings', 'payment_status') IS NULL ALTER TABLE [dbo].[Bookings] ADD [payment_status] NVARCHAR(50) NOT NULL DEFAULT 'UNPAID';
+IF COL_LENGTH('dbo.Bookings', 'notes') IS NULL ALTER TABLE [dbo].[Bookings] ADD [notes] NVARCHAR(1000) NULL;
+IF COL_LENGTH('dbo.Bookings', 'created_at') IS NULL ALTER TABLE [dbo].[Bookings] ADD [created_at] DATETIME NOT NULL DEFAULT GETDATE();
+IF COL_LENGTH('dbo.Bookings', 'updated_at') IS NULL ALTER TABLE [dbo].[Bookings] ADD [updated_at] DATETIME NULL;
+IF COL_LENGTH('dbo.Bookings', 'is_points_awarded') IS NULL ALTER TABLE [dbo].[Bookings] ADD [is_points_awarded] BIT DEFAULT 0;
+
+IF COL_LENGTH('dbo.Booking_Details', 'adults_count') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [adults_count] INT NOT NULL DEFAULT 1;
+IF COL_LENGTH('dbo.Booking_Details', 'children_count') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [children_count] INT NOT NULL DEFAULT 0;
+IF COL_LENGTH('dbo.Booking_Details', 'nights') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [nights] INT NOT NULL DEFAULT 1;
+IF COL_LENGTH('dbo.Booking_Details', 'early_check_in_fee') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [early_check_in_fee] DECIMAL(18,2) NOT NULL DEFAULT 0;
+IF COL_LENGTH('dbo.Booking_Details', 'late_check_out_fee') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [late_check_out_fee] DECIMAL(18,2) NOT NULL DEFAULT 0;
+IF COL_LENGTH('dbo.Booking_Details', 'line_total') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [line_total] DECIMAL(18,2) NOT NULL DEFAULT 0;
+IF COL_LENGTH('dbo.Booking_Details', 'status') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [status] NVARCHAR(50) NOT NULL DEFAULT 'Booked';
+IF COL_LENGTH('dbo.Booking_Details', 'identity_document_url') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [identity_document_url] NVARCHAR(MAX) NULL;
+IF COL_LENGTH('dbo.Booking_Details', 'actual_check_in_at') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [actual_check_in_at] DATETIME NULL;
+IF COL_LENGTH('dbo.Booking_Details', 'actual_check_out_at') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [actual_check_out_at] DATETIME NULL;
+IF COL_LENGTH('dbo.Booking_Details', 'created_at') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [created_at] DATETIME NOT NULL DEFAULT GETDATE();
+IF COL_LENGTH('dbo.Booking_Details', 'updated_at') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [updated_at] DATETIME NULL;
 GO
 -- DATABASE SETTINGS RESTORED
 ALTER TABLE [dbo].[Audit_Logs]
 ADD CONSTRAINT [FK_AuditLogs_Users] FOREIGN KEY ([user_id]) REFERENCES [dbo].[Users]([id])
 GO
 
--- =========================================================================
--- PHẦN 3: NẠP DỮ LIỆU MỚI (TỪ FILE EDITED CỦA BẠN)
--- =========================================================================
+IF COL_LENGTH('dbo.Rooms', 'DeletedAt') IS NULL 
+    ALTER TABLE [dbo].[Rooms] ADD [DeletedAt] DATETIME NULL;
+    
+IF COL_LENGTH('dbo.Services', 'DeletedAt') IS NULL 
+    ALTER TABLE [dbo].[Services] ADD [DeletedAt] DATETIME NULL;
+IF COL_LENGTH('dbo.Equipments', 'DeletedAt') IS NULL 
+    ALTER TABLE [dbo].[Equipments] ADD [DeletedAt] DATETIME NULL;
 
 -- BẢNG QUYỀN HẠN & VAI TRÒ
 SET IDENTITY_INSERT [dbo].[Permissions] ON 

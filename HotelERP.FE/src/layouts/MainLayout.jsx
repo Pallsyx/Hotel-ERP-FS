@@ -9,6 +9,7 @@ import {
   AppstoreOutlined,
   HomeOutlined,
   DatabaseOutlined,
+  FormatPainterOutlined
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
@@ -59,6 +60,11 @@ const MainLayout = () => {
       icon: <DatabaseOutlined />,
       label: 'Kho quản lý vật tư',
     },
+    {
+      key: '/admin/housekeeping',
+      icon: <FormatPainterOutlined />,
+      label: 'Dọn phòng',
+    },
   ];
 
   const isAdmin = user?.roleName === 'Admin' || user?.fullName === 'Admin';
@@ -82,21 +88,25 @@ const MainLayout = () => {
     ],
   };
 
+  const isHousekeeping = location.pathname.startsWith('/admin/housekeeping');
+
   return (
     <Spin spinning={isLoading} size="large" description="Hệ thống đang xử lý...">
       <Layout style={{ minHeight: '100vh' }}>
-        <Sider width={250} theme="dark">
+        <Sider width={250} theme="dark" collapsed={isHousekeeping} collapsedWidth={50}>
           <div
             style={{
-              padding: '16px',
+              padding: isHousekeeping ? '16px 8px' : '16px',
               textAlign: 'center',
               background: 'rgba(255, 255, 255, 0.1)',
-              margin: '16px',
+              margin: '16px 8px',
               borderRadius: '8px',
+              overflow: 'hidden',
+              whiteSpace: 'nowrap'
             }}
           >
-            <Title level={4} style={{ color: 'white', margin: 0 }}>
-              HOTEL ERP
+            <Title level={4} style={{ color: 'white', margin: 0, fontSize: isHousekeeping ? '14px' : '20px' }}>
+              {isHousekeeping ? 'ERP' : 'HOTEL ERP'}
             </Title>
           </div>
 
@@ -118,6 +128,7 @@ const MainLayout = () => {
               justifyContent: 'flex-end',
               alignItems: 'center',
               boxShadow: '0 1px 4px rgba(0,21,41,.08)',
+              paddingLeft: isHousekeeping ? 16 : 24,
             }}
           >
             <NotificationBell />
@@ -130,10 +141,10 @@ const MainLayout = () => {
 
           <Content
             style={{
-              margin: '24px',
-              padding: '24px',
-              background: '#fff',
-              borderRadius: '8px',
+              margin: isHousekeeping ? 0 : '24px',
+              padding: isHousekeeping ? 0 : '24px',
+              background: isHousekeeping ? '#f0f2f5' : '#fff',
+              borderRadius: isHousekeeping ? 0 : '8px',
               minHeight: 280,
             }}
           >
