@@ -3,8 +3,8 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import RoomManagement from '../pages/Admin/RoomManagement';
 import RoomTypeManagement from '../pages/RoomTypes/RoomTypeManagement';
 import RoomInventory from '../pages/RoomInventory/RoomInventory';
-import HousekeepingMobile from './pages/Housekeeping/HousekeepingMobile';
-import InventoryChecklist from './pages/Housekeeping/InventoryChecklist';
+import HousekeepingMobile from '../pages/Housekeeping/HousekeepingMobile';
+import InventoryChecklist from '../pages/Housekeeping/InventoryChecklist';
 
 // 1. IMPORT CÁC COMPONENT LÕI CỦA TEAM LEAD
 import Login from '../pages/Auth/Login';
@@ -48,8 +48,8 @@ const AdminRoutes = () => {
         {/* MODULE 3 */}
         <Route path="room-types" element={<RoomTypeManagement />} />
         <Route path="rooms" element={<RoomManagement />} />
-        <Route path="housekeeping" element={<HousekeepingMobile />} />
         <Route path="room-inventory" element={<RoomInventory />} />
+        <Route path="housekeeping" element={<HousekeepingMobile />} />
         <Route path="damage-reports" element={<Placeholder title="Báo cáo Hư hỏng & Đền bù" />} />
 
         {/*  MODULE 1 */}
@@ -61,6 +61,9 @@ const AdminRoutes = () => {
         {/*  MODULE 2 */}
         <Route path="reception-calendar" element={<Placeholder title="Lịch Lễ Tân (Gantt Chart)" />} />
         <Route path="bookings" element={<Placeholder title="Quản lý Đơn Đặt Phòng (Check-in/Out)" />} />
+        
+        {/* HOUSEKEEPING CHECKLIST ROUTE */}
+        <Route path="housekeeping/room/:id" element={<InventoryChecklist />} />
       </Route>
 
       {/* ROUTE 404 */}

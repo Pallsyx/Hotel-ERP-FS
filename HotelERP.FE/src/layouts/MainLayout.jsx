@@ -87,32 +87,36 @@ const MainLayout = () => {
     ],
   };
 
+  const isHousekeeping = location.pathname.startsWith('/admin/housekeeping');
+
   return (
     <Spin spinning={isLoading} size="large" description="Hệ thống đang xử lý...">
       <Layout style={{ minHeight: '100vh' }}>
-        <Sider width={250} theme="dark">
-          <div
-            style={{
-              padding: '16px',
-              textAlign: 'center',
-              background: 'rgba(255, 255, 255, 0.1)',
-              margin: '16px',
-              borderRadius: '8px',
-            }}
-          >
-            <Title level={4} style={{ color: 'white', margin: 0 }}>
-              HOTEL ERP
-            </Title>
-          </div>
+        {!isHousekeeping && (
+          <Sider width={250} theme="dark">
+            <div
+              style={{
+                padding: '16px',
+                textAlign: 'center',
+                background: 'rgba(255, 255, 255, 0.1)',
+                margin: '16px',
+                borderRadius: '8px',
+              }}
+            >
+              <Title level={4} style={{ color: 'white', margin: 0 }}>
+                HOTEL ERP
+              </Title>
+            </div>
 
-          <Menu
-            theme="dark"
-            mode="inline"
-            selectedKeys={[location.pathname]}
-            items={menuItems}
-            onClick={(e) => navigate(e.key)}
-          />
-        </Sider>
+            <Menu
+              theme="dark"
+              mode="inline"
+              selectedKeys={[location.pathname]}
+              items={menuItems}
+              onClick={(e) => navigate(e.key)}
+            />
+          </Sider>
+        )}
 
         <Layout>
           <Header
@@ -135,10 +139,10 @@ const MainLayout = () => {
 
           <Content
             style={{
-              margin: '24px',
-              padding: '24px',
-              background: '#fff',
-              borderRadius: '8px',
+              margin: isHousekeeping ? 0 : '24px',
+              padding: isHousekeeping ? 0 : '24px',
+              background: isHousekeeping ? '#f0f2f5' : '#fff',
+              borderRadius: isHousekeeping ? 0 : '8px',
               minHeight: 280,
             }}
           >
