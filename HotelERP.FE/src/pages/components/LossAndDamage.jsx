@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Layout, Menu, Table, Button, DatePicker, 
-  Space, Card, Row, Col, Typography, message 
+import {
+  Layout, Menu, Table, Button, DatePicker,
+  Space, Card, Row, Col, Typography, message
 } from 'antd';
-import { 
+import {
   AppstoreOutlined, SearchOutlined, ReloadOutlined,
   WarningOutlined, DollarOutlined, ClockCircleOutlined,
   EditOutlined, DeleteOutlined, InboxOutlined
@@ -15,7 +15,7 @@ const { RangePicker } = DatePicker;
 const { Text, Title } = Typography;
 
 // Đường dẫn API (Bạn cần điều chỉnh lại cho khớp với BE)
-const API_URL = 'https://localhost:7100/api/LossAndDamages'; 
+const API_URL = 'https://localhost:7100/api/LossAndDamages';
 
 // Dữ liệu giả lập ban đầu để hiển thị giao diện giống 100% ảnh chụp
 const INITIAL_DATA = [
@@ -39,7 +39,7 @@ export default function LossAndDamage() {
       // Bỏ comment dòng dưới khi BE đã có API
       // const response = await axios.get(API_URL);
       // setData(response.data);
-      
+
       setLastUpdated(new Date().toLocaleTimeString('vi-VN', { hour12: false }));
       message.success('Đã làm mới dữ liệu!');
     } catch (error) {
@@ -77,30 +77,30 @@ export default function LossAndDamage() {
 
   const columns = [
     { title: 'ID', dataIndex: 'id', key: 'id', width: 60, align: 'center' },
-    { 
-      title: 'Bằng chứng', 
-      dataIndex: 'evidenceImageUrl', 
+    {
+      title: 'Bằng chứng',
+      dataIndex: 'evidenceImageUrl',
       key: 'evidence',
       render: (img) => img ? <img src={img} alt="Bằng chứng" className="w-10 h-10 object-cover" /> : <span className="text-gray-400 text-sm">Không ảnh</span>
     },
     { title: 'Số phòng', dataIndex: 'roomNumber', key: 'roomNumber', className: 'font-medium' },
-    { 
-      title: 'Vật tư', 
-      dataIndex: 'itemName', 
+    {
+      title: 'Vật tư',
+      dataIndex: 'itemName',
       key: 'itemName',
       render: (text) => <span className="text-blue-600 font-medium">{text}</span>
     },
     { title: 'SL Hỏng', dataIndex: 'quantity', key: 'quantity', align: 'center' },
-    { 
-      title: 'Tiền phạt (VND)', 
-      dataIndex: 'penaltyAmount', 
+    {
+      title: 'Tiền phạt (VND)',
+      dataIndex: 'penaltyAmount',
       key: 'penaltyAmount',
       render: (amount) => <span className="text-red-500 font-semibold">{amount.toLocaleString('vi-VN')}đ</span>
     },
     { title: 'Mô tả', dataIndex: 'description', key: 'description' },
-    { 
-      title: 'Ngày báo cáo', 
-      dataIndex: 'createdAt', 
+    {
+      title: 'Ngày báo cáo',
+      dataIndex: 'createdAt',
       key: 'createdAt',
       render: (date) => formatDate(date)
     },
@@ -123,8 +123,8 @@ export default function LossAndDamage() {
         <div className="h-16 flex items-center justify-center border-b font-bold text-blue-600 text-lg">
           HOTEL ERP
         </div>
-        <Menu 
-          mode="inline" 
+        <Menu
+          mode="inline"
           defaultSelectedKeys={['4']}
           className="mt-4"
           items={[
@@ -141,7 +141,7 @@ export default function LossAndDamage() {
           <span className="font-semibold text-lg text-gray-700">Admin Panel</span>
           <span className="text-gray-500">Xin chào, Admin</span>
         </Header>
-        
+
         <Content className="p-6">
           {/* KHU VỰC THỐNG KÊ (ĐÃ BỔ SUNG YÊU CẦU CỦA BẠN) */}
           <Row gutter={24} className="mb-6">
@@ -198,10 +198,10 @@ export default function LossAndDamage() {
               </Button>
             </div>
 
-            <Table 
-              columns={columns} 
-              dataSource={data} 
-              rowKey="id" 
+            <Table
+              columns={columns}
+              dataSource={data}
+              rowKey="id"
               loading={loading}
               pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (total, range) => `Tổng cộng ${total} bản ghi` }}
               className="border border-gray-100 rounded-md"

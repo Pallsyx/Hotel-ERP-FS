@@ -269,6 +269,7 @@ app.MapControllers();
 
 // SignalR Hub của Long
 app.MapHub<HotelERP.BE.DTOs.Hubs.RoomHub>("/roomHub");
+app.MapHub<DamageHub>("/damageHub");
 
 // --- 8. MINIMAL APIS (Health Checks & Summary) ---
 app.MapGet("/", () => Results.Redirect("/swagger")).ExcludeFromDescription();
