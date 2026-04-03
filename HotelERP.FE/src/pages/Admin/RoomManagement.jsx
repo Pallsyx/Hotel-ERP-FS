@@ -267,7 +267,6 @@ export default function App() {
   const RoomForm = () => {
     const [form] = Form.useForm();
     const [inventoryData, setInventoryData] = useState([]);
-    const [equipments, setEquipments] = useState([]);
     const [selectedEquipment, setSelectedEquipment] = useState(null);
     const [imageUrl, setImageUrl] = useState("");
     const [isCloneModalVisible, setIsCloneModalVisible] = useState(false);
