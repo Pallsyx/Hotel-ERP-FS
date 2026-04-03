@@ -7,7 +7,7 @@ namespace HotelERP.API.Controllers;
 
 [ApiController]
 [Route("api/rooms/{roomId}/inventories")]
-[Authorize(Roles = "Manager,Housekeeping,SUPER_ADMIN")] // Chỉ Manager, Housekeeping và Admin mới được quản lý vật tư phòng
+[Authorize(Roles = "Manager,Housekeeping,SUPER_ADMIN,Admin")] // Đã thêm Admin để có quyền truy cập
 public class RoomInventoriesController(IRoomInventoryService inventoryService) : ControllerBase
 {
     [HttpGet]

@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Layout, Menu, Table, Button, Input, Select, 
-  Space, Form, Upload, message, Tabs, Checkbox, 
-  Modal, InputNumber, Row, Col, Card 
+import {
+  Layout, Menu, Table, Button, Input, Select,
+  Space, Form, Upload, message, Tabs, Checkbox,
+  Modal, InputNumber, Row, Col, Card, Steps
 } from 'antd';
-import { 
-  AppstoreOutlined, PlusOutlined, UploadOutlined, 
+const { Step } = Steps;
+import {
+  AppstoreOutlined, PlusOutlined, UploadOutlined,
   CopyOutlined, SearchOutlined, EditOutlined
 } from '@ant-design/icons';
 import axios from 'axios';
@@ -20,7 +21,7 @@ const API_URL = 'https://localhost:7100/api';
 // --- COMPONENT CHÍNH ---
 export default function App() {
   const [currentView, setCurrentView] = useState('list'); // 'list', 'create', 'edit'
-  
+
   // STATE LƯU DỮ LIỆU TỪ API
   const [rooms, setRooms] = useState([]);
   const [roomTypes, setRoomTypes] = useState([]);
@@ -116,8 +117,8 @@ export default function App() {
     const columns = [
       { title: 'Số phòng', dataIndex: 'roomNumber', key: 'roomNumber' },
       { title: 'Tầng', dataIndex: 'floor', key: 'floor' },
-      { 
-        title: 'Hạng phòng', 
+      {
+        title: 'Hạng phòng',
         key: 'roomTypeName',
         dataIndex: 'roomTypeName',
       },
@@ -125,8 +126,8 @@ export default function App() {
         title: 'Kinh doanh',
         key: 'status',
         render: (_, record) => (
-          <Select 
-            value={statusLabels[record.status] || record.status} 
+          <Select
+            value={statusLabels[record.status] || record.status}
             onChange={(val) => handleStatusChange(record.id, 'status', val)}
             style={{ width: 160 }}
             variant="borderless"
@@ -142,8 +143,8 @@ export default function App() {
         title: 'Trạng thái phòng',
         key: 'cleaningStatus',
         render: (_, record) => (
-          <Select 
-            value={cleaningLabels[record.cleaningStatus] || record.cleaningStatus} 
+          <Select
+            value={cleaningLabels[record.cleaningStatus] || record.cleaningStatus}
             onChange={(val) => handleStatusChange(record.id, 'cleaningStatus', val)}
             style={{ width: 160 }}
             variant="borderless"
@@ -159,11 +160,11 @@ export default function App() {
         title: 'Thao tác',
         key: 'action',
         render: (_, record) => (
-          <Button 
-            type="text" 
+          <Button
+            type="text"
             className="text-blue-600 hover:text-blue-800"
-            icon={<EditOutlined />} 
-            onClick={() => setCurrentView('edit')} 
+            icon={<EditOutlined />}
+            onClick={() => setCurrentView('edit')}
           />
         )
       }
@@ -172,14 +173,14 @@ export default function App() {
     const filteredRooms = filterFloor ? rooms.filter(r => r.floor === filterFloor) : rooms;
 
     return (
-      <Card title="Quản lý Quỹ phòng" bordered={false} className="m-4">
+      <Card title="Quản lý Quỹ phòng" variant="borderless" className="m-4">
         <div className="flex justify-between mb-4">
           <Space>
             {/* Lọc theo tầng */}
-            <Select 
-              allowClear 
-              placeholder="Chọn Tầng" 
-              style={{ width: 120 }} 
+            <Select
+              allowClear
+              placeholder="Chọn Tầng"
+              style={{ width: 120 }}
               onChange={setFilterFloor}
             >
               <Option value={1}>Tầng 1</Option>
@@ -203,24 +204,34 @@ export default function App() {
     const [inventoryData, setInventoryData] = useState([]);
     const [imageUrl, setImageUrl] = useState("");
     const [isCloneModalVisible, setIsCloneModalVisible] = useState(false);
+    const [isAddSupplyModalVisible, setIsAddSupplyModalVisible] = useState(false);
+    const [supplyForm] = Form.useForm();
     const [submitting, setSubmitting] = useState(false);
+    const [currentStep, setCurrentStep] = useState(0);
 
     // Tính năng: Clone từ phòng mẫu gọi API Backend
     const handleCloneRoom = async (sampleRoomId) => {
       try {
         message.loading({ content: 'Đang tải dữ liệu phòng mẫu...', key: 'clone' });
-        
-        // Gọi API lấy thông tin chi tiết phòng (bao gồm Inventory)
-        const response = await axiosClient.get(`/Rooms/sample/${sampleRoomId}`);
-        
-        // Auto-fill tất cả tiện ích hiện có từ API và Data vật tư
+
+        const response = await axiosClient.get(`/rooms/${sampleRoomId}/inventories`);
+
         const allAmenityNames = amenitiesList.map(a => a.name || a);
         form.setFieldsValue({ amenities: allAmenityNames });
-        setInventoryData(response.data.inventory || []);
-        
-        message.success({ content: `Đã sao chép tiện ích và vật tư từ phòng ${response.data.roomNumber}`, key: 'clone' });
+
+        const mappedInventories = (response.data.data || []).map((item, idx) => ({
+          id: item.id || Date.now() + idx,
+          code: item.code || 'SYS',
+          name: item.itemName,
+          unit: item.unit || 'Cái',
+          quantity: item.quantity,
+          penaltyPrice: item.priceIfLost
+        }));
+        setInventoryData(mappedInventories);
+
+        message.success({ content: `Đã sao chép tiện ích và vật tư từ phòng mẫu`, key: 'clone' });
       } catch (error) {
-        message.error({ content: `Lỗi kết nối! Không thể sao chép dữ liệu từ Backend.`, key: 'clone' });
+        message.error({ content: `Lỗi kết nối! Không thể lấy dữ liệu vật tư mẫu từ API.`, key: 'clone' });
         console.error("handleCloneRoom error:", error);
       } finally {
         setIsCloneModalVisible(false);
@@ -231,11 +242,11 @@ export default function App() {
     const customUpload = async ({ file, onSuccess, onError }) => {
       const formData = new FormData();
       formData.append('file', file);
-      
+
       // LƯU Ý: Cập nhật "upload_preset" và "Cloud Name" thật của dự án
-      formData.append('upload_preset', 'YOUR_UNSIGNED_PRESET'); 
+      formData.append('upload_preset', 'YOUR_UNSIGNED_PRESET');
       const cloudinaryName = 'YOUR_CLOUD_NAME';
-      
+
       message.loading({ content: 'Đang tải ảnh lên Cloudinary...', key: 'upload' });
       try {
         const res = await axios.post(`https://api.cloudinary.com/v1_1/${cloudinaryName}/image/upload`, formData);
@@ -252,20 +263,32 @@ export default function App() {
     const onFinish = async (values) => {
       setSubmitting(true);
       try {
-        // Map fields từ form sang format Backend cần
         const submitData = {
           roomNumber: values.roomNumber,
           roomTypeId: values.typeId,
           status: 'AVAILABLE',
           cleaningStatus: 'CLEAN',
         };
-        
-        // Bắn API thêm phòng xuống Backend
-        await axiosClient.post('/Rooms', submitData);
-        
-        message.success("Lưu phòng thành công!");
+
+        const res = await axiosClient.post('/Rooms', submitData);
+        const newRoomId = res.data?.roomId || res.data?.data?.roomId;
+
+        // Lưu inventoryData xuống API RoomInventories
+        if (newRoomId && inventoryData.length > 0) {
+          for (const item of inventoryData) {
+            await axiosClient.post(`/rooms/${newRoomId}/inventories`, {
+              ItemName: item.name,
+              Quantity: item.quantity,
+              Condition: "NEW",
+              IsMinibar: false,
+              PriceIfLost: item.penaltyPrice || 0
+            });
+          }
+        }
+
+        message.success("Lưu phòng và cập nhật vật tư thành công!");
         setCurrentView('list');
-        fetchRooms(); // Tải lại danh sách sau khi thêm mới
+        fetchRooms();
       } catch (error) {
         message.error("Lỗi khi lưu phòng! Vui lòng kiểm tra lại kết nối Backend.");
         console.error("onFinish error:", error);
@@ -287,102 +310,95 @@ export default function App() {
         <Button type="link" onClick={() => setCurrentView('list')} className="mb-2">
           &larr; Quay lại danh sách
         </Button>
-        <Card title="Quy trình thiết lập phòng" bordered={false}>
+        <Card title="Quy trình thiết lập phòng" variant="borderless">
           <Form form={form} layout="vertical" onFinish={onFinish}>
-            
+
             {/* 3 Tabs */}
-            <Tabs defaultActiveKey="1">
-              
-              {/* TAB 1: THÔNG TIN CHÍNH */}
-              <TabPane tab="Thông tin chính" key="1">
-                <Row gutter={24}>
-                  <Col span={12}>
-                    <Row gutter={16}>
-                      <Col span={12}>
-                        <Form.Item name="roomNumber" label="Số phòng" rules={[{ required: true }]}>
-                          <Input placeholder="VD: 101" />
-                        </Form.Item>
-                      </Col>
-                      <Col span={12}>
-                        <Form.Item name="floor" label="Tầng" rules={[{ required: true }]}>
-                          <InputNumber className="w-full" placeholder="VD: 1" />
-                        </Form.Item>
-                      </Col>
-                    </Row>
-                    {/* Hạng phòng Dropdown gọi từ API */}
-                    <Form.Item name="typeId" label="Hạng phòng" rules={[{ required: true }]}>
-                      <Select placeholder="Chọn hạng phòng">
-                        {roomTypes.map(type => (
-                          <Option key={type.id} value={type.id}>{type.name}</Option>
-                        ))}
-                      </Select>
-                    </Form.Item>
-                  </Col>
-                  <Col span={12}>
-                    <Form.Item label="Hình ảnh hạng phòng (Cloudinary)" name="imageUrl">
-                      <Upload 
-                        customRequest={customUpload} 
-                        showUploadList={false}
-                        accept="image/*"
-                      >
-                        <div className="border-2 border-dashed border-gray-300 rounded p-8 text-center cursor-pointer hover:bg-gray-50 flex flex-col items-center justify-center h-48">
-                          {imageUrl ? (
-                            <img src={imageUrl} alt="Room" className="h-full object-contain" />
-                          ) : (
-                            <div>
-                              <UploadOutlined className="text-2xl text-blue-500 mb-2" />
-                              <div className="text-gray-500">Click để chọn ảnh từ máy</div>
-                            </div>
-                          )}
-                        </div>
-                      </Upload>
-                    </Form.Item>
-                  </Col>
-                </Row>
-              </TabPane>
+            <Steps current={currentStep} className="mb-8">
+              <Step title="Thông tin chính" />
+              <Step title="Vật tư & Minibar" />
+            </Steps>
 
-              {/* TAB 2: TIỆN ÍCH */}
-              <TabPane tab="Tiện ích" key="2">
-                <Form.Item name="amenities">
-                  <Checkbox.Group>
-                    <Row gutter={[16, 16]}>
-                      {amenitiesList.map(amenity => {
-                        const name = amenity.name || amenity;
-                        const id = amenity.id || name;
-                        return (
-                          <Col span={6} key={id}>
-                            <Checkbox value={name}>{name}</Checkbox>
-                          </Col>
-                        );
-                      })}
-                    </Row>
-                  </Checkbox.Group>
-                </Form.Item>
-              </TabPane>
+            <div style={{ display: currentStep === 0 ? 'block' : 'none' }}>
+              <Row gutter={24}>
+                <Col span={12}>
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Form.Item name="roomNumber" label="Số phòng" rules={[{ required: true }]}>
+                        <Input placeholder="VD: 101" />
+                      </Form.Item>
+                    </Col>
+                    <Col span={12}>
+                      <Form.Item name="floor" label="Tầng" rules={[{ required: true }]}>
+                        <InputNumber className="w-full" placeholder="VD: 1" />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+                  {/* Hạng phòng Dropdown gọi từ API */}
+                  <Form.Item name="typeId" label="Hạng phòng" rules={[{ required: true }]}>
+                    <Select placeholder="Chọn hạng phòng">
+                      {roomTypes.map(type => (
+                        <Option key={type.id} value={type.id}>{type.name}</Option>
+                      ))}
+                    </Select>
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item label="Hình ảnh hạng phòng" name="imageUrl">
+                    <Upload
+                      customRequest={customUpload}
+                      showUploadList={false}
+                      accept="image/*"
+                    >
+                      <div className="border-2 border-dashed border-gray-300 rounded p-8 text-center cursor-pointer hover:bg-gray-50 flex flex-col items-center justify-center h-48">
+                        {imageUrl ? (
+                          <img src={imageUrl} alt="Room" className="h-full object-contain" />
+                        ) : (
+                          <div>
+                            <UploadOutlined className="text-2xl text-blue-500 mb-2" />
+                            <div className="text-gray-500">Click để chọn ảnh từ máy</div>
+                          </div>
+                        )}
+                      </div>
+                    </Upload>
+                  </Form.Item>
+                </Col>
+              </Row>
+            </div>
 
-              {/* TAB 3: VẬT TƯ & MINIBAR (Kèm nút Clone) */}
-              <TabPane tab="Vật tư & Minibar" key="3">
-                <div className="mb-4 space-x-2">
-                  <Button type="primary" ghost>+ Thêm vật tư</Button>
-                  <Button icon={<CopyOutlined />} onClick={() => setIsCloneModalVisible(true)}>
-                    Clone từ phòng mẫu
-                  </Button>
-                </div>
-                <Table dataSource={inventoryData} columns={inventoryColumns} rowKey="id" pagination={false} />
-              </TabPane>
 
-            </Tabs>
 
-            <div className="mt-6 border-t pt-4">
-              <Button type="primary" htmlType="submit" loading={submitting}>Lưu phòng & Tiếp tục</Button>
+            <div style={{ display: currentStep === 1 ? 'block' : 'none' }}>
+              <div className="mb-4 space-x-2">
+                <Button type="primary" ghost onClick={() => setIsAddSupplyModalVisible(true)}>+ Thêm vật tư</Button>
+                <Button icon={<CopyOutlined />} onClick={() => setIsCloneModalVisible(true)}>
+                  Clone từ phòng mẫu
+                </Button>
+              </div>
+              <Table dataSource={inventoryData} columns={inventoryColumns} rowKey="id" pagination={false} />
+            </div>
+
+            <div className="mt-6 border-t pt-4 flex space-x-4">
+              {currentStep > 0 && (
+                <Button onClick={() => setCurrentStep(c => c - 1)}>Quay lại</Button>
+              )}
+              {currentStep === 0 && (
+                <Button type="primary" onClick={async () => {
+                  await form.validateFields(['roomNumber', 'floor', 'typeId']);
+                  setCurrentStep(1);
+                }}>Tiếp tục</Button>
+              )}
+              {currentStep === 1 && (
+                <Button type="primary" htmlType="submit" loading={submitting}>Lưu & Tạo phòng</Button>
+              )}
             </div>
           </Form>
         </Card>
 
         {/* Modal chọn phòng mẫu để sao chép */}
-        <Modal 
-          title="Sao chép từ phòng mẫu" 
-          visible={isCloneModalVisible} 
+        <Modal
+          title="Sao chép từ phòng mẫu"
+          open={isCloneModalVisible}
           onCancel={() => setIsCloneModalVisible(false)}
           footer={null}
         >
@@ -397,6 +413,57 @@ export default function App() {
               </li>
             )) : <p className="text-gray-500 italic">Chưa có dữ liệu phòng nào để sao chép.</p>}
           </ul>
+        </Modal>
+
+        {/* Modal Thêm Vật tư */}
+        <Modal
+          title="Thêm Vật tư/Minibar"
+          open={isAddSupplyModalVisible}
+          onCancel={() => setIsAddSupplyModalVisible(false)}
+          onOk={() => supplyForm.submit()}
+        >
+          <Form form={supplyForm} layout="vertical" onFinish={(vals) => {
+            const actualName = Array.isArray(vals.name) ? vals.name[0] : vals.name;
+            setInventoryData(prev => [...prev, { ...vals, name: actualName, id: Date.now(), code: vals.code || 'MNB' }]);
+            setIsAddSupplyModalVisible(false);
+            supplyForm.resetFields();
+          }}>
+            <Form.Item name="name" label="Tên vật tư" rules={[{ required: true, message: 'Vui lòng chọn hoặc nhập tên vật tư' }]}>
+              <Select
+                mode="tags"
+                maxTagCount={1}
+                showSearch
+                allowClear
+                placeholder="Chọn vật tư có sẵn hoặc gõ tên mới..."
+                options={[
+                  { value: 'Tivi', label: 'Tivi' },
+                  { value: 'Tủ Lạnh', label: 'Tủ Lạnh' },
+                  { value: 'Điều hòa', label: 'Điều hòa' },
+                  { value: 'Giường', label: 'Giường' },
+                  { value: 'Tủ quần áo', label: 'Tủ quần áo' },
+                  { value: 'Két sắt', label: 'Két sắt' },
+                  { value: 'Bàn làm việc', label: 'Bàn làm việc' },
+                  { value: 'Máy sấy tóc', label: 'Máy sấy tóc' },
+                  { value: 'Bình đun siêu tốc', label: 'Bình đun siêu tốc' },
+                  { value: 'Mắc áo', label: 'Mắc áo' },
+                  { value: 'Dép đi trong nhà', label: 'Dép đi trong nhà' },
+                  { value: 'Khăn tắm', label: 'Khăn tắm' },
+                  { value: 'Khăn mặt', label: 'Khăn mặt' },
+                  { value: 'Áo choàng tắm', label: 'Áo choàng tắm' },
+                  { value: 'Bàn chải đánh răng', label: 'Bàn chải đánh răng' },
+                  { value: 'Sữa tắm', label: 'Sữa tắm' },
+                  { value: 'Dầu gội', label: 'Dầu gội' },
+                  { value: 'Nước suối (Minibar)', label: 'Nước suối (Minibar)' },
+                  { value: 'Bia (Minibar)', label: 'Bia (Minibar)' },
+                  { value: 'Nước ngọt (Minibar)', label: 'Nước ngọt (Minibar)' },
+                  { value: 'Snack (Minibar)', label: 'Snack (Minibar)' }
+                ]}
+              />
+            </Form.Item>
+            <Form.Item name="unit" label="ĐVT (VD: Cái, Chai)" rules={[{ required: true }]}><Input /></Form.Item>
+            <Form.Item name="quantity" label="Số lượng" rules={[{ required: true }]}><InputNumber min={1} className="w-full" /></Form.Item>
+            <Form.Item name="penaltyPrice" label="Giá đền bù (VNĐ)"><InputNumber min={0} className="w-full" /></Form.Item>
+          </Form>
         </Modal>
       </div>
     );
