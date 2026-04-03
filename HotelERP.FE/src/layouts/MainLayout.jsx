@@ -5,6 +5,8 @@ import {
   TeamOutlined,
   SafetyCertificateOutlined,
   LogoutOutlined,
+  AppstoreOutlined,
+  HomeOutlined,
   DatabaseOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
@@ -38,6 +40,18 @@ const MainLayout = () => {
       icon: <SafetyCertificateOutlined />,
       label: 'Phân quyền (RBAC)',
       requiredPermission: 'MANAGE_ROLES',
+    },
+    {
+      key: '/admin/room-types',
+      icon: <AppstoreOutlined />,
+      label: 'Loại phòng & Tiện ích',
+      requiredPermission: 'MANAGE_AMENITIES',
+    },
+    {
+      key: '/admin/rooms',
+      icon: <HomeOutlined />,
+      label: 'Quản lý phòng',
+      requiredPermission: 'MANAGE_ROOMS',
     },
     {
       key: '/admin/room-inventory',
@@ -106,7 +120,7 @@ const MainLayout = () => {
             }}
           >
             <NotificationBell />
-<Dropdown menu={userMenu} placement="bottomRight">
+            <Dropdown menu={userMenu} placement="bottomRight">
               <Button type="text" icon={<UserOutlined />}>
                 Xin chào, {user?.fullName || 'Admin'}
               </Button>

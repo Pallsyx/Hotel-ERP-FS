@@ -4,7 +4,7 @@ namespace HotelERP.BE.Application.DTOs;
 
 public record RoomFilterRequest(string? Status, string? CleaningStatus, int? RoomTypeId);
 
-public record RoomResponseDto(int Id, string RoomNumber, string Status, string CleaningStatus, string RoomTypeName);
+public record RoomResponseDto(int Id, string RoomNumber, string Status, string CleaningStatus, string RoomTypeName, int? RoomTypeId);
 
 public record RoomDetailResponseDto(
     int Id, 

@@ -81,13 +81,24 @@ public class RoomsController(IRoomService roomService) : ControllerBase
     [Consumes("multipart/form-data")] 
     public async Task<IActionResult> ReportDamage([FromForm] ReportDamageRequest request)
     {
-        var userIdClaim = User.FindFirst("UserId")?.Value;
-        int userId = int.TryParse(userIdClaim, out int id) ? id : 1; 
+        try 
+        {
+            var userIdClaim = User.FindFirst("UserId")?.Value;
+            int userId = int.TryParse(userIdClaim, out int id) ? id : 1; 
 
-        var result = await roomService.ReportDamageAsync(userId, request);
-        if (!result) return BadRequest("Có lỗi xảy ra khi lưu trữ.");
+            var result = await roomService.ReportDamageAsync(userId, request);
+            if (!result) return BadRequest("Có lỗi xảy ra khi lưu trữ báo cáo.");
 
-        return Ok(new { success = true, message = "Đã ghi nhận báo cáo hư hỏng kèm hình ảnh." });
+            return Ok(new { success = true, message = "Đã ghi nhận báo cáo hư hỏng kèm hình ảnh." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { success = false, message = ex.Message });
+        }
     }
 
     [HttpGet("{id}/loss-damages")]

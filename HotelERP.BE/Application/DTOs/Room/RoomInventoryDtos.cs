@@ -2,14 +2,16 @@ namespace HotelERP.BE.Application.DTOs;
 
 public record RoomInventoryResponseDto(
     int Id,
+    int EquipmentId,
     string ItemName,
     int Quantity,
+    string Unit,
     string Status,
     decimal PriceIfLost
 );
 
 public record AddInventoryRequest(
-    string ItemName,
+    int EquipmentId,
     int Quantity,
     string? Condition,
     bool IsMinibar,
@@ -17,7 +19,7 @@ public record AddInventoryRequest(
 );
 
 public record UpdateInventoryRequest(
-    string ItemName,
+    int EquipmentId,
     int Quantity,
     string? Condition,
     bool IsMinibar,

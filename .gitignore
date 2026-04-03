@@ -6,3 +6,6 @@
 **/.idea/
 *.user
 *.suo
+node_modules/
+dist/
+.env

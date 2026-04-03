@@ -1,5 +1,8 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import RoomManagement from '../pages/Admin/RoomManagement';
+import RoomTypeManagement from '../pages/RoomTypes/RoomTypeManagement';
+import RoomInventory from '../pages/RoomInventory/RoomInventory';
 
 // 1. IMPORT CÁC COMPONENT LÕI CỦA TEAM LEAD
 import Login from '../pages/Auth/Login';
@@ -7,7 +10,6 @@ import MainLayout from '../layouts/MainLayout';
 import { useAuthStore } from '../store/authStore';
 import UserManagement from '../pages/Users/UserManagement';
 import RoleManagement from '../pages/Users/RoleManagement';
-import RoomInventory from '../pages/RoomInventory/RoomInventory';
 
 // 2. COMPONENT GIỮ CHỖ (Placeholder)
 const Placeholder = ({ title }) => (
@@ -38,16 +40,15 @@ const AdminRoutes = () => {
 
         {/* MODULE 6 */}
         <Route path="users" element={<UserManagement />} />
-        <Route path="roles" element={<RoleManagement  />} />
+        <Route path="roles" element={<RoleManagement />} />
         <Route path="audit-logs" element={<Placeholder title="Truy vết hệ thống (Audit Logs)" />} />
 
         {/* MODULE 3 */}
-        <Route path="room-types" element={<Placeholder title="Cấu hình Hạng phòng & Giá" />} />
-        <Route path="rooms" element={<Placeholder title="Quản lý Phòng vật lý" />} />
+        <Route path="room-types" element={<RoomTypeManagement />} />
+        <Route path="rooms" element={<RoomManagement />} />
         <Route path="housekeeping" element={<Placeholder title="Checklist Buồng phòng & Minibar" />} />
         <Route path="room-inventory" element={<RoomInventory />} />
         <Route path="damage-reports" element={<Placeholder title="Báo cáo Hư hỏng & Đền bù" />} />
-        
 
         {/*  MODULE 1 */}
         <Route path="article-categories" element={<Placeholder title="Danh mục Bài viết" />} />

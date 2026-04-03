@@ -57,7 +57,7 @@ const Login = () => {
       loginStore(userData, accessToken, refreshToken, userPermissions);
       
       message.success('Đăng nhập thành công!');
-      navigate('/admin/users');
+      navigate('/admin/room-types');
     } catch (error) {
       console.error("❌ Lỗi đăng nhập:", error);
       message.error(error.response?.data?.message || 'Đăng nhập thất bại!');

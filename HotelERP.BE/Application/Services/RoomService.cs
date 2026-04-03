@@ -29,7 +29,7 @@ public class RoomService : IRoomService
         if (filter.RoomTypeId.HasValue) query = query.Where(r => r.RoomTypeId == filter.RoomTypeId.Value);
 
         return await query.Select(r => new RoomResponseDto(
-            r.Id, r.RoomNumber, r.Status, r.CleaningStatus, r.RoomType != null ? r.RoomType.Name : "N/A"
+            r.Id, r.RoomNumber, r.Status, r.CleaningStatus, r.RoomType != null ? r.RoomType.Name : "N/A", r.RoomTypeId
         )).ToListAsync();
     }
 
@@ -100,15 +100,23 @@ public class RoomService : IRoomService
 
     public async Task<bool> ReportDamageAsync(int userId, ReportDamageRequest request)
 {
+    var room = await _context!.Rooms.FindAsync(request.RoomId);
+    if (room == null || room.DeletedAt != null)
+        throw new InvalidOperationException("Phòng không tồn tại.");
+
+    // NGHIÊP VỤ: Chỉ cho phép báo hỏng khi phòng đang có khách (Occupied)
+    if (room.Status.ToUpper() != "OCCUPIED")
+        throw new InvalidOperationException($"Không thể báo hỏng cho phòng đang ở trạng thái '{room.Status}'. Tính năng này chỉ dành cho phòng đang có khách lưu trú.");
+
     var damage = new LossAndDamage
     {
         RoomId = request.RoomId,
-        BookingDetailId = request.BookingDetailId, // Dùng trường SQL gốc
-        RoomInventoryId = request.RoomInventoryId, // Dùng trường SQL gốc
+        BookingDetailId = request.BookingDetailId, 
+        RoomInventoryId = request.RoomInventoryId, 
         ReportedByUserId = userId,
         Description = request.Description,
-        PenaltyAmount = request.PenaltyAmount,     // Dùng trường SQL gốc
-        Quantity = request.Quantity,               // Dùng trường SQL gốc
+        PenaltyAmount = request.PenaltyAmount,     
+        Quantity = request.Quantity,               
         CreatedAt = DateTime.UtcNow
     };
 

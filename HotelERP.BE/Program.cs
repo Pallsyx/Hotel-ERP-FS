@@ -185,12 +185,13 @@ builder.Services.AddScoped<ArticleService>();
 builder.Services.AddScoped<ILoyaltyPointService, LoyaltyPointService>();
 builder.Services.AddScoped<IVoucherService, VoucherService>();
 builder.Services.AddScoped<IVoucherAuditLogHelper, VoucherAuditLogHelper>();
+builder.Services.AddScoped<IRoomTypeService, RoomTypeService>();
 builder.Services.AddScoped<IRoomTypeQueryService, RoomTypeQueryService>();
 builder.Services.AddScoped<IBookingVoucherService, BookingVoucherService>();
 builder.Services.AddScoped<IRoomService, RoomService>();
 builder.Services.AddScoped<ArticleCategoryService>();
 builder.Services.AddScoped<IAmenityService, AmenityService>();
-builder.Services.AddSignalR();
+builder.Services.AddScoped<IRoomTypeAmenityService, RoomTypeAmenityService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(Program).Assembly));
 
