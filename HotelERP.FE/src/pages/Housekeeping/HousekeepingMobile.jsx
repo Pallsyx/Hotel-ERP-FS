@@ -62,7 +62,7 @@ const HousekeepingMobile = () => {
     <div style={{ padding: '16px', backgroundColor: '#f0f2f5', minHeight: '100vh', maxWidth: '600px', margin: '0 auto' }}>
       <Title level={4} style={{ marginBottom: 16 }}>Phòng Cần Dọn</Title>
       
-      <Space direction="vertical" style={{ width: '100%' }} size="middle">
+      <Space orientation="vertical" style={{ width: '100%' }} size="middle">
         {dirtyRooms.map(room => (
           <Badge.Ribbon text="DIRTY" color="volcano" key={room.id}>
             <Card onClick={() => openRoomTasks(room)} hoverable style={{ borderRadius: 12 }}>

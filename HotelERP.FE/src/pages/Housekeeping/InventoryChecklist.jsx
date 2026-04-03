@@ -29,7 +29,7 @@ const InventoryChecklist = () => {
     setLoading(true);
     try {
       const res = await axiosClient.get(`/rooms/${roomId}/inventories`);
-      setItems(res.data);
+      setItems(res.data?.data || res.data || []);
     } catch (error) {
       message.error("Lỗi khi tải danh sách vật tư!");
     } finally {
@@ -37,7 +37,7 @@ const InventoryChecklist = () => {
     }
   };
 
-  const filteredItems = items.filter(item => 
+  const filteredItems = (Array.isArray(items) ? items : []).filter(item => 
     item.itemName.toLowerCase().includes(searchText.toLowerCase())
   );
 
@@ -177,7 +177,7 @@ const InventoryChecklist = () => {
         open={isModalOpen}
         onCancel={() => setIsModalOpen(false)}
         footer={null}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical" onFinish={handleReportDamage}>
           <Form.Item label="Tên vật tư hỏng/mất" name="ItemName" rules={[{ required: true }]}>
