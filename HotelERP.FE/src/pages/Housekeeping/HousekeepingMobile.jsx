@@ -54,8 +54,16 @@ const HousekeepingMobile = () => {
     }
   };
 
-  const openRoomTasks = (room) => {
-    navigate(`/admin/housekeeping/room/${room.id}`, { state: { roomNumber: room.roomNumber } });
+  const openRoomTasks = async (room) => {
+    try {
+      // Đổi trạng thái sang INSPECTING (Đang kiểm tra)
+      await axiosClient.patch(`/rooms/${room.id}/cleaning-status`, { 
+        NewCleaningStatus: 'INSPECTING' 
+      });
+      navigate(`/admin/housekeeping/room/${room.id}`, { state: { roomNumber: room.roomNumber } });
+    } catch (error) {
+      message.error("Lỗi khi cập nhật trạng thái phòng!");
+    }
   };
 
   return (

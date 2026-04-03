@@ -67,16 +67,19 @@ const InventoryChecklist = () => {
   const handleReportDamage = async (values) => {
     try {
       const formData = new FormData();
+      formData.append('RoomId', roomId);
+      formData.append('RoomInventoryId', selectedItem?.id || '');
       formData.append('ItemName', values.ItemName);
       formData.append('Quantity', values.Quantity);
       formData.append('PenaltyAmount', values.PenaltyAmount);
-      formData.append('Description', values.Reason || ''); 
+      formData.append('Description', values.Reason || '');
+      formData.append('Reason', values.Reason || 'Báo hỏng nội bộ');
       
       if (values.EvidenceImage?.fileList?.[0]?.originFileObj) {
         formData.append('EvidenceImage', values.EvidenceImage.fileList[0].originFileObj);
       }
 
-      await axiosClient.post(`/rooms/${roomId}/damages`, formData, {
+      await axiosClient.post(`/Rooms/loss-damages`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       

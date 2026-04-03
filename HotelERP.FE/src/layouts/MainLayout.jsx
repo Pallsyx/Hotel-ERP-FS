@@ -92,31 +92,31 @@ const MainLayout = () => {
   return (
     <Spin spinning={isLoading} size="large" description="Hệ thống đang xử lý...">
       <Layout style={{ minHeight: '100vh' }}>
-        {!isHousekeeping && (
-          <Sider width={250} theme="dark">
-            <div
-              style={{
-                padding: '16px',
-                textAlign: 'center',
-                background: 'rgba(255, 255, 255, 0.1)',
-                margin: '16px',
-                borderRadius: '8px',
-              }}
-            >
-              <Title level={4} style={{ color: 'white', margin: 0 }}>
-                HOTEL ERP
-              </Title>
-            </div>
+        <Sider width={250} theme="dark" collapsed={isHousekeeping} collapsedWidth={50}>
+          <div
+            style={{
+              padding: isHousekeeping ? '16px 8px' : '16px',
+              textAlign: 'center',
+              background: 'rgba(255, 255, 255, 0.1)',
+              margin: '16px 8px',
+              borderRadius: '8px',
+              overflow: 'hidden',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            <Title level={4} style={{ color: 'white', margin: 0, fontSize: isHousekeeping ? '14px' : '20px' }}>
+              {isHousekeeping ? 'ERP' : 'HOTEL ERP'}
+            </Title>
+          </div>
 
-            <Menu
-              theme="dark"
-              mode="inline"
-              selectedKeys={[location.pathname]}
-              items={menuItems}
-              onClick={(e) => navigate(e.key)}
-            />
-          </Sider>
-        )}
+          <Menu
+            theme="dark"
+            mode="inline"
+            selectedKeys={[location.pathname]}
+            items={menuItems}
+            onClick={(e) => navigate(e.key)}
+          />
+        </Sider>
 
         <Layout>
           <Header
@@ -127,6 +127,7 @@ const MainLayout = () => {
               justifyContent: 'flex-end',
               alignItems: 'center',
               boxShadow: '0 1px 4px rgba(0,21,41,.08)',
+              paddingLeft: isHousekeeping ? 16 : 24,
             }}
           >
             <NotificationBell />
