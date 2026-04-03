@@ -10,6 +10,7 @@ import MainLayout from '../layouts/MainLayout';
 import { useAuthStore } from '../store/authStore';
 import UserManagement from '../pages/Users/UserManagement';
 import RoleManagement from '../pages/Users/RoleManagement';
+import LossAndDamages from '../pages/LossAndDamages.jsx';
 
 // 2. COMPONENT GIỮ CHỖ (Placeholder)
 const Placeholder = ({ title }) => (
@@ -49,6 +50,8 @@ const AdminRoutes = () => {
         <Route path="housekeeping" element={<Placeholder title="Checklist Buồng phòng & Minibar" />} />
         <Route path="room-inventory" element={<RoomInventory />} />
         <Route path="damage-reports" element={<Placeholder title="Báo cáo Hư hỏng & Đền bù" />} />
+
+        <Route path="loss-and-damages" element={<LossAndDamages />} />
 
         {/*  MODULE 1 */}
         <Route path="article-categories" element={<Placeholder title="Danh mục Bài viết" />} />

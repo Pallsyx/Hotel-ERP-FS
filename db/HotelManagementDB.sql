@@ -2005,3 +2005,25 @@ AND NOT EXISTS (
     WHERE rp.role_id = 1 AND rp.permission_id = [dbo].[Permissions].id
 );
 GO
+-- ==========================================
+-- PHẦN VÁ LỖI THIẾU CỘT (CẬP NHẬT TỪ BACKEND)
+-- ==========================================
+IF COL_LENGTH('dbo.Amenities', 'DeletedAt') IS NULL 
+    ALTER TABLE [dbo].[Amenities] ADD [DeletedAt] DATETIME NULL;
+
+IF COL_LENGTH('dbo.Room_Types', 'DeletedAt') IS NULL 
+    ALTER TABLE [dbo].[Room_Types] ADD [DeletedAt] DATETIME NULL;
+
+IF COL_LENGTH('dbo.Room_Types', 'ImageUrl') IS NULL 
+    ALTER TABLE [dbo].[Room_Types] ADD [ImageUrl] NVARCHAR(MAX) NULL;
+
+IF COL_LENGTH('dbo.Rooms', 'DeletedAt') IS NULL 
+    ALTER TABLE [dbo].[Rooms] ADD [DeletedAt] DATETIME NULL;
+    
+IF COL_LENGTH('dbo.Services', 'DeletedAt') IS NULL 
+    ALTER TABLE [dbo].[Services] ADD [DeletedAt] DATETIME NULL;
+IF COL_LENGTH('dbo.Equipments', 'DeletedAt') IS NULL 
+    ALTER TABLE [dbo].[Equipments] ADD [DeletedAt] DATETIME NULL;
+
+IF COL_LENGTH('dbo.Room_Inventory', 'DeletedAt') IS NULL 
+    ALTER TABLE [dbo].[Room_Inventory] ADD [DeletedAt] DATETIME NULL;
