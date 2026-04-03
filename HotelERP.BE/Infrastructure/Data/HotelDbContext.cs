@@ -65,6 +65,8 @@ public partial class HotelDbContext : DbContext
 
     public virtual DbSet<RoomInventory> RoomInventories { get; set; }
 
+    public virtual DbSet<Equipment> Equipments { get; set; }
+
     public virtual DbSet<RoomType> RoomTypes { get; set; }
 
     public virtual DbSet<RoomTypeAmenity> RoomTypeAmenities { get; set; }
@@ -975,41 +977,62 @@ public partial class HotelDbContext : DbContext
                 .HasConstraintName("FK_RoomImages_RoomTypes");
         });
 
-        modelBuilder.Entity<RoomInventory>(entity =>
+        modelBuilder.Entity<Equipment>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Room_Inv__3213E83F11FADD17");
+            entity.HasKey(e => e.Id);
+
+            entity.ToTable("Equipments");
+
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.ItemCode).HasMaxLength(50);
+            entity.Property(e => e.Name).HasMaxLength(255);
+            entity.Property(e => e.Category).HasMaxLength(100);
+            entity.Property(e => e.Unit).HasMaxLength(50);
+            entity.Property(e => e.TotalQuantity).HasColumnName("TotalQuantity");
+            entity.Property(e => e.InUseQuantity).HasColumnName("InUseQuantity");
+            entity.Property(e => e.DamagedQuantity).HasColumnName("DamagedQuantity");
+            entity.Property(e => e.LiquidatedQuantity).HasColumnName("LiquidatedQuantity");
+            entity.Property(e => e.BasePrice).HasColumnType("decimal(18, 2)");
+            entity.Property(e => e.DefaultPriceIfLost).HasColumnType("decimal(18, 2)");
+            entity.Property(e => e.Supplier).HasMaxLength(255);
+            entity.Property(e => e.IsActive).HasColumnName("IsActive");
+            entity.Property(e => e.CreatedAt).HasColumnType("datetime");
+            entity.Property(e => e.UpdatedAt).HasColumnType("datetime");
+            entity.Property(e => e.ImageUrl).HasColumnName("ImageUrl");
+        });
+
+            modelBuilder.Entity<RoomInventory>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PKRoom_Inv3213E83F11FADD17");
 
             entity.ToTable("Room_Inventory");
 
             entity.Property(e => e.Id).HasColumnName("id");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getdate())", "DF_RoomInventory_CreatedAt")
-                .HasColumnType("datetime")
-                .HasColumnName("created_at");
-            entity.Property(e => e.ItemName)
-                .HasMaxLength(255)
-                .HasColumnName("item_name");
-            entity.Property(e => e.ItemType)
-                .HasMaxLength(20)
-                .HasDefaultValue("ASSET", "DF_RoomInventory_ItemType")
-                .HasColumnName("item_type");
+            entity.Property(e => e.RoomId).HasColumnName("room_id");
+
+            entity.Property(e => e.Quantity)
+                .HasDefaultValue(1)
+                .HasColumnName("quantity");
+
             entity.Property(e => e.PriceIfLost)
                 .HasColumnType("decimal(18, 2)")
                 .HasColumnName("price_if_lost");
-            entity.Property(e => e.Quantity)
-                .HasDefaultValue(1, "DF_RoomInventory_Quantity")
-                .HasColumnName("quantity");
-            entity.Property(e => e.RoomId).HasColumnName("room_id");
-            entity.Property(e => e.Status)
-                .HasMaxLength(20)
-                .HasDefaultValue("ACTIVE", "DF_RoomInventory_Status")
-                .HasColumnName("status");
-            entity.Property(e => e.Unit)
+
+            entity.Property(e => e.Note)
+                .HasMaxLength(255)
+                .HasColumnName("note");
+
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true)
+                .HasColumnName("is_active");
+
+            entity.Property(e => e.ItemType)
                 .HasMaxLength(50)
-                .HasColumnName("unit");
-            entity.Property(e => e.UpdatedAt)
-                .HasColumnType("datetime")
-                .HasColumnName("updated_at");
+                .HasDefaultValue("Asset")
+                .HasColumnName("item_type");
+
+            entity.Property(e => e.EquipmentId)
+                .HasColumnName("EquipmentId");
 
             entity.HasOne(d => d.Room).WithMany(p => p.RoomInventories)
                 .HasForeignKey(d => d.RoomId)
@@ -1062,30 +1085,42 @@ public partial class HotelDbContext : DbContext
                 .HasColumnName("updated_at");
         });
 
-        modelBuilder.Entity<RoomTypeAmenity>(entity =>
-        {
-            entity.HasKey(e => new { e.RoomTypeId, e.AmenityId });
+        modelBuilder.Entity<RoomInventory>(entity =>
+{
+    entity.HasKey(e => e.Id).HasName("PKRoom_Inv3213E83F11FADD17");
 
-            entity.ToTable("RoomType_Amenities");
+    entity.ToTable("Room_Inventory");
 
-            entity.Property(e => e.RoomTypeId).HasColumnName("room_type_id");
-            entity.Property(e => e.AmenityId).HasColumnName("amenity_id");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getdate())", "DF_RoomTypeAmenities_CreatedAt")
-                .HasColumnType("datetime")
-                .HasColumnName("created_at");
+    entity.Property(e => e.Id).HasColumnName("id");
+    entity.Property(e => e.RoomId).HasColumnName("room_id");
 
-            entity.HasOne(d => d.Amenity).WithMany(p => p.RoomTypeAmenities)
-                .HasForeignKey(d => d.AmenityId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_RoomTypeAmenities_Amenities");
+    entity.Property(e => e.Quantity)
+        .HasDefaultValue(1)
+        .HasColumnName("quantity");
 
-            entity.HasOne(d => d.RoomType).WithMany(p => p.RoomTypeAmenities)
-                .HasForeignKey(d => d.RoomTypeId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_RoomTypeAmenities_RoomTypes");
-        });
+    entity.Property(e => e.PriceIfLost)
+        .HasColumnType("decimal(18, 2)")
+        .HasColumnName("price_if_lost");
 
+    entity.Property(e => e.Note)
+        .HasMaxLength(255)
+        .HasColumnName("note");
+
+    entity.Property(e => e.IsActive)
+        .HasDefaultValue(true)
+        .HasColumnName("is_active");
+
+    entity.Property(e => e.ItemType)
+        .HasMaxLength(50)
+        .HasDefaultValue("Asset")
+        .HasColumnName("item_type");
+
+    entity.Property(e => e.EquipmentId).HasColumnName("EquipmentId");
+
+    entity.HasOne(d => d.Room).WithMany(p => p.RoomInventories)
+        .HasForeignKey(d => d.RoomId)
+        .HasConstraintName("FK_RoomInventory_Rooms");
+});
         modelBuilder.Entity<Service>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("PK__Services__3213E83F37D05537");
@@ -1272,6 +1307,25 @@ public partial class HotelDbContext : DbContext
         .HasConstraintName("FK_RefreshTokens_Users");
         });
 
+                modelBuilder.Entity<RoomTypeAmenity>(entity =>
+        {
+            entity.HasKey(e => new { e.RoomTypeId, e.AmenityId });
+
+            entity.ToTable("RoomType_Amenities");
+
+            entity.Property(e => e.RoomTypeId).HasColumnName("room_type_id");
+            entity.Property(e => e.AmenityId).HasColumnName("amenity_id");
+
+            entity.HasOne(d => d.Amenity).WithMany(p => p.RoomTypeAmenities)
+                .HasForeignKey(d => d.AmenityId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_RoomTypeAmenities_Amenities");
+
+            entity.HasOne(d => d.RoomType).WithMany(p => p.RoomTypeAmenities)
+                .HasForeignKey(d => d.RoomTypeId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_RoomTypeAmenities_RoomTypes");
+        });
         modelBuilder.Entity<Room>().HasQueryFilter(r => r.DeletedAt == null);
         modelBuilder.Entity<RoomType>().HasQueryFilter(rt => rt.DeletedAt == null);
 
