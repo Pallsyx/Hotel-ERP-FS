@@ -3,6 +3,8 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import RoomManagement from '../pages/Admin/RoomManagement';
 import RoomTypeManagement from '../pages/RoomTypes/RoomTypeManagement';
 import RoomInventory from '../pages/RoomInventory/RoomInventory';
+import RoomInventory from './pages/Housekeeping/HousekeepingMobile';
+import InventoryChecklist from './pages/Housekeeping/InventoryChecklist';
 
 // 1. IMPORT CÁC COMPONENT LÕI CỦA TEAM LEAD
 import Login from '../pages/Auth/Login';
@@ -46,7 +48,7 @@ const AdminRoutes = () => {
         {/* MODULE 3 */}
         <Route path="room-types" element={<RoomTypeManagement />} />
         <Route path="rooms" element={<RoomManagement />} />
-        <Route path="housekeeping" element={<Placeholder title="Checklist Buồng phòng & Minibar" />} />
+        <Route path="housekeeping" element={<HousekeepingMobile />} />
         <Route path="room-inventory" element={<RoomInventory />} />
         <Route path="damage-reports" element={<Placeholder title="Báo cáo Hư hỏng & Đền bù" />} />
 
