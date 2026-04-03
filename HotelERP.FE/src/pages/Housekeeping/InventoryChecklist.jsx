@@ -58,7 +58,7 @@ const InventoryChecklist = () => {
     form.setFieldsValue({
       ItemName: item.itemName,
       Quantity: 1,
-      PenaltyAmount: 0,
+      PenaltyAmount: item.priceIfLost || 0,
       Reason: ''
     });
     setIsModalOpen(true);
@@ -184,7 +184,15 @@ const InventoryChecklist = () => {
             <Input placeholder="Vd: Vỡ cốc, rách khăn..." disabled />
           </Form.Item>
           <Form.Item label="Số lượng" name="Quantity" rules={[{ required: true }]} initialValue={1}>
-            <InputNumber min={1} max={selectedItem?.quantity || 1} style={{ width: '100%' }} />
+            <InputNumber 
+              min={1} 
+              max={selectedItem?.quantity || 1} 
+              style={{ width: '100%' }} 
+              onChange={(val) => {
+                const penaltyPrice = selectedItem?.priceIfLost || 0;
+                form.setFieldsValue({ PenaltyAmount: (val || 1) * penaltyPrice });
+              }}
+            />
           </Form.Item>
           <Form.Item label="Phạt tiền dự kiến (VNĐ)" name="PenaltyAmount" rules={[{ required: true }]} initialValue={0}>
             <InputNumber min={0} step={10000} style={{ width: '100%' }} />
