@@ -6,6 +6,7 @@ END
 GO
 
 USE [HotelManagementDB]
+EXEC sp_msforeachtable 'ALTER TABLE ? NOCHECK CONSTRAINT ALL'
 GO
 
 SET ANSI_NULLS ON
@@ -383,14 +384,12 @@ GO
 CREATE TABLE [dbo].[Room_Inventory](
     [id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
     [room_id] INT NULL,
-    [item_name] NVARCHAR(255) NOT NULL,
-    [item_type] NVARCHAR(20) NOT NULL CONSTRAINT [DF_RoomInventory_ItemType] DEFAULT (N'ASSET'),
-    [unit] NVARCHAR(50) NULL,
-    [quantity] INT NOT NULL CONSTRAINT [DF_RoomInventory_Quantity] DEFAULT ((1)),
-    [price_if_lost] DECIMAL(18,2) NOT NULL CONSTRAINT [DF_RoomInventory_PriceIfLost] DEFAULT ((0)),
-    [status] NVARCHAR(20) NOT NULL CONSTRAINT [DF_RoomInventory_Status] DEFAULT (N'ACTIVE'),
-    [created_at] DATETIME NOT NULL CONSTRAINT [DF_RoomInventory_CreatedAt] DEFAULT (GETDATE()),
-    [updated_at] DATETIME NULL
+    [item_type] NVARCHAR(50) NOT NULL,
+    [quantity] INT NOT NULL,
+    [price_if_lost] DECIMAL(18, 2) NOT NULL,
+    [note] NVARCHAR(MAX) NULL,
+    [is_active] BIT NULL,
+    [EquipmentId] INT NOT NULL
 );
 GO
 /****** Object:  Table [dbo].[Room_Types]    Script Date: 3/28/2026 9:25:30 AM ******/
@@ -1111,24 +1110,7 @@ INSERT [dbo].[Payments] ([id], [invoice_id], [payment_method], [amount_paid], [t
 INSERT [dbo].[Payments] ([id], [invoice_id], [payment_method], [amount_paid], [transaction_code], [payment_date]) VALUES (10, 10, N'Momo', CAST(5000000.00 AS Decimal(18, 2)), N'MOMO111', CAST(N'2026-03-06T22:07:35.027' AS DateTime))
 SET IDENTITY_INSERT [dbo].[Payments] OFF
 GO
-SET IDENTITY_INSERT [dbo].[Permissions] ON 
 
-INSERT [dbo].[Permissions] ([id], [name]) VALUES (1, N'VIEW_DASHBOARD')
-INSERT [dbo].[Permissions] ([id], [name]) VALUES (2, N'MANAGE_USERS')
-INSERT [dbo].[Permissions] ([id], [name]) VALUES (3, N'MANAGE_ROLES')
-INSERT [dbo].[Permissions] ([id], [name]) VALUES (4, N'MANAGE_ROOMS')
-INSERT [dbo].[Permissions] ([id], [name]) VALUES (5, N'MANAGE_BOOKINGS')
-INSERT [dbo].[Permissions] ([id], [name]) VALUES (6, N'MANAGE_INVOICES')
-INSERT [dbo].[Permissions] ([id], [name]) VALUES (7, N'MANAGE_SERVICES')
-INSERT [dbo].[Permissions] ([id], [name]) VALUES (8, N'VIEW_REPORTS')
-INSERT [dbo].[Permissions] ([id], [name]) VALUES (9, N'MANAGE_CONTENT')
-INSERT [dbo].[Permissions] ([id], [name]) VALUES (10, N'MANAGE_INVENTORY')
-INSERT [dbo].[Permissions] ([id], [name]) VALUES (11, N'VIEW_USERS')
-INSERT [dbo].[Permissions] ([id], [name]) VALUES (12, N'VIEW_ROLES')
-INSERT [dbo].[Permissions] ([id], [name]) VALUES (13, N'EDIT_ROLES')
-INSERT [dbo].[Permissions] ([id], [name]) VALUES (14, N'CREATE_USERS')
-SET IDENTITY_INSERT [dbo].[Permissions] OFF
-GO
 SET IDENTITY_INSERT [dbo].[Reviews] ON 
 
 INSERT [dbo].[Reviews] ([id], [user_id], [room_type_id], [rating], [comment], [created_at]) VALUES (1, 6, 1, 5, N'Phòng tuyệt vời!', CAST(N'2026-03-06T22:07:35.023' AS DateTime))
@@ -1143,78 +1125,7 @@ INSERT [dbo].[Reviews] ([id], [user_id], [room_type_id], [rating], [comment], [c
 INSERT [dbo].[Reviews] ([id], [user_id], [room_type_id], [rating], [comment], [created_at]) VALUES (10, 10, 10, 5, N'Trải nghiệm tuyệt vời nhất.', CAST(N'2026-03-06T22:07:35.023' AS DateTime))
 SET IDENTITY_INSERT [dbo].[Reviews] OFF
 GO
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (1, 1)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (1, 2)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (1, 3)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (1, 4)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (1, 5)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (1, 6)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (1, 7)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (1, 8)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (1, 9)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (1, 10)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (1, 11)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (1, 12)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (1, 13)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (1, 14)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (2, 1)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (2, 2)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (2, 4)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (2, 5)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (2, 6)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (2, 7)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (2, 8)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (2, 9)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (2, 10)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (2, 11)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (2, 12)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (3, 1)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (3, 4)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (3, 5)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (3, 6)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (3, 7)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (3, 9)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (3, 10)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (4, 1)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (4, 2)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (4, 4)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (4, 5)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (4, 6)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (4, 7)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (4, 8)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (5, 4)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (5, 6)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (5, 7)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (5, 8)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (5, 9)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (5, 10)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (7, 7)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (7, 8)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (7, 9)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (7, 10)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (9, 1)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (9, 2)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (9, 3)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (9, 4)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (9, 5)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (9, 6)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (9, 8)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (9, 9)
-GO
-SET IDENTITY_INSERT [dbo].[Roles] ON 
 
-INSERT [dbo].[Roles] ([id], [name], [description]) VALUES (1, N'Admin', N'Quản trị viên')
-INSERT [dbo].[Roles] ([id], [name], [description]) VALUES (2, N'Manager', N'Quản lý khách sạn')
-INSERT [dbo].[Roles] ([id], [name], [description]) VALUES (3, N'Receptionist', N'Lễ tân')
-INSERT [dbo].[Roles] ([id], [name], [description]) VALUES (4, N'Accountant', N'Kế toán')
-INSERT [dbo].[Roles] ([id], [name], [description]) VALUES (5, N'Housekeeping', N'Buồng phòng')
-INSERT [dbo].[Roles] ([id], [name], [description]) VALUES (6, N'Security', N'Bảo vệ')
-INSERT [dbo].[Roles] ([id], [name], [description]) VALUES (7, N'Chef', N'Đầu bếp')
-INSERT [dbo].[Roles] ([id], [name], [description]) VALUES (8, N'Waiter', N'Nhân viên phục vụ')
-INSERT [dbo].[Roles] ([id], [name], [description]) VALUES (9, N'IT Support', N'Kỹ thuật viên')
-INSERT [dbo].[Roles] ([id], [name], [description]) VALUES (10, N'Guest', N'Khách hàng')
-SET IDENTITY_INSERT [dbo].[Roles] OFF
-GO
 SET IDENTITY_INSERT [dbo].[Room_Images] ON 
 
 INSERT [dbo].[Room_Images] ([id], [room_type_id], [image_url], [is_primary], [is_active]) VALUES (1, 1, N'type1_img.jpg', 1, 1)
@@ -1492,6 +1403,15 @@ INSERT [dbo].[Services] ([id], [category_id], [name], [price], [unit]) VALUES (9
 INSERT [dbo].[Services] ([id], [category_id], [name], [price], [unit]) VALUES (10, 10, N'Móc Khóa Kỷ Niệm', CAST(50000.00 AS Decimal(18, 2)), N'Cái')
 SET IDENTITY_INSERT [dbo].[Services] OFF
 GO
+
+SET IDENTITY_INSERT [dbo].[Roles] ON 
+INSERT [dbo].[Roles] ([id], [name], [description]) VALUES 
+(1, N'Admin', N'Quản trị viên'), (2, N'Manager', N'Quản lý khách sạn'), (3, N'Receptionist', N'Lễ tân'), 
+(4, N'Accountant', N'Kế toán'), (5, N'Housekeeping', N'Buồng phòng'), (6, N'Security', N'Bảo vệ'), 
+(7, N'Chef', N'Đầu bếp'), (8, N'Waiter', N'Nhân viên phục vụ'), (9, N'IT Support', N'Kỹ thuật viên'), (10, N'Guest', N'Khách hàng')
+SET IDENTITY_INSERT [dbo].[Roles] OFF
+GO
+
 SET IDENTITY_INSERT [dbo].[Users] ON 
 
 INSERT [dbo].[Users] ([id], [role_id], [membership_id], [full_name], [email], [phone], [password_hash], [status], [avatar_url], [created_at], [date_of_birth], [address]) VALUES (1, 1, NULL, N'Admin', N'admin@hotel.com', N'0589784564', N'$2a$11$Ps2lDwm2Ewmq8R7aWM4G3OAL.YeltOJLTideDnNcJXGbXDWB6zO2C', 1, N'https://res.cloudinary.com/dzfuzh2xg/image/upload/v1773398430/QuanTriKhachSan/Avatars/ufmestnrdxqu9ulbgkko.png', NULL, NULL, NULL)
@@ -1830,34 +1750,6 @@ ALTER TABLE [dbo].[Audit_Logs]
 ADD CONSTRAINT [FK_AuditLogs_Users] FOREIGN KEY ([user_id]) REFERENCES [dbo].[Users]([id])
 GO
 
-CREATE TABLE [dbo].[Notifications] (
-    [id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-    [user_id] INT NULL,
-    [title] NVARCHAR(255) NOT NULL,
-    [content] NVARCHAR(MAX) NOT NULL,
-    [is_read] BIT DEFAULT 0,
-    [created_at] DATETIME DEFAULT GETDATE(),
-    FOREIGN KEY ([user_id]) REFERENCES [dbo].[Users]([id])
-);
-GO
-
-CREATE TABLE [dbo].[Refresh_Tokens] (
-    [id] int NOT NULL IDENTITY,
-    [user_id] int NOT NULL,
-    [token] nvarchar(500) NOT NULL,
-    [jwt_id] nvarchar(255) NOT NULL,
-    [is_used] bit NOT NULL,
-    [is_revoked] bit NOT NULL,
-    [created_at] datetime NOT NULL DEFAULT (getdate()),
-    [expire_at] datetime NOT NULL,
-    CONSTRAINT [PK_Refresh_Tokens] PRIMARY KEY ([id]),
-    CONSTRAINT [FK_RefreshTokens_Users] FOREIGN KEY ([user_id]) REFERENCES [dbo].[Users] ([id])
-);
-GO
-
-CREATE INDEX [IX_Refresh_Tokens_user_id] ON [dbo].[Refresh_Tokens] ([user_id]);
-GO
-
 -- =========================================================================
 -- PHẦN 3: NẠP DỮ LIỆU MỚI (TỪ FILE EDITED CỦA BẠN)
 -- =========================================================================
@@ -1885,14 +1777,6 @@ INSERT [dbo].[Permissions] ([id], [name], [description]) VALUES
 SET IDENTITY_INSERT [dbo].[Permissions] OFF
 GO
 
-SET IDENTITY_INSERT [dbo].[Roles] ON 
-INSERT [dbo].[Roles] ([id], [name], [description]) VALUES 
-(1, N'Admin', N'Quản trị viên'), (2, N'Manager', N'Quản lý khách sạn'), (3, N'Receptionist', N'Lễ tân'), 
-(4, N'Accountant', N'Kế toán'), (5, N'Housekeeping', N'Buồng phòng'), (6, N'Security', N'Bảo vệ'), 
-(7, N'Chef', N'Đầu bếp'), (8, N'Waiter', N'Nhân viên phục vụ'), (9, N'IT Support', N'Kỹ thuật viên'), (10, N'Guest', N'Khách hàng')
-SET IDENTITY_INSERT [dbo].[Roles] OFF
-GO
-
 
 -- PHÂN QUYỀN CHO CÁC VAI TRÒ (RBAC)
 INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES 
@@ -1903,120 +1787,7 @@ INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES
 (5,4), (5,10) -- Housekeeping
 GO
 
--- BẢNG HẠNG THÀNH VIÊN (MEMBERSHIPS)
-SET IDENTITY_INSERT [dbo].[Memberships] ON 
-INSERT [dbo].[Memberships] ([id], [tier_name], [min_points], [discount_percent]) VALUES 
-(1, N'Khách Mới', 0, 0.00), (2, N'Đồng', 500, 2.00), (3, N'Bạc', 1000, 5.00), (4, N'Vàng', 3000, 8.00), 
-(5, N'Bạch Kim', 5000, 10.00), (6, N'Kim Cương', 10000, 15.00), (7, N'Elite', 20000, 20.00), 
-(8, N'VIP', 50000, 25.00), (9, N'VVIP', 100000, 30.00), (10, N'Signature', 200000, 35.00)
-SET IDENTITY_INSERT [dbo].[Memberships] OFF
-GO
 
--- BẢNG NGƯỜI DÙNG (Đã tích hợp BCrypt Hash)
-SET IDENTITY_INSERT [dbo].[Users] ON 
-INSERT [dbo].[Users] ([id], [role_id], [membership_id], [full_name], [email], [phone], [password_hash], [status], [loyalty_points], [created_at]) VALUES 
-(1, 1, NULL, N'Nguyễn Admin', N'admin@hotel.com', N'0900000001', N'$2y$10$wN7KjZt59g0xK5A03v0s/eTq8P9g9B1N0jU3zR5M5N0x3B8b6Q1Oa', 1, 0, GETDATE()),
-(2, 2, NULL, N'Trần Manager', N'manager@hotel.com', N'0900000002', N'$2y$10$wN7KjZt59g0xK5A03v0s/eTq8P9g9B1N0jU3zR5M5N0x3B8b6Q1Oa', 1, 0, GETDATE()),
-(3, 3, NULL, N'Lê Lễ Tân', N'reception1@hotel.com', N'0900000003', N'$2y$10$wN7KjZt59g0xK5A03v0s/eTq8P9g9B1N0jU3zR5M5N0x3B8b6Q1Oa', 1, 0, GETDATE()),
-(4, 3, NULL, N'Phạm Lễ Tân', N'reception2@hotel.com', N'0900000004', N'$2y$10$wN7KjZt59g0xK5A03v0s/eTq8P9g9B1N0jU3zR5M5N0x3B8b6Q1Oa', 1, 0, GETDATE()),
-(5, 4, NULL, N'Hoàng Kế Toán', N'accountant@hotel.com', N'0900000005', N'$2y$10$wN7KjZt59g0xK5A03v0s/eTq8P9g9B1N0jU3zR5M5N0x3B8b6Q1Oa', 1, 0, GETDATE()),
-(6, 10, 1, N'Khách Hàng A', N'guestA@gmail.com', N'0900000006', N'$2y$10$wN7KjZt59g0xK5A03v0s/eTq8P9g9B1N0jU3zR5M5N0x3B8b6Q1Oa', 1, 0, GETDATE()),
-(7, 10, 2, N'Khách Hàng B', N'guestB@gmail.com', N'0900000007', N'$2y$10$wN7KjZt59g0xK5A03v0s/eTq8P9g9B1N0jU3zR5M5N0x3B8b6Q1Oa', 1, 0, GETDATE()),
-(8, 10, 3, N'Khách Hàng C', N'guestC@gmail.com', N'0900000008', N'$2y$10$wN7KjZt59g0xK5A03v0s/eTq8P9g9B1N0jU3zR5M5N0x3B8b6Q1Oa', 1, 0, GETDATE()),
-(9, 10, 4, N'Khách Hàng D', N'guestD@gmail.com', N'0900000009', N'$2y$10$wN7KjZt59g0xK5A03v0s/eTq8P9g9B1N0jU3zR5M5N0x3B8b6Q1Oa', 1, 0, GETDATE()),
-(10, 10, 5, N'Khách Hàng E', N'guestE@gmail.com', N'0900000010', N'$2y$10$wN7KjZt59g0xK5A03v0s/eTq8P9g9B1N0jU3zR5M5N0x3B8b6Q1Oa', 1, 0, GETDATE()),
-(11, 1, NULL, N'ADMIN', N'admin', N'0900000011', N'$2a$12$IixaEtGC4T0xY8qfd7Ui0un5RBu/M3.OZnkhFF19aQE0FeN31TBKC', 1, 0, GETDATE())
-SET IDENTITY_INSERT [dbo].[Users] OFF
-GO
-
--- BẢNG PHÒNG & TIỆN ÍCH
-SET IDENTITY_INSERT [dbo].[Amenities] ON 
-INSERT [dbo].[Amenities] ([id], [name], [icon_url]) VALUES 
-(1, N'Wifi Miễn Phí', N'wifi.png'), (2, N'Smart TV', N'tv.png'), (3, N'Điều Hòa', N'ac.png'), (4, N'Bồn Tắm Sứ', N'bathtub.png'),
-(5, N'Ban Công', N'balcony.png'), (6, N'Minibar', N'minibar.png'), (7, N'Két Sắt', N'safe.png'), (8, N'Máy Sấy Tóc', N'hairdryer.png'),
-(9, N'Máy Pha Cà Phê', N'coffee.png'), (10, N'Bàn Làm Việc', N'desk.png')
-SET IDENTITY_INSERT [dbo].[Amenities] OFF
-GO
-
-SET IDENTITY_INSERT [dbo].[Room_Types] ON 
-INSERT [dbo].[Room_Types] ([id], [name], [base_price], [capacity_adults], [capacity_children], [description]) VALUES 
-(1, N'Standard Single', 400000.00, 1, 0, N'Phòng tiêu chuẩn 1 giường đơn'),
-(2, N'Standard Double', 500000.00, 2, 1, N'Phòng tiêu chuẩn 1 giường đôi'),
-(3, N'Superior City View', 700000.00, 2, 1, N'Phòng cao cấp hướng phố'),
-(4, N'Deluxe Ocean View', 900000.00, 2, 2, N'Phòng Deluxe hướng biển'),
-(5, N'Premium Deluxe', 1200000.00, 2, 2, N'Phòng Premium tiện nghi cao cấp'),
-(6, N'Family Suite', 1500000.00, 4, 2, N'Phòng Suite cho gia đình'),
-(7, N'Junior Suite', 1800000.00, 2, 2, N'Phòng Suite nhỏ nhắn sang trọng'),
-(8, N'Executive Suite', 2500000.00, 2, 2, N'Phòng Suite cho doanh nhân'),
-(9, N'Presidential Suite', 5000000.00, 4, 2, N'Phòng Tổng thống'),
-(10, N'Royal Villa', 8000000.00, 6, 4, N'Biệt thự hoàng gia nguyên căn')
-SET IDENTITY_INSERT [dbo].[Room_Types] OFF
-GO
-
-SET IDENTITY_INSERT [dbo].[Room_Images] ON 
-INSERT [dbo].[Room_Images] ([id], [room_type_id], [image_url], [is_primary]) VALUES 
-(1, 1, N'type1_img.jpg', 1), (2, 2, N'type2_img.jpg', 1), (3, 3, N'type3_img.jpg', 1), (4, 4, N'type4_img.jpg', 1),
-(5, 5, N'type5_img.jpg', 1), (6, 6, N'type6_img.jpg', 1), (7, 7, N'type7_img.jpg', 1), (8, 8, N'type8_img.jpg', 1),
-(9, 9, N'type9_img.jpg', 1), (10, 10, N'type10_img.jpg', 1)
-SET IDENTITY_INSERT [dbo].[Room_Images] OFF
-GO
-
-SET IDENTITY_INSERT [dbo].[Rooms] ON 
-INSERT [dbo].[Rooms] ([id], [room_type_id], [room_number], [floor], [status]) VALUES 
-(1, 1, N'101', 1, N'Available'), (2, 2, N'102', 1, N'Occupied'), (3, 3, N'201', 2, N'Cleaning'), 
-(4, 4, N'202', 2, N'Maintenance'), (5, 5, N'301', 3, N'Available'), (6, 6, N'302', 3, N'Occupied'), 
-(7, 7, N'401', 4, N'Available'), (8, 8, N'402', 4, N'Available'), (9, 9, N'501', 5, N'Available'), 
-(10, 10, N'VILLA-1', 1, N'Available')
-SET IDENTITY_INSERT [dbo].[Rooms] OFF
-GO
-
-INSERT [dbo].[RoomType_Amenities] ([room_type_id], [amenity_id]) VALUES 
-(1, 1), (1, 2), (1, 3), (2, 1), (2, 2), (3, 4), (3, 5), (4, 6), (4, 7), (5, 8)
-GO
-
-SET IDENTITY_INSERT [dbo].[Room_Inventory] ON 
-INSERT [dbo].[Room_Inventory] ([id], [room_id], [item_name], [quantity], [price_if_lost]) VALUES 
-(1, 1, N'Tivi Samsung 40 inch', 1, 5000000.00), (2, 1, N'Điều Khiển Tivi', 1, 300000.00),
-(3, 2, N'Khăn Tắm Lớn', 2, 200000.00), (4, 2, N'Cốc Thủy Tinh', 2, 50000.00),
-(5, 3, N'Bình Đun Siêu Tốc', 1, 400000.00), (6, 3, N'Máy Sấy Tóc', 1, 350000.00),
-(7, 4, N'Gối Nằm', 4, 250000.00), (8, 4, N'Móc Treo Quần Áo', 10, 20000.00),
-(9, 5, N'Áo Choàng Tắm', 2, 450000.00), (10, 5, N'Thảm Lau Chân', 1, 100000.00)
-SET IDENTITY_INSERT [dbo].[Room_Inventory] OFF
-GO
-
--- DỊCH VỤ & KHUYẾN MÃI
-SET IDENTITY_INSERT [dbo].[Service_Categories] ON 
-INSERT [dbo].[Service_Categories] ([id], [name]) VALUES 
-(1, N'Nhà Hàng & Ẩm Thực'), (2, N'Spa & Massage'), (3, N'Di Chuyển & Đưa Đón'), 
-(4, N'Giặt Ủi'), (5, N'Tour Du Lịch'), (6, N'Phòng Gym & Yoga'), (7, N'Hồ Bơi'), 
-(8, N'Tổ Chức Sự Kiện'), (9, N'Khu Vui Chơi Trẻ Em'), (10, N'Cửa Hàng Lưu Niệm')
-SET IDENTITY_INSERT [dbo].[Service_Categories] OFF
-GO
-
-SET IDENTITY_INSERT [dbo].[Services] ON 
-INSERT [dbo].[Services] ([id], [category_id], [name], [price], [unit]) VALUES 
-(1, 1, N'Set Ăn Sáng Buffet', 200000.00, N'Người'), (2, 1, N'Mì Ý Hải Sản', 150000.00, N'Phần'),
-(3, 2, N'Massage Toàn Thân 60p', 500000.00, N'Lượt'), (4, 2, N'Xông Hơi Thảo Dược', 300000.00, N'Lượt'),
-(5, 3, N'Đưa Đón Sân Bay 4 Chỗ', 350000.00, N'Chuyến'), (6, 3, N'Thuê Xe Máy Nửa Ngày', 100000.00, N'Chiếc'),
-(7, 4, N'Giặt Khô Áo Vest', 120000.00, N'Cái'), (8, 4, N'Giặt Sấy Tiêu Chuẩn', 40000.00, N'Kg'),
-(9, 5, N'Tour Đảo Nửa Ngày', 800000.00, N'Người'), (10, 10, N'Móc Khóa Kỷ Niệm', 50000.00, N'Cái')
-SET IDENTITY_INSERT [dbo].[Services] OFF
-GO
-
-SET IDENTITY_INSERT [dbo].[Vouchers] ON 
-INSERT [dbo].[Vouchers] ([id], [code], [discount_type], [discount_value], [min_booking_value], [valid_from], [valid_to], [usage_limit]) VALUES 
-(1, N'KM1', N'PERCENT', 10.00, 500000.00, '2025-01-01', '2026-12-31', 100),
-(2, N'KM2', N'FIXED_AMOUNT', 100000.00, 1000000.00, '2025-01-01', '2026-12-31', 50),
-(3, N'KM3', N'PERCENT', 15.00, 2000000.00, '2025-01-01', '2026-12-31', 30),
-(4, N'KM4', N'FIXED_AMOUNT', 200000.00, 1500000.00, '2025-01-01', '2026-12-31', 50),
-(5, N'KM5', N'PERCENT', 20.00, 3000000.00, '2025-01-01', '2026-12-31', 20),
-(6, N'KM6', N'FIXED_AMOUNT', 50000.00, 0.00, '2025-01-01', '2026-12-31', 200),
-(7, N'KM7', N'PERCENT', 5.00, 0.00, '2025-01-01', '2026-12-31', 500),
-(8, N'KM8', N'FIXED_AMOUNT', 500000.00, 5000000.00, '2025-01-01', '2026-12-31', 10),
-(9, N'KM9', N'PERCENT', 25.00, 10000000.00, '2025-01-01', '2026-12-31', 5),
-(10, N'KM10', N'FIXED_AMOUNT', 1000000.00, 20000000.00, '2025-01-01', '2026-12-31', 2)
-SET IDENTITY_INSERT [dbo].[Vouchers] OFF
-GO
 
 -- 4. CẬP NHẬT PASSWORD MỚI (Mã hóa Bcrypt của bạn) CHO CÁC TÀI KHOẢN MẪU
 UPDATE [dbo].[Users] 
@@ -2133,21 +1904,9 @@ AND NOT EXISTS (
 );
 GO
 
--- 1. Bổ sung username (nếu chưa có)
-IF COL_LENGTH('dbo.Users', 'username') IS NULL 
-BEGIN
-    ALTER TABLE [dbo].[Users] ADD [username] NVARCHAR(100) NULL;
-    IF NOT EXISTS (SELECT * FROM sys.objects WHERE name = 'UQ_Users_Username' AND type = 'UQ')
-    BEGIN
-        ALTER TABLE [dbo].[Users] ADD CONSTRAINT UQ_Users_Username UNIQUE ([username]);
-    END
-END
-GO
 
--- 2. Đảm bảo tất cả các trường thời gian không bị NULL (Tránh lỗi 500 get_DateTime)
-UPDATE [dbo].[Users] SET [created_at] = GETDATE() WHERE [created_at] IS NULL;
-UPDATE [dbo].[Users] SET [updated_at] = GETDATE() WHERE [updated_at] IS NULL;
-GO
 -- Thêm khóa ngoại cho Room_Inventory sau khi bảng Rooms đã được tạo xong
 ALTER TABLE [dbo].[Room_Inventory] ADD CONSTRAINT [FK_RoomInventory_Rooms] FOREIGN KEY ([room_id]) REFERENCES [dbo].[Rooms]([id]);
 GO
+
+EXEC sp_msforeachtable 'ALTER TABLE ? CHECK CONSTRAINT ALL'
