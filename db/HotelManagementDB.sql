@@ -2164,8 +2164,3 @@ EXEC sp_MSforeachtable "ALTER TABLE ? WITH CHECK CHECK CONSTRAINT all"
 GO
 
 PRINT N'Database đã được thiết lập thành công với đầy đủ Cấu trúc chuẩn + Dữ liệu mới!';
-
-*/ GO
-=======
-GO
->>>>>>> dt_du_git
