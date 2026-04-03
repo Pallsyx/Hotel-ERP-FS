@@ -13,6 +13,7 @@ import { useAuthStore } from '../store/authStore';
 import UserManagement from '../pages/Users/UserManagement';
 import RoleManagement from '../pages/Users/RoleManagement';
 import RoomTypeManagement from '../pages/RoomTypes/RoomTypeManagement';
+import LossAndDamages from '../pages/LossAndDamages.jsx';
 
 // 2. COMPONENT GIỮ CHỖ (Placeholder)
 const Placeholder = ({ title }) => (
@@ -53,6 +54,8 @@ const AdminRoutes = () => {
         <Route path="room-inventory" element={<RoomInventory />} />
         <Route path="housekeeping" element={<HousekeepingMobile />} />
         <Route path="damage-reports" element={<Placeholder title="Báo cáo Hư hỏng & Đền bù" />} />
+
+        <Route path="loss-and-damages" element={<LossAndDamages />} />
 
         {/*  MODULE 1 */}
         <Route path="article-categories" element={<Placeholder title="Danh mục Bài viết" />} />

@@ -10,6 +10,7 @@ import {
   HomeOutlined,
   DatabaseOutlined,
   FormatPainterOutlined
+  WarningOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
@@ -64,6 +65,9 @@ const MainLayout = () => {
       key: '/admin/housekeeping',
       icon: <FormatPainterOutlined />,
       label: 'Dọn phòng',
+      key: '/admin/loss-and-damages', // Phải khớp 100% với path trong AdminRoutes.jsx
+      icon: <WarningOutlined />, 
+      label: 'Thất thoát & Đền bù', 
     },
   ];
 

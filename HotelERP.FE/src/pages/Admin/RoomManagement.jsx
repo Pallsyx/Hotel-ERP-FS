@@ -131,7 +131,11 @@ export default function App() {
   const fetchEquipments = async () => {
     try {
       const res = await axiosClient.get('/Equipments');
-      setEquipments(res.data.data || []);
+      const dataList = res.data.data ? res.data.data : res.data;
+      
+      console.log("🕵️ DỮ LIỆU KHO VẬT TƯ:", dataList); // <-- THÊM DÒNG NÀY ĐỂ SOI DỮ LIỆU
+      
+      setEquipments(dataList || []);
     } catch (error) {
       console.error("fetchEquipments error:", error);
     }
@@ -297,7 +301,7 @@ export default function App() {
   const RoomForm = () => {
     const [form] = Form.useForm();
     const [inventoryData, setInventoryData] = useState([]);
-    const [equipments, setEquipments] = useState([]);
+    
     const [selectedEquipment, setSelectedEquipment] = useState(null);
     const [imageUrl, setImageUrl] = useState("");
     const [isCloneModalVisible, setIsCloneModalVisible] = useState(false);
@@ -664,9 +668,9 @@ export default function App() {
                   (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
                 }
                 options={equipments.map(e => ({
-                  value: e.id,
-                  label: `${e.name} (Tồn: ${e.inStockQuantity} ${e.unit})`,
-                  disabled: e.inStockQuantity <= 0
+                  value: e.Id || e.id, 
+                  label: `${e.Name || e.name} (Tồn: ${e.InStockQuantity || e.inStockQuantity || 0} ${e.Unit || e.unit || ''})`,
+                  disabled: (e.InStockQuantity || e.inStockQuantity || 0) <= 0
                 }))}
               />
             </Form.Item>
