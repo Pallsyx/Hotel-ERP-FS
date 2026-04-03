@@ -12,16 +12,13 @@ public class RoomTypeAmenityService(HotelDbContext context) : IRoomTypeAmenitySe
         var roomType = await context.RoomTypes.FindAsync(roomTypeId);
         if (roomType == null || roomType.DeletedAt != null) return false;
 
-        // Xóa các liên kết cũ
         var existingLinks = context.RoomTypeAmenities.Where(ra => ra.RoomTypeId == roomTypeId);
         context.RoomTypeAmenities.RemoveRange(existingLinks);
 
-        // Thêm liên kết mới
         var newLinks = amenityIds.Select(id => new RoomTypeAmenity
         {
             RoomTypeId = roomTypeId,
-            AmenityId = id,
-            CreatedAt = DateTime.UtcNow // Gán ngày tạo
+            AmenityId = id
         });
 
         await context.RoomTypeAmenities.AddRangeAsync(newLinks);
