@@ -3,7 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import RoomManagement from '../pages/Admin/RoomManagement';
 import RoomTypeManagement from '../pages/RoomTypes/RoomTypeManagement';
 import RoomInventory from '../pages/RoomInventory/RoomInventory';
-import RoomInventory from './pages/Housekeeping/HousekeepingMobile';
+import HousekeepingMobile from './pages/Housekeeping/HousekeepingMobile';
 import InventoryChecklist from './pages/Housekeeping/InventoryChecklist';
 
 // 1. IMPORT CÁC COMPONENT LÕI CỦA TEAM LEAD
