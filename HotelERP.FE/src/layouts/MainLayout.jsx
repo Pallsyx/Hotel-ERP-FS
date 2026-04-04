@@ -1,6 +1,5 @@
 import React from 'react';
 import { Layout, Menu, Button, Typography, Dropdown, Spin } from 'antd';
-import { UserOutlined, TeamOutlined, SafetyCertificateOutlined, LogoutOutlined, AppstoreOutlined } from '@ant-design/icons';
 import {
   UserOutlined,
   TeamOutlined,
@@ -9,8 +8,8 @@ import {
   AppstoreOutlined,
   HomeOutlined,
   DatabaseOutlined,
-  FormatPainterOutlined
-  WarningOutlined,
+  FormatPainterOutlined,
+  WarningOutlined
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
@@ -65,9 +64,11 @@ const MainLayout = () => {
       key: '/admin/housekeeping',
       icon: <FormatPainterOutlined />,
       label: 'Dọn phòng',
-      key: '/admin/loss-and-damages', // Phải khớp 100% với path trong AdminRoutes.jsx
-      icon: <WarningOutlined />, 
-      label: 'Thất thoát & Đền bù', 
+    },
+    {
+      key: '/admin/loss-and-damages',
+      icon: <WarningOutlined />,
+      label: 'Thất thoát & Đền bù',
     },
   ];
 

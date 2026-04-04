@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { Card, Input, Button, message, Spin, Empty, Typography, Modal, Form, InputNumber, Upload } from 'antd';
-import { ArrowLeftOutlined, CheckCircleOutlined, SearchOutlined, WarningOutlined, CameraOutlined } from '@ant-design/icons';
+import React, { useState, useEffect, useRef } from 'react';
+import { Card, Input, Button, message, Spin, Empty, Typography, Modal, Form, InputNumber, Upload, Tag } from 'antd';
+import { ArrowLeftOutlined, CheckCircleOutlined, SearchOutlined, WarningOutlined, CameraOutlined, SyncOutlined } from '@ant-design/icons';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import * as signalR from '@microsoft/signalr';
 import axiosClient from '../../api/axiosClient';
 
 const { Title, Text } = Typography;
@@ -16,13 +17,48 @@ const InventoryChecklist = () => {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchText, setSearchText] = useState('');
+  const [cleaningStatus, setCleaningStatus] = useState('INSPECTING');
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [form] = Form.useForm();
+  const connectionRef = useRef(null);
 
   useEffect(() => {
-    if (roomId) fetchInventory();
+    if (!roomId) return;
+    fetchInventory();
+
+    // Kết nối SignalR để nhận cập nhật realtime trạng thái phòng
+    const connection = new signalR.HubConnectionBuilder()
+      .withUrl('https://localhost:7100/roomHub')
+      .withAutomaticReconnect()
+      .build();
+
+    connectionRef.current = connection;
+
+    const startSignalR = async () => {
+      try {
+        await connection.start();
+        connection.on('ReceiveRoomStatusUpdate', (updatedRoomId, status, newCleaningStatus) => {
+          if (Number(updatedRoomId) === Number(roomId)) {
+            setCleaningStatus(newCleaningStatus);
+            if (newCleaningStatus === 'INSPECTING') {
+              message.info(`Phòng #${updatedRoomId} đang được kiểm tra...`);
+            } else if (newCleaningStatus === 'CLEAN') {
+              message.success(`Phòng #${updatedRoomId} đã dọn xong!`);
+            }
+          }
+        });
+      } catch (err) {
+        console.log('SignalR InventoryChecklist Error:', err);
+      }
+    };
+
+    startSignalR();
+
+    return () => {
+      connection.stop();
+    };
   }, [roomId]);
 
   const fetchInventory = async () => {
@@ -43,13 +79,14 @@ const InventoryChecklist = () => {
 
   const handleFinishCleaning = async () => {
     try {
+      // Gọi API → backend sẽ cập nhật DB và bắn SignalR tới tất cả client
       await axiosClient.patch(`/rooms/${roomId}/cleaning-status`, { 
         NewCleaningStatus: 'CLEAN' 
       });
-      message.success("Đã hoàn tất dọn phòng!");
+      message.success('Đã hoàn tất dọn phòng! Thông báo realtime đã gửi.');
       navigate('/admin/housekeeping');
     } catch (error) {
-      message.error("Lỗi khi cập nhật trạng thái phòng.");
+      message.error('Lỗi khi cập nhật trạng thái phòng.');
     }
   };
 
@@ -99,9 +136,19 @@ const InventoryChecklist = () => {
         <Title level={4} style={{ margin: 0, marginLeft: 8, fontSize: '18px' }}>Checklist: {roomNumber}</Title>
       </div>
 
-      <div style={{ marginBottom: '16px', paddingLeft: '8px' }}>
+      <div style={{ marginBottom: '16px', paddingLeft: '8px', display: 'flex', alignItems: 'center', gap: 8 }}>
         <Text type="secondary" style={{ fontSize: '14px' }}>Trạng thái: </Text>
-        <Text strong style={{ color: '#d46b08', fontSize: '14px' }}>Đang kiểm tra</Text>
+        {cleaningStatus === 'INSPECTING' ? (
+          <Tag icon={<SyncOutlined spin />} color="processing" style={{ fontSize: 13 }}>
+            Đang kiểm tra
+          </Tag>
+        ) : cleaningStatus === 'CLEAN' ? (
+          <Tag icon={<CheckCircleOutlined />} color="success" style={{ fontSize: 13 }}>
+            Đã dọn
+          </Tag>
+        ) : (
+          <Tag color="error" style={{ fontSize: 13 }}>Cần dọn</Tag>
+        )}
       </div>
 
       <Button 

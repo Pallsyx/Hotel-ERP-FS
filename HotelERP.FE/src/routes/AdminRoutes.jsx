@@ -12,7 +12,6 @@ import MainLayout from '../layouts/MainLayout';
 import { useAuthStore } from '../store/authStore';
 import UserManagement from '../pages/Users/UserManagement';
 import RoleManagement from '../pages/Users/RoleManagement';
-import RoomTypeManagement from '../pages/RoomTypes/RoomTypeManagement';
 import LossAndDamages from '../pages/LossAndDamages.jsx';
 
 // 2. COMPONENT GIỮ CHỖ (Placeholder)
@@ -49,7 +48,6 @@ const AdminRoutes = () => {
 
         {/* MODULE 3 */}
         <Route path="room-types" element={<RoomTypeManagement />} />
-        <Route path="rooms" element={<Placeholder title="Quản lý Phòng vật lý" />} />
         <Route path="rooms" element={<RoomManagement />} />
         <Route path="room-inventory" element={<RoomInventory />} />
         <Route path="housekeeping" element={<HousekeepingMobile />} />
