@@ -26,7 +26,7 @@ public class LossAndDamagesController : ControllerBase
         var damages = await _context.LossAndDamages
             .Include(ld => ld.Room)
             .Include(ld => ld.RoomInventory)
-                .ThenInclude(ri => ri.Equipment)
+                .ThenInclude(ri => ri!.Equipment)
             .OrderByDescending(ld => ld.CreatedAt)
             .ToListAsync();
 

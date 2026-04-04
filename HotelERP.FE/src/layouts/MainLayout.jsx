@@ -1,11 +1,6 @@
 import React from 'react';
 import { Layout, Menu, Button, Typography, Dropdown, Spin } from 'antd';
 import {
-  UserOutlined,
-  TeamOutlined,
-  SafetyCertificateOutlined,
-  LogoutOutlined,
-  AppstoreOutlined,
   HomeOutlined,
   DatabaseOutlined,
   FormatPainterOutlined,

@@ -1945,4 +1945,47 @@ GO
 ALTER TABLE [dbo].[Room_Inventory] ADD CONSTRAINT [FK_RoomInventory_Rooms] FOREIGN KEY ([room_id]) REFERENCES [dbo].[Rooms]([id]);
 GO
 
+-- Bổ sung cột cho bảng Room_Types
+IF COL_LENGTH('dbo.Room_Types', 'DeletedAt') IS NULL 
+    ALTER TABLE [dbo].[Room_Types] ADD [DeletedAt] DATETIME NULL;
+
+IF COL_LENGTH('dbo.Room_Types', 'ImageUrl') IS NULL 
+    ALTER TABLE [dbo].[Room_Types] ADD [ImageUrl] NVARCHAR(MAX) NULL;
+
+-- Bổ sung cột cho bảng Amenities
+IF COL_LENGTH('dbo.Amenities', 'DeletedAt') IS NULL 
+    ALTER TABLE [dbo].[Amenities] ADD [DeletedAt] DATETIME NULL;
+GO
+
+-- ==========================================
+-- BỔ SUNG CỘT CHO BẢNG LOSS_AND_DAMAGES
+-- ==========================================
+IF COL_LENGTH('dbo.Loss_And_Damages', 'room_id') IS NULL 
+    ALTER TABLE [dbo].[Loss_And_Damages] ADD [room_id] INT NULL;
+
+IF COL_LENGTH('dbo.Loss_And_Damages', 'evidence_image_url') IS NULL 
+    ALTER TABLE [dbo].[Loss_And_Damages] ADD [evidence_image_url] NVARCHAR(MAX) NULL;
+
+IF COL_LENGTH('dbo.Loss_And_Damages', 'evidence_public_id') IS NULL 
+    ALTER TABLE [dbo].[Loss_And_Damages] ADD [evidence_public_id] NVARCHAR(255) NULL;
+
+IF COL_LENGTH('dbo.Loss_And_Damages', 'reported_by_user_id') IS NULL 
+    ALTER TABLE [dbo].[Loss_And_Damages] ADD [reported_by_user_id] INT NULL;
+
+IF COL_LENGTH('dbo.Loss_And_Damages', 'status') IS NULL 
+    ALTER TABLE [dbo].[Loss_And_Damages] ADD [status] NVARCHAR(50) DEFAULT 'Pending';
+
+IF COL_LENGTH('dbo.Loss_And_Damages', 'updated_at') IS NULL 
+    ALTER TABLE [dbo].[Loss_And_Damages] ADD [updated_at] DATETIME NULL;
+
+-- ==========================================
+-- BỔ SUNG CỘT CHO BẢNG ROOMS
+-- ==========================================
+IF COL_LENGTH('dbo.Rooms', 'DeletedAt') IS NULL 
+    ALTER TABLE [dbo].[Rooms] ADD [DeletedAt] DATETIME NULL;
+
+IF COL_LENGTH('dbo.Rooms', 'notes') IS NULL 
+    ALTER TABLE [dbo].[Rooms] ADD [notes] NVARCHAR(MAX) NULL;
+GO
+
 EXEC sp_msforeachtable 'ALTER TABLE ? CHECK CONSTRAINT ALL'

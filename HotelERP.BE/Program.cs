@@ -41,7 +41,7 @@ builder.Services.AddDbContext<HotelDbContext>(options =>
 // --- 2. CẤU HÌNH JSON VÀ VALIDATION (Gộp của bạn & Long) ---
 builder.Services.AddControllers().AddJsonOptions(options =>
 {
-    options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+    options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
 });
 
 // Bộ lọc lỗi Validation xịn của Long
