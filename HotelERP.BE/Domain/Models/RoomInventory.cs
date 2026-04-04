@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace HotelERP.BE.Domain.Models;
@@ -20,6 +20,8 @@ public partial class RoomInventory
     public bool? IsActive { get; set; }
 
     public int EquipmentId { get; set; }
+
+    public virtual Equipment? Equipment { get; set; }
 
     public virtual ICollection<LossAndDamage> LossAndDamages { get; set; } = new List<LossAndDamage>();
 

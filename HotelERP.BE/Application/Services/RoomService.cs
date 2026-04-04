@@ -86,6 +86,12 @@ public class RoomService : IRoomService
         if (room == null) return false;
         room.CleaningStatus = request.NewCleaningStatus.ToUpper();
         await _context!.SaveChangesAsync();
+
+        if (_hubContext != null) 
+        {
+            await _hubContext.Clients.All.SendAsync("ReceiveRoomStatusUpdate", roomId, room.Status, room.CleaningStatus);
+        }
+
         return true;
     }
 
@@ -95,6 +101,12 @@ public class RoomService : IRoomService
         if (room == null) return false;
         room.Status = request.NewStatus.ToUpper();
         await _context!.SaveChangesAsync();
+
+        if (_hubContext != null) 
+        {
+            await _hubContext.Clients.All.SendAsync("ReceiveRoomStatusUpdate", roomId, room.Status, room.CleaningStatus);
+        }
+
         return true;
     }
 

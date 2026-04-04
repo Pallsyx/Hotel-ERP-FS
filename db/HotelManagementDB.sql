@@ -6,6 +6,7 @@ END
 GO
 
 USE [HotelManagementDB]
+EXEC sp_msforeachtable 'ALTER TABLE ? NOCHECK CONSTRAINT ALL'
 GO
 
 SET ANSI_NULLS ON
@@ -381,20 +382,15 @@ GO
 SET QUOTED_IDENTIFIER ON
 GO
 CREATE TABLE [dbo].[Room_Inventory](
-	[id] [int] IDENTITY(1,1) NOT NULL,
-	[room_id] [int] NULL,
-	[quantity] [int] NULL,
-	[price_if_lost] [decimal](18, 2) NULL,
-	[note] [nvarchar](255) NULL,
-	[is_active] [bit] NULL,
-	[item_type] [varchar](50) NULL,
-	[EquipmentId] [int] NOT NULL,
-PRIMARY KEY CLUSTERED 
-(
-	[id] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY]
-GO
+    [id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    [room_id] INT NULL,
+    [item_type] NVARCHAR(50) NOT NULL, 
+    [quantity] INT NOT NULL,           
+    [price_if_lost] DECIMAL(18, 2) NOT NULL,
+    [note] NVARCHAR(MAX) NULL,
+    [is_active] BIT NULL,
+    [EquipmentId] INT NOT NULL
+);
 /****** Object:  Table [dbo].[Room_Types]    Script Date: 3/28/2026 9:25:30 AM ******/
 SET ANSI_NULLS ON
 GO
@@ -1113,24 +1109,7 @@ INSERT [dbo].[Payments] ([id], [invoice_id], [payment_method], [amount_paid], [t
 INSERT [dbo].[Payments] ([id], [invoice_id], [payment_method], [amount_paid], [transaction_code], [payment_date]) VALUES (10, 10, N'Momo', CAST(5000000.00 AS Decimal(18, 2)), N'MOMO111', CAST(N'2026-03-06T22:07:35.027' AS DateTime))
 SET IDENTITY_INSERT [dbo].[Payments] OFF
 GO
-SET IDENTITY_INSERT [dbo].[Permissions] ON 
 
-INSERT [dbo].[Permissions] ([id], [name]) VALUES (1, N'VIEW_DASHBOARD')
-INSERT [dbo].[Permissions] ([id], [name]) VALUES (2, N'MANAGE_USERS')
-INSERT [dbo].[Permissions] ([id], [name]) VALUES (3, N'MANAGE_ROLES')
-INSERT [dbo].[Permissions] ([id], [name]) VALUES (4, N'MANAGE_ROOMS')
-INSERT [dbo].[Permissions] ([id], [name]) VALUES (5, N'MANAGE_BOOKINGS')
-INSERT [dbo].[Permissions] ([id], [name]) VALUES (6, N'MANAGE_INVOICES')
-INSERT [dbo].[Permissions] ([id], [name]) VALUES (7, N'MANAGE_SERVICES')
-INSERT [dbo].[Permissions] ([id], [name]) VALUES (8, N'VIEW_REPORTS')
-INSERT [dbo].[Permissions] ([id], [name]) VALUES (9, N'MANAGE_CONTENT')
-INSERT [dbo].[Permissions] ([id], [name]) VALUES (10, N'MANAGE_INVENTORY')
-INSERT [dbo].[Permissions] ([id], [name]) VALUES (11, N'VIEW_USERS')
-INSERT [dbo].[Permissions] ([id], [name]) VALUES (12, N'VIEW_ROLES')
-INSERT [dbo].[Permissions] ([id], [name]) VALUES (13, N'EDIT_ROLES')
-INSERT [dbo].[Permissions] ([id], [name]) VALUES (14, N'CREATE_USERS')
-SET IDENTITY_INSERT [dbo].[Permissions] OFF
-GO
 SET IDENTITY_INSERT [dbo].[Reviews] ON 
 
 INSERT [dbo].[Reviews] ([id], [user_id], [room_type_id], [rating], [comment], [created_at]) VALUES (1, 6, 1, 5, N'Phòng tuyệt vời!', CAST(N'2026-03-06T22:07:35.023' AS DateTime))
@@ -1145,78 +1124,7 @@ INSERT [dbo].[Reviews] ([id], [user_id], [room_type_id], [rating], [comment], [c
 INSERT [dbo].[Reviews] ([id], [user_id], [room_type_id], [rating], [comment], [created_at]) VALUES (10, 10, 10, 5, N'Trải nghiệm tuyệt vời nhất.', CAST(N'2026-03-06T22:07:35.023' AS DateTime))
 SET IDENTITY_INSERT [dbo].[Reviews] OFF
 GO
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (1, 1)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (1, 2)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (1, 3)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (1, 4)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (1, 5)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (1, 6)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (1, 7)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (1, 8)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (1, 9)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (1, 10)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (1, 11)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (1, 12)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (1, 13)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (1, 14)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (2, 1)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (2, 2)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (2, 4)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (2, 5)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (2, 6)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (2, 7)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (2, 8)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (2, 9)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (2, 10)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (2, 11)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (2, 12)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (3, 1)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (3, 4)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (3, 5)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (3, 6)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (3, 7)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (3, 9)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (3, 10)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (4, 1)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (4, 2)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (4, 4)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (4, 5)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (4, 6)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (4, 7)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (4, 8)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (5, 4)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (5, 6)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (5, 7)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (5, 8)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (5, 9)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (5, 10)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (7, 7)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (7, 8)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (7, 9)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (7, 10)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (9, 1)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (9, 2)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (9, 3)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (9, 4)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (9, 5)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (9, 6)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (9, 8)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (9, 9)
-GO
-SET IDENTITY_INSERT [dbo].[Roles] ON 
 
-INSERT [dbo].[Roles] ([id], [name], [description]) VALUES (1, N'Admin', N'Quản trị viên')
-INSERT [dbo].[Roles] ([id], [name], [description]) VALUES (2, N'Manager', N'Quản lý khách sạn')
-INSERT [dbo].[Roles] ([id], [name], [description]) VALUES (3, N'Receptionist', N'Lễ tân')
-INSERT [dbo].[Roles] ([id], [name], [description]) VALUES (4, N'Accountant', N'Kế toán')
-INSERT [dbo].[Roles] ([id], [name], [description]) VALUES (5, N'Housekeeping', N'Buồng phòng')
-INSERT [dbo].[Roles] ([id], [name], [description]) VALUES (6, N'Security', N'Bảo vệ')
-INSERT [dbo].[Roles] ([id], [name], [description]) VALUES (7, N'Chef', N'Đầu bếp')
-INSERT [dbo].[Roles] ([id], [name], [description]) VALUES (8, N'Waiter', N'Nhân viên phục vụ')
-INSERT [dbo].[Roles] ([id], [name], [description]) VALUES (9, N'IT Support', N'Kỹ thuật viên')
-INSERT [dbo].[Roles] ([id], [name], [description]) VALUES (10, N'Guest', N'Khách hàng')
-SET IDENTITY_INSERT [dbo].[Roles] OFF
-GO
 SET IDENTITY_INSERT [dbo].[Room_Images] ON 
 
 INSERT [dbo].[Room_Images] ([id], [room_type_id], [image_url], [is_primary], [is_active]) VALUES (1, 1, N'type1_img.jpg', 1, 1)
@@ -1494,6 +1402,15 @@ INSERT [dbo].[Services] ([id], [category_id], [name], [price], [unit]) VALUES (9
 INSERT [dbo].[Services] ([id], [category_id], [name], [price], [unit]) VALUES (10, 10, N'Móc Khóa Kỷ Niệm', CAST(50000.00 AS Decimal(18, 2)), N'Cái')
 SET IDENTITY_INSERT [dbo].[Services] OFF
 GO
+
+SET IDENTITY_INSERT [dbo].[Roles] ON 
+INSERT [dbo].[Roles] ([id], [name], [description]) VALUES 
+(1, N'Admin', N'Quản trị viên'), (2, N'Manager', N'Quản lý khách sạn'), (3, N'Receptionist', N'Lễ tân'), 
+(4, N'Accountant', N'Kế toán'), (5, N'Housekeeping', N'Buồng phòng'), (6, N'Security', N'Bảo vệ'), 
+(7, N'Chef', N'Đầu bếp'), (8, N'Waiter', N'Nhân viên phục vụ'), (9, N'IT Support', N'Kỹ thuật viên'), (10, N'Guest', N'Khách hàng')
+SET IDENTITY_INSERT [dbo].[Roles] OFF
+GO
+
 SET IDENTITY_INSERT [dbo].[Users] ON 
 
 INSERT [dbo].[Users] ([id], [role_id], [membership_id], [full_name], [email], [phone], [password_hash], [status], [avatar_url], [created_at], [date_of_birth], [address]) VALUES (1, 1, NULL, N'Admin', N'admin@hotel.com', N'0589784564', N'$2a$11$Ps2lDwm2Ewmq8R7aWM4G3OAL.YeltOJLTideDnNcJXGbXDWB6zO2C', 1, N'https://res.cloudinary.com/dzfuzh2xg/image/upload/v1773398430/QuanTriKhachSan/Avatars/ufmestnrdxqu9ulbgkko.png', NULL, NULL, NULL)
@@ -1860,36 +1777,53 @@ IF COL_LENGTH('dbo.Booking_Details', 'actual_check_out_at') IS NULL ALTER TABLE 
 IF COL_LENGTH('dbo.Booking_Details', 'created_at') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [created_at] DATETIME NOT NULL DEFAULT GETDATE();
 IF COL_LENGTH('dbo.Booking_Details', 'updated_at') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [updated_at] DATETIME NULL;
 GO
-
--- 3. CHÈN QUYỀN MỚI CỦA BẠN (Kiểm tra tránh trùng)
-INSERT INTO [dbo].[Permissions] ([name], [description])
-SELECT N'VIEW_SYSTEM_LOGS', N'Xem nhật ký hệ thống'
-WHERE NOT EXISTS (SELECT 1 FROM [dbo].[Permissions] WHERE [name] = N'VIEW_SYSTEM_LOGS');
-
-INSERT INTO [dbo].[Permissions] ([name], [description])
-SELECT N'VIEW_NOTIFICATIONS', N'Xem thông báo'
-WHERE NOT EXISTS (SELECT 1 FROM [dbo].[Permissions] WHERE [name] = N'VIEW_NOTIFICATIONS');
-
-INSERT INTO [dbo].[Permissions] ([name], [description])
-SELECT N'VIEW_ROOMS', N'Xem trạng thái phòng'
-WHERE NOT EXISTS (SELECT 1 FROM [dbo].[Permissions] WHERE [name] = N'VIEW_ROOMS');
-
-INSERT INTO [dbo].[Permissions] ([name], [description])
-SELECT N'UPDATE_ROOM_STATUS', N'Cập nhật dọn phòng'
-WHERE NOT EXISTS (SELECT 1 FROM [dbo].[Permissions] WHERE [name] = N'UPDATE_ROOM_STATUS');
-
-INSERT INTO [dbo].[Permissions] ([name], [description])
-SELECT N'CHECK_IN_OUT', N'Thủ tục nhận/trả phòng'
-WHERE NOT EXISTS (SELECT 1 FROM [dbo].[Permissions] WHERE [name] = N'CHECK_IN_OUT');
-
-INSERT INTO [dbo].[Permissions] ([name], [description])
-SELECT N'MANAGE_AMENITIES', N'Quản lý tiện nghi'
-WHERE NOT EXISTS (SELECT 1 FROM [dbo].[Permissions] WHERE [name] = N'MANAGE_AMENITIES');
-
-INSERT INTO [dbo].[Permissions] ([name], [description])
-SELECT N'MANAGE_MAINTENANCE', N'Quản lý bảo trì'
-WHERE NOT EXISTS (SELECT 1 FROM [dbo].[Permissions] WHERE [name] = N'MANAGE_MAINTENANCE');
+-- DATABASE SETTINGS RESTORED
+ALTER TABLE [dbo].[Audit_Logs]
+ADD CONSTRAINT [FK_AuditLogs_Users] FOREIGN KEY ([user_id]) REFERENCES [dbo].[Users]([id])
 GO
+
+IF COL_LENGTH('dbo.Rooms', 'DeletedAt') IS NULL 
+    ALTER TABLE [dbo].[Rooms] ADD [DeletedAt] DATETIME NULL;
+    
+IF COL_LENGTH('dbo.Services', 'DeletedAt') IS NULL 
+    ALTER TABLE [dbo].[Services] ADD [DeletedAt] DATETIME NULL;
+IF COL_LENGTH('dbo.Equipments', 'DeletedAt') IS NULL 
+    ALTER TABLE [dbo].[Equipments] ADD [DeletedAt] DATETIME NULL;
+
+-- BẢNG QUYỀN HẠN & VAI TRÒ
+SET IDENTITY_INSERT [dbo].[Permissions] ON 
+INSERT [dbo].[Permissions] ([id], [name], [description]) VALUES 
+(1, N'VIEW_DASHBOARD', N'Xem bảng điều khiển'),
+(2, N'MANAGE_USERS', N'Quản lý nhân sự'),
+(3, N'MANAGE_ROLES', N'Quản lý chức vụ & quyền'),
+(4, N'MANAGE_ROOMS', N'Quản lý danh mục phòng'),
+(5, N'MANAGE_BOOKINGS', N'Quản lý đặt phòng'),
+(6, N'MANAGE_INVOICES', N'Quản lý hóa đơn'),
+(7, N'MANAGE_SERVICES', N'Quản lý dịch vụ'),
+(8, N'VIEW_REPORTS', N'Xem báo cáo'),
+(9, N'MANAGE_CONTENT', N'Quản lý bài viết/tin tức'),
+(10, N'MANAGE_INVENTORY', N'Quản lý kho vật tư'),
+(11, N'VIEW_SYSTEM_LOGS', N'Xem nhật ký hệ thống'),
+(12, N'VIEW_NOTIFICATIONS', N'Xem thông báo'),
+(13, N'VIEW_ROOMS', N'Xem trạng thái phòng'),
+(14, N'UPDATE_ROOM_STATUS', N'Cập nhật dọn phòng'),
+(15, N'CHECK_IN_OUT', N'Thủ tục nhận/trả phòng'),
+(16, N'MANAGE_AMENITIES', N'Quản lý tiện nghi'),
+(17, N'MANAGE_MAINTENANCE', N'Quản lý bảo trì')
+SET IDENTITY_INSERT [dbo].[Permissions] OFF
+GO
+
+
+-- PHÂN QUYỀN CHO CÁC VAI TRÒ (RBAC)
+INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES 
+(1,1), (1,2), (1,3), (1,4), (1,5), (1,6), (1,7), (1,8), (1,9), (1,10), (1,11), (1,12), (1,13), (1,14), (1,15), (1,16), (1,17), -- Admin (Full 17 Quyền)
+(2,1), (2,4), (2,5), (2,6), (2,7), (2,8), (2,10), -- Manager
+(3,1), (3,4), (3,5), (3,6), (3,7), -- Receptionist
+(4,1), (4,6), (4,8), -- Accountant
+(5,4), (5,10) -- Housekeeping
+GO
+
+
 
 -- 4. CẬP NHẬT PASSWORD MỚI (Mã hóa Bcrypt của bạn) CHO CÁC TÀI KHOẢN MẪU
 UPDATE [dbo].[Users] 
@@ -2005,25 +1939,10 @@ AND NOT EXISTS (
     WHERE rp.role_id = 1 AND rp.permission_id = [dbo].[Permissions].id
 );
 GO
--- ==========================================
--- PHẦN VÁ LỖI THIẾU CỘT (CẬP NHẬT TỪ BACKEND)
--- ==========================================
-IF COL_LENGTH('dbo.Amenities', 'DeletedAt') IS NULL 
-    ALTER TABLE [dbo].[Amenities] ADD [DeletedAt] DATETIME NULL;
 
-IF COL_LENGTH('dbo.Room_Types', 'DeletedAt') IS NULL 
-    ALTER TABLE [dbo].[Room_Types] ADD [DeletedAt] DATETIME NULL;
 
-IF COL_LENGTH('dbo.Room_Types', 'ImageUrl') IS NULL 
-    ALTER TABLE [dbo].[Room_Types] ADD [ImageUrl] NVARCHAR(MAX) NULL;
+-- Thêm khóa ngoại cho Room_Inventory sau khi bảng Rooms đã được tạo xong
+ALTER TABLE [dbo].[Room_Inventory] ADD CONSTRAINT [FK_RoomInventory_Rooms] FOREIGN KEY ([room_id]) REFERENCES [dbo].[Rooms]([id]);
+GO
 
-IF COL_LENGTH('dbo.Rooms', 'DeletedAt') IS NULL 
-    ALTER TABLE [dbo].[Rooms] ADD [DeletedAt] DATETIME NULL;
-    
-IF COL_LENGTH('dbo.Services', 'DeletedAt') IS NULL 
-    ALTER TABLE [dbo].[Services] ADD [DeletedAt] DATETIME NULL;
-IF COL_LENGTH('dbo.Equipments', 'DeletedAt') IS NULL 
-    ALTER TABLE [dbo].[Equipments] ADD [DeletedAt] DATETIME NULL;
-
-IF COL_LENGTH('dbo.Room_Inventory', 'DeletedAt') IS NULL 
-    ALTER TABLE [dbo].[Room_Inventory] ADD [DeletedAt] DATETIME NULL;
+EXEC sp_msforeachtable 'ALTER TABLE ? CHECK CONSTRAINT ALL'
