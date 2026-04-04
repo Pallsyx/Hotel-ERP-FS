@@ -1476,5 +1476,107 @@ UPDATE Roles SET updated_at = GETDATE() WHERE updated_at IS NULL;
 ALTER TABLE Users ADD CONSTRAINT DF_Users_CreatedAt DEFAULT GETDATE() FOR created_at;
 ALTER TABLE Users ADD CONSTRAINT DF_Users_UpdatedAt DEFAULT GETDATE() FOR updated_at;
 
-ALTER TABLE Roles ADD CONSTRAINT DF_Roles_CreatedAt DEFAULT GETDATE() FOR created_at;
-ALTER TABLE Roles ADD CONSTRAINT DF_Roles_UpdatedAt DEFAULT GETDATE() FOR updated_at;
+-- Thêm cột cho Audit_Logs
+ALTER TABLE [dbo].[Audit_Logs] ADD [reason] NVARCHAR(1000) NULL;
+GO
+
+-- 1. Tìm và xóa Default Constraint (đang set 'ACTIVE') vừa được thêm ở bước trước
+DECLARE @ConstraintName nvarchar(200);
+SELECT @ConstraintName = name 
+FROM sys.default_constraints 
+WHERE parent_object_id = OBJECT_ID('[dbo].[Users]') 
+  AND parent_column_id = (SELECT column_id FROM sys.columns WHERE name = 'status' AND object_id = OBJECT_ID('[dbo].[Users]'));
+
+IF @ConstraintName IS NOT NULL
+BEGIN
+    EXEC('ALTER TABLE [dbo].[Users] DROP CONSTRAINT ' + @ConstraintName);
+END
+GO
+
+-- 3. Ép kiểu cột status trở lại thành nguyên bản là BIT
+ALTER TABLE [dbo].[Users] ALTER COLUMN [status] [bit] NULL;
+GO
+
+-- 4. Thêm lại Default Constraint mặc định là 1 (Hoạt động)
+ALTER TABLE [dbo].[Users] ADD CONSTRAINT DF_Users_Status_Bit DEFAULT ((1)) FOR [status];
+GO
+
+UPDATE [dbo].[Users] SET [created_at] = GETDATE() WHERE [created_at] IS NULL;
+UPDATE [dbo].[Users] SET [updated_at] = GETDATE() WHERE [updated_at] IS NULL;
+GO
+
+INSERT INTO [dbo].[Role_Permissions] ([role_id], [permission_id])
+SELECT 1, id 
+FROM [dbo].[Permissions] 
+WHERE [name] IN (
+    'VIEW_SYSTEM_LOGS', 
+    'VIEW_NOTIFICATIONS', 
+    'VIEW_ROOMS', 
+    'UPDATE_ROOM_STATUS', 
+    'CHECK_IN_OUT', 
+    'MANAGE_AMENITIES', 
+    'MANAGE_MAINTENANCE'
+)
+AND NOT EXISTS (
+    SELECT 1 FROM [dbo].[Role_Permissions] rp 
+    WHERE rp.role_id = 1 AND rp.permission_id = [dbo].[Permissions].id
+);
+GO
+
+
+-- Thêm khóa ngoại cho Room_Inventory sau khi bảng Rooms đã được tạo xong
+ALTER TABLE [dbo].[Room_Inventory] ADD CONSTRAINT [FK_RoomInventory_Rooms] FOREIGN KEY ([room_id]) REFERENCES [dbo].[Rooms]([id]);
+GO
+
+-- Bổ sung cột cho bảng Room_Types
+IF COL_LENGTH('dbo.Room_Types', 'DeletedAt') IS NULL 
+    ALTER TABLE [dbo].[Room_Types] ADD [DeletedAt] DATETIME NULL;
+
+IF COL_LENGTH('dbo.Room_Types', 'ImageUrl') IS NULL 
+    ALTER TABLE [dbo].[Room_Types] ADD [ImageUrl] NVARCHAR(MAX) NULL;
+
+-- Bổ sung cột cho bảng Amenities
+IF COL_LENGTH('dbo.Amenities', 'DeletedAt') IS NULL 
+    ALTER TABLE [dbo].[Amenities] ADD [DeletedAt] DATETIME NULL;
+GO
+
+-- ==========================================
+-- BỔ SUNG CỘT CHO BẢNG LOSS_AND_DAMAGES
+-- ==========================================
+IF COL_LENGTH('dbo.Loss_And_Damages', 'room_id') IS NULL 
+    ALTER TABLE [dbo].[Loss_And_Damages] ADD [room_id] INT NULL;
+
+IF COL_LENGTH('dbo.Loss_And_Damages', 'evidence_image_url') IS NULL 
+    ALTER TABLE [dbo].[Loss_And_Damages] ADD [evidence_image_url] NVARCHAR(MAX) NULL;
+
+IF COL_LENGTH('dbo.Loss_And_Damages', 'evidence_public_id') IS NULL 
+    ALTER TABLE [dbo].[Loss_And_Damages] ADD [evidence_public_id] NVARCHAR(255) NULL;
+
+IF COL_LENGTH('dbo.Loss_And_Damages', 'reported_by_user_id') IS NULL 
+    ALTER TABLE [dbo].[Loss_And_Damages] ADD [reported_by_user_id] INT NULL;
+
+IF COL_LENGTH('dbo.Loss_And_Damages', 'status') IS NULL 
+    ALTER TABLE [dbo].[Loss_And_Damages] ADD [status] NVARCHAR(50) DEFAULT 'Pending';
+
+IF COL_LENGTH('dbo.Loss_And_Damages', 'updated_at') IS NULL 
+    ALTER TABLE [dbo].[Loss_And_Damages] ADD [updated_at] DATETIME NULL;
+
+-- ==========================================
+-- BỔ SUNG CỘT CHO BẢNG ROOMS
+-- ==========================================
+IF COL_LENGTH('dbo.Rooms', 'DeletedAt') IS NULL 
+    ALTER TABLE [dbo].[Rooms] ADD [DeletedAt] DATETIME NULL;
+
+IF COL_LENGTH('dbo.Rooms', 'notes') IS NULL 
+    ALTER TABLE [dbo].[Rooms] ADD [notes] NVARCHAR(MAX) NULL;
+GO
+
+-- Bổ sung cột xử lý ảnh Cloudinary và Phí check-in sớm cho bảng Room_Types
+IF COL_LENGTH('dbo.Room_Types', 'CloudinaryPublicId') IS NULL 
+    ALTER TABLE [dbo].[Room_Types] ADD [CloudinaryPublicId] NVARCHAR(255) NULL;
+
+IF COL_LENGTH('dbo.Room_Types', 'early_checkin_fee_percent') IS NULL 
+    ALTER TABLE [dbo].[Room_Types] ADD [early_checkin_fee_percent] DECIMAL(5,2) NOT NULL DEFAULT 0;
+GO
+
+EXEC sp_msforeachtable 'ALTER TABLE ? CHECK CONSTRAINT ALL'
