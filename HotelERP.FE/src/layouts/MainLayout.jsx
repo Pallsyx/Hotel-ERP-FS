@@ -56,7 +56,7 @@ const MainLayout = () => {
       requiredPermission: 'MANAGE_ROOMS',
     },
     {
-      key: '/admin/room-inventory',
+      key: '/admin/inventory',
       icon: <DatabaseOutlined />,
       label: 'Kho quản lý vật tư',
     },

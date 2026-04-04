@@ -51,7 +51,7 @@ const AdminRoutes = () => {
         {/* MODULE 3 */}
         <Route path="room-types" element={<RoomTypeManagement />} />
         <Route path="rooms" element={<RoomManagement />} />
-        <Route path="room-inventory" element={<RoomInventory />} />
+        <Route path="inventory" element={<RoomInventory />} />
         <Route path="housekeeping" element={<HousekeepingMobile />} />
         <Route path="damage-reports" element={<Placeholder title="Báo cáo Hư hỏng & Đền bù" />} />
         <Route path="loss-and-damages" element={<LossAndDamages />} />

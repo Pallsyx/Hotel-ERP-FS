@@ -1,153 +1,139 @@
 import React, { useState, useEffect } from 'react';
 import {
   Table,
-  Select,
   Button,
   Space,
+  Input,
+  Select,
   Typography,
   Card,
   ConfigProvider,
   message,
-  Popconfirm,
 } from 'antd';
-import { PlusOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
-import InventoryModal from './components/InventoryModal';
-import { roomInventoryApi } from '../../api/roomInventoryApi';
+import { PlusOutlined, EditOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
+import { equipmentApi } from '../../api/equipmentApi';
+import EquipmentModal from './components/EquipmentModal';
 
 const RoomInventory = () => {
-  const [rooms, setRooms] = useState([]);
-  const [selectedRoom, setSelectedRoom] = useState(null);
-  const [inventory, setInventory] = useState([]);
+  const [equipments, setEquipments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
+  
+  const [searchText, setSearchText] = useState('');
+  const [category, setCategory] = useState(null);
 
   const [pagination, setPagination] = useState({
     current: 1,
-    pageSize: 5,
+    pageSize: 10,
   });
 
-  const fetchRooms = async () => {
-    try {
-      const res = await roomInventoryApi.getRooms();
-
-      let roomList = [];
-      if (Array.isArray(res?.data?.data)) roomList = res.data.data;
-      else if (Array.isArray(res?.data)) roomList = res.data;
-      else if (Array.isArray(res)) roomList = res;
-
-      setRooms(roomList);
-
-      if (roomList.length > 0 && !selectedRoom) {
-        setSelectedRoom(roomList[0].id);
-      }
-    } catch (e) {
-      console.error('Lỗi tải phòng:', e);
-      message.error('Không tải được danh sách phòng!');
-    }
-  };
-
-  const fetchInventory = async (roomId) => {
-    if (!roomId) {
-      setInventory([]);
-      return;
-    }
-
+  const fetchEquipments = async () => {
     setLoading(true);
     try {
-      const res = await roomInventoryApi.getInventoryByRoom(roomId);
+      const res = await equipmentApi.getEquipments({ search: searchText, category });
+      let dataList = [];
+      if (Array.isArray(res?.data?.data)) dataList = res.data.data;
+      else if (Array.isArray(res?.data)) dataList = res.data;
+      else if (Array.isArray(res)) dataList = res;
 
-      let invList = [];
-      if (Array.isArray(res?.data?.data)) invList = res.data.data;
-      else if (Array.isArray(res?.data)) invList = res.data;
-      else if (Array.isArray(res)) invList = res;
-
-      setInventory(invList);
+      setEquipments(dataList);
     } catch (e) {
       console.error('Lỗi tải vật tư:', e);
-      const apiMessage =
-        e?.response?.data?.message ||
-        e?.response?.data?.title ||
-        'Lỗi tải vật tư!';
-      message.error(apiMessage);
-      setInventory([]);
+      message.error('Không tải được dữ liệu vật tư!');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchRooms();
-  }, []);
+    const timer = setTimeout(() => {
+      fetchEquipments();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchText, category]);
 
-  useEffect(() => {
-    if (selectedRoom) {
-      setPagination((prev) => ({ ...prev, current: 1 }));
-      fetchInventory(selectedRoom);
-    } else {
-      setInventory([]);
-    }
-  }, [selectedRoom]);
-
-  useEffect(() => {
-    const maxPage = Math.max(1, Math.ceil(inventory.length / pagination.pageSize));
-
-    if (pagination.current > maxPage) {
-      setPagination((prev) => ({
-        ...prev,
-        current: maxPage,
-      }));
-    }
-  }, [inventory.length, pagination.pageSize, pagination.current]);
-
-  const handleDelete = async (id) => {
-    try {
-      await roomInventoryApi.deleteInventory(selectedRoom, id);
-      message.success('Đã xóa vật tư!');
-      fetchInventory(selectedRoom);
-    } catch (e) {
-      console.error('Lỗi xóa vật tư:', e);
-      const apiMessage =
-e?.response?.data?.message ||
-        e?.response?.data?.title ||
-        'Xóa vật tư thất bại!';
-      message.error(apiMessage);
-    }
+  const handleRefresh = () => {
+    setSearchText('');
+    setCategory(null);
+    fetchEquipments();
   };
 
   const columns = [
     {
-      title: 'Tên vật tư',
-      dataIndex: 'itemName',
-      key: 'itemName',
-    },
-    {
-      title: 'Số lượng',
-      dataIndex: 'quantity',
-      key: 'quantity',
+      title: 'Ảnh',
+      dataIndex: 'imageUrl',
+      key: 'imageUrl',
       align: 'center',
-    },
-    {
-      title: 'Giá đền bù',
-      dataIndex: 'priceIfLost',
-      key: 'priceIfLost',
-      render: (v) => (
-        <b style={{ color: '#b91c1c' }}>
-          {new Intl.NumberFormat('vi-VN', {
-            style: 'currency',
-            currency: 'VND',
-          }).format(v || 0)}
-        </b>
+      render: (img) => (
+        img ? <img src={img} alt="vật tư" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4 }} /> 
+            : <div style={{ width: 40, height: 40, background: '#f0f0f0', borderRadius: 4, display: 'inline-block' }} />
       ),
     },
     {
-      title: 'Trạng thái',
-      dataIndex: 'status',
-      key: 'status',
+      title: 'Tên vật tư',
+      dataIndex: 'name',
+      key: 'name',
+      render: (t, r) => (
+        <div>
+          <div style={{ fontWeight: 500 }}>{t}</div>
+          <div style={{ fontSize: 12, color: 'gray' }}>{r.itemCode}</div>
+        </div>
+      )
+    },
+    {
+      title: 'ĐVT',
+      dataIndex: 'unit',
+      key: 'unit',
       align: 'center',
     },
     {
-      title: 'Xử lý',
+      title: 'Tổng',
+      dataIndex: 'totalQuantity',
+      key: 'totalQuantity',
+      align: 'center',
+      render: (v) => <b style={{ color: '#1890ff' }}>{v}</b>
+    },
+    {
+      title: 'Sẵn kho',
+      dataIndex: 'inStockQuantity',
+      key: 'inStockQuantity',
+      align: 'center',
+      render: (v) => <b style={{ color: '#52c41a' }}>{v}</b>
+    },
+    {
+      title: 'Đang dùng',
+      dataIndex: 'inUseQuantity',
+      key: 'inUseQuantity',
+      align: 'center',
+      render: (v) => <b style={{ color: '#faad14' }}>{v}</b>
+    },
+    {
+      title: 'Hỏng/Mất',
+      dataIndex: 'damagedQuantity',
+      key: 'damagedQuantity',
+      align: 'center',
+      render: (v) => (
+        <span style={{ color: v > 0 || v < 0 ? '#ff4d4f' : '#d9d9d9', fontWeight: v > 0 || v < 0 ? 'bold' : 'normal' }}>
+          {v}
+        </span>
+      )
+    },
+    {
+      title: 'Giá đền bù',
+      dataIndex: 'defaultPriceIfLost',
+      key: 'defaultPriceIfLost',
+      render: (v) => (
+        <span style={{ color: '#595959' }}>
+          {new Intl.NumberFormat('vi-VN', {
+             style: 'currency',
+             currency: 'VND',
+          }).format(v || 0)}
+        </span>
+      ),
+    },
+    {
+      title: 'Thao tác',
       key: 'action',
       align: 'center',
       render: (_, record) => (
@@ -160,44 +146,51 @@ e?.response?.data?.message ||
               setModalOpen(true);
             }}
           />
-          <Popconfirm
-            title="Xóa vật tư này?"
-            okText="Xóa"
-            cancelText="Hủy"
-            onConfirm={() => handleDelete(record.id)}
-          >
-            <Button type="text" danger icon={<DeleteOutlined />} />
-          </Popconfirm>
         </Space>
       ),
     },
   ];
 
   return (
-    <ConfigProvider theme={{ token: { colorPrimary: '#d4af37' } }}>
-      <div style={{ padding: '24px', background: '#fcfbf7', minHeight: '80vh' }}>
-        <Card
-          title={
-            <Typography.Title
-              level={3}
-              style={{ textAlign: 'center', fontFamily: 'serif', marginBottom: 0 }}
-            >
-              KIỂM KÊ VẬT TƯ
-            </Typography.Title>
-          }
-        >
-          <Space style={{ marginBottom: 20 }}>
-            <Select
-              placeholder="Chọn phòng..."
-              style={{ width: 250 }}
-              value={selectedRoom}
-              onChange={setSelectedRoom}
-              size="large"
-              options={rooms.map((r) => ({
-                value: r.id,
-                label: `Phòng ${r.roomNumber}`,
-              }))}
-            />
+    <ConfigProvider theme={{ 
+      token: { 
+        colorPrimary: '#1677ff',
+        colorBgContainer: '#fff',
+        borderRadius: 8
+      } 
+    }}>
+      <div style={{ padding: '0 24px 24px', minHeight: '80vh', background: '#f5f5f5' }}>
+        <Typography.Title level={4} style={{ color: '#1f2937', marginBottom: 20 }}>
+          Danh mục Quản lý Kho vật tư
+        </Typography.Title>
+
+        <Card bordered={false} style={{ borderRadius: 8, boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.03)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+            <Space size="middle">
+              <Input
+                placeholder="Tìm theo tên, mã..."
+                prefix={<SearchOutlined />}
+                style={{ width: 250 }}
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+              />
+              <Select
+                placeholder="Lọc Danh mục"
+                style={{ width: 150 }}
+                allowClear
+                value={category}
+                onChange={(v) => setCategory(v)}
+                options={[
+                  { value: 'Trang thiết bị', label: 'Trang thiết bị' },
+                  { value: 'Đồ uống', label: 'Đồ uống' },
+                  { value: 'Đồ ăn', label: 'Đồ ăn' },
+                  { value: 'Khác', label: 'Khác' },
+                ]}
+              />
+              <Button icon={<ReloadOutlined />} onClick={handleRefresh}>
+                Làm mới
+              </Button>
+            </Space>
 
             <Button
               type="primary"
@@ -206,49 +199,41 @@ e?.response?.data?.message ||
                 setEditingItem(null);
                 setModalOpen(true);
               }}
-              disabled={!selectedRoom}
-              size="large"
-              style={{ backgroundColor: '#0f172a', color: '#d4af37' }}
+              style={{ background: '#1677ff' }}
             >
-              Thêm Vật Tư
+              Thêm vật tư
             </Button>
-          </Space>
+          </div>
 
           <Table
             columns={columns}
-            dataSource={inventory}
+            dataSource={equipments}
             rowKey="id"
             loading={loading}
-            bordered
             pagination={{
               current: pagination.current,
-pageSize: pagination.pageSize,
-              total: inventory.length,
+              pageSize: pagination.pageSize,
+              total: equipments.length,
               showSizeChanger: true,
-              pageSizeOptions: ['5', '10', '20'],
-              position: ['bottomCenter'],
-              showTotal: (total, range) =>
-                `${range[0]}-${range[1]} / ${total} vật tư`,
+              pageSizeOptions: ['10', '20', '50'],
               onChange: (page, pageSize) => {
-                setPagination({
-                  current: page,
-                  pageSize,
-                });
+                setPagination({ current: page, pageSize });
               },
             }}
           />
         </Card>
 
-        <InventoryModal
-          open={modalOpen}
-          onCancel={() => {
-            setModalOpen(false);
-            setEditingItem(null);
-          }}
-          roomId={selectedRoom}
-          editingItem={editingItem}
-          onSuccess={() => fetchInventory(selectedRoom)}
-        />
+        {modalOpen && (
+          <EquipmentModal
+            open={modalOpen}
+            onCancel={() => {
+              setModalOpen(false);
+              setEditingItem(null);
+            }}
+            editingItem={editingItem}
+            onSuccess={fetchEquipments}
+          />
+        )}
       </div>
     </ConfigProvider>
   );
