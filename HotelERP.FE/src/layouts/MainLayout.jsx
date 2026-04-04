@@ -60,10 +60,12 @@ const MainLayout = () => {
       key: '/admin/housekeeping',
       icon: <FormatPainterOutlined />,
       label: 'Dọn phòng',
+    },
+    {    
       key: '/admin/loss-and-damages', // Phải khớp 100% với path trong AdminRoutes.jsx
       icon: <WarningOutlined />, 
       label: 'Thất thoát & Đền bù', 
-    },
+    }
   ];
 
   const isAdmin = user?.roleName === 'Admin' || user?.fullName === 'Admin';
