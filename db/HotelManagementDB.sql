@@ -1990,4 +1990,12 @@ IF COL_LENGTH('dbo.Rooms', 'notes') IS NULL
     ALTER TABLE [dbo].[Rooms] ADD [notes] NVARCHAR(MAX) NULL;
 GO
 
+-- Bổ sung cột xử lý ảnh Cloudinary và Phí check-in sớm cho bảng Room_Types
+IF COL_LENGTH('dbo.Room_Types', 'CloudinaryPublicId') IS NULL 
+    ALTER TABLE [dbo].[Room_Types] ADD [CloudinaryPublicId] NVARCHAR(255) NULL;
+
+IF COL_LENGTH('dbo.Room_Types', 'early_checkin_fee_percent') IS NULL 
+    ALTER TABLE [dbo].[Room_Types] ADD [early_checkin_fee_percent] DECIMAL(5,2) NOT NULL DEFAULT 0;
+GO
+
 EXEC sp_msforeachtable 'ALTER TABLE ? CHECK CONSTRAINT ALL'
