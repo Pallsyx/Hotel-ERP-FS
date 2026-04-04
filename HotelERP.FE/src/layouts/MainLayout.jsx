@@ -147,6 +147,7 @@ const MainLayout = () => {
 
   const menuItems = filterMenuItems(rawMenuItems);
 
+  // === ĐÃ SỬA MENU Ở ĐÂY ===
   const userMenu = {
     items: [
       {
@@ -162,7 +163,11 @@ const MainLayout = () => {
         key: 'logout',
         icon: <LogoutOutlined />,
         label: 'Đăng xuất',
+<<<<<<< HEAD
         danger: true, 
+=======
+        danger: true, // Thêm màu đỏ cho nút đăng xuất nhìn đẹp hơn
+>>>>>>> 8d9308d (Minor changes)
         onClick: handleLogout,
       },
     ],
