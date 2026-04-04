@@ -1,6 +1,11 @@
 import React from 'react';
 import { Layout, Menu, Button, Typography, Dropdown, Spin } from 'antd';
-import {
+import { 
+  UserOutlined, 
+  TeamOutlined, 
+  SafetyCertificateOutlined, 
+  LogoutOutlined, 
+  AppstoreOutlined,
   HomeOutlined,
   DatabaseOutlined,
   FormatPainterOutlined,
@@ -61,7 +66,7 @@ const MainLayout = () => {
       label: 'Dọn phòng',
     },
     {    
-      key: '/admin/loss-and-damages', // Phải khớp 100% với path trong AdminRoutes.jsx
+      key: '/admin/loss-and-damages',
       icon: <WarningOutlined />, 
       label: 'Thất thoát & Đền bù', 
     }
@@ -77,12 +82,23 @@ const MainLayout = () => {
     })
     .map(({ requiredPermission, ...rest }) => rest);
 
+  // === ĐÃ SỬA MENU Ở ĐÂY ===
   const userMenu = {
     items: [
+      {
+        key: 'profile',
+        icon: <UserOutlined />,
+        label: 'Hồ sơ cá nhân',
+        onClick: () => navigate('/admin/profile'),
+      },
+      {
+        type: 'divider',
+      },
       {
         key: 'logout',
         icon: <LogoutOutlined />,
         label: 'Đăng xuất',
+        danger: true, // Thêm màu đỏ cho nút đăng xuất nhìn đẹp hơn
         onClick: handleLogout,
       },
     ],
@@ -132,7 +148,7 @@ const MainLayout = () => {
             }}
           >
             <NotificationBell />
-            <Dropdown menu={userMenu} placement="bottomRight">
+            <Dropdown menu={userMenu} placement="bottomRight" arrow>
               <Button type="text" icon={<UserOutlined />}>
                 Xin chào, {user?.fullName || 'Admin'}
               </Button>

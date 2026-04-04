@@ -13,6 +13,7 @@ import { useAuthStore } from '../store/authStore';
 import UserManagement from '../pages/Users/UserManagement';
 import RoleManagement from '../pages/Users/RoleManagement';
 import LossAndDamages from '../pages/LossAndDamages.jsx';
+import UserProfile from '../pages/Profile/UserProfile';
 
 // COMPONENT GIỮ CHỖ (Placeholder)
 const Placeholder = ({ title }) => (
@@ -45,6 +46,7 @@ const AdminRoutes = () => {
         <Route path="users" element={<UserManagement />} />
         <Route path="roles" element={<RoleManagement />} />
         <Route path="audit-logs" element={<Placeholder title="Truy vết hệ thống (Audit Logs)" />} />
+        <Route path="profile" element={<UserProfile />} />
 
         {/* MODULE 3 */}
         <Route path="room-types" element={<RoomTypeManagement />} />
