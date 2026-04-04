@@ -26,16 +26,16 @@ const HousekeepingMobile = () => {
         await connection.start();
         if (isMounted) {
           connection.on("ReceiveRoomStatusUpdate", (roomId, status, cleaningStatus) => {
-            if (cleaningStatus === 'DIRTY') {
-              message.warning(`Phòng #${roomId} vừa trả khách – cần dọn dẹp!`);
-              fetchDirtyRooms();
-            } else if (cleaningStatus === 'INSPECTING') {
-              message.info(`Phòng #${roomId} đang được kiểm tra...`);
-              fetchDirtyRooms();
-            } else if (cleaningStatus === 'CLEAN') {
-              message.success(`Phòng #${roomId} đã dọn xong – sẵn sàng đón khách!`);
-              fetchDirtyRooms();
-            }
+             if (cleaningStatus === 'DIRTY') {
+                 message.warning(`Phòng #${roomId} vừa trả khách – cần dọn dẹp!`);
+                 fetchDirtyRooms();
+             } else if (cleaningStatus === 'INSPECTING') {
+                 message.info(`Phòng #${roomId} đang được kiểm tra...`);
+                 fetchDirtyRooms();
+             } else if (cleaningStatus === 'CLEAN') {
+                 message.success(`Phòng #${roomId} đã dọn xong – sẵn sàng đón khách!`);
+                 fetchDirtyRooms();
+             }
           });
         }
       } catch (err) {
@@ -84,13 +84,13 @@ const HousekeepingMobile = () => {
 
       <Space orientation="vertical" style={{ width: '100%' }} size="middle">
         {dirtyRooms.map(room => (
-          <Badge.Ribbon
-            text={room.cleaningStatus === 'INSPECTING' ? 'ĐANG KIỂM TRA' : 'CẦN DỌN'}
-            color={room.cleaningStatus === 'INSPECTING' ? 'purple' : 'volcano'}
+          <Badge.Ribbon 
+            text={room.cleaningStatus === 'INSPECTING' ? 'ĐANG KIỂM TRA' : 'CẦN DỌN'} 
+            color={room.cleaningStatus === 'INSPECTING' ? 'purple' : 'volcano'} 
             key={room.id}
           >
-            <Card
-              onClick={() => openRoomTasks(room)}
+            <Card 
+              onClick={() => openRoomTasks(room)} 
               hoverable
               style={{ borderRadius: 12 }}
             >
@@ -106,7 +106,7 @@ const HousekeepingMobile = () => {
         ))}
         {dirtyRooms.length === 0 && (
           <Empty description="Tất cả các phòng đều sạch sẽ!" />
-        )}
+        )}  
       </Space>
     </div>
   );

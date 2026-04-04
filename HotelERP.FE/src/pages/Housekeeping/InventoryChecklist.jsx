@@ -18,7 +18,7 @@ const InventoryChecklist = () => {
   const [loading, setLoading] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [cleaningStatus, setCleaningStatus] = useState('INSPECTING');
-
+  
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [form] = Form.useForm();
@@ -64,7 +64,7 @@ const InventoryChecklist = () => {
       if (!isCompletedRef.current) {
         axiosClient.patch(`/rooms/${roomId}/cleaning-status`, {
           NewCleaningStatus: 'DIRTY'
-        }).catch(() => { });
+        }).catch(() => {});
       }
     };
   }, [roomId]);
@@ -88,8 +88,8 @@ const InventoryChecklist = () => {
   const handleFinishCleaning = async () => {
     try {
       // Gọi API → backend sẽ cập nhật DB và bắn SignalR tới tất cả client
-      await axiosClient.patch(`/rooms/${roomId}/cleaning-status`, {
-        NewCleaningStatus: 'CLEAN'
+      await axiosClient.patch(`/rooms/${roomId}/cleaning-status`, { 
+        NewCleaningStatus: 'CLEAN' 
       });
       // Đánh dấu đã hoàn tất để cleanup effect không reset ngược lại
       isCompletedRef.current = true;

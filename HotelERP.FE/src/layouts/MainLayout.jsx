@@ -60,10 +60,10 @@ const MainLayout = () => {
       icon: <FormatPainterOutlined />,
       label: 'Dọn phòng',
     },
-    {
+    {    
       key: '/admin/loss-and-damages', // Phải khớp 100% với path trong AdminRoutes.jsx
-      icon: <WarningOutlined />,
-      label: 'Thất thoát & Đền bù',
+      icon: <WarningOutlined />, 
+      label: 'Thất thoát & Đền bù', 
     }
   ];
 
