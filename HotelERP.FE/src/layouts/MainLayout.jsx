@@ -1,5 +1,6 @@
 import React from 'react';
 import { Layout, Menu, Button, Typography, Dropdown, Spin } from 'antd';
+<<<<<<< HEAD
 import { 
   UserOutlined, 
   TeamOutlined, 
@@ -14,6 +15,14 @@ import {
   IdcardOutlined,    // Icon cho Quầy lễ tân
   FileTextOutlined,  // Icon cho Hóa đơn
   GiftOutlined       // Icon cho Voucher
+=======
+import { UserOutlined, TeamOutlined, SafetyCertificateOutlined, LogoutOutlined, AppstoreOutlined } from '@ant-design/icons';
+import {
+  HomeOutlined,
+  DatabaseOutlined,
+  FormatPainterOutlined,
+  WarningOutlined
+>>>>>>> d9ddf07 (Minor Changes)
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
