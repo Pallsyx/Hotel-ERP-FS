@@ -122,7 +122,7 @@ const MainLayout = () => {
       icon: <SafetyCertificateOutlined />,
       label: 'Vai trò & Phân quyền',
       requiredPermission: 'MANAGE_ROLES',
-    },
+    }
   ];
 
   // === ĐÃ NÂNG CẤP: Hàm lọc quyền thông minh (Lọc cả Menu cha lẫn Menu con) ===
