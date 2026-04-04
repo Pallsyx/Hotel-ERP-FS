@@ -187,7 +187,7 @@ export default function App() {
 
     const columns = [
       { title: 'Số phòng', dataIndex: 'roomNumber', key: 'roomNumber' },
-      { title: 'Tầng', dataIndex: 'floor', key: 'floor' },
+      { title: 'Tầng', dataIndex: 'floor', key: 'floor', render: (val) => val != null ? `Tầng ${val}` : '—' },
       {
         title: 'Hạng phòng',
         key: 'roomTypeName',
@@ -269,7 +269,8 @@ export default function App() {
       }
     ];
 
-    const filteredRooms = filterFloor ? rooms.filter(r => r.floor === filterFloor) : rooms;
+    const floorOptions = [...new Set(rooms.map(r => r.floor).filter(f => f != null))].sort((a, b) => Number(a) - Number(b));
+    const filteredRooms = filterFloor != null ? rooms.filter(r => Number(r.floor) === Number(filterFloor)) : rooms;
 
     return (
       <Card title="Quản lý Quỹ phòng" variant="borderless" className="m-4">
@@ -279,12 +280,13 @@ export default function App() {
             <Select
               allowClear
               placeholder="Chọn Tầng"
-              style={{ width: 120 }}
-              onChange={setFilterFloor}
+              style={{ width: 140 }}
+              value={filterFloor}
+              onChange={(val) => setFilterFloor(val != null ? Number(val) : null)}
             >
-              <Option value={1}>Tầng 1</Option>
-              <Option value={2}>Tầng 2</Option>
-              <Option value={3}>Tầng 3</Option>
+              {floorOptions.map(f => (
+                <Option key={f} value={Number(f)}>Tầng {f}</Option>
+              ))}
             </Select>
             <Button icon={<SearchOutlined />}>Lọc dữ liệu</Button>
           </Space>
@@ -302,6 +304,7 @@ export default function App() {
     const [form] = Form.useForm();
     const [inventoryData, setInventoryData] = useState([]);
     
+
     const [selectedEquipment, setSelectedEquipment] = useState(null);
     const [imageUrl, setImageUrl] = useState("");
     const [isCloneModalVisible, setIsCloneModalVisible] = useState(false);

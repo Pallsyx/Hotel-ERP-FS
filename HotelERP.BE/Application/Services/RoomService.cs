@@ -29,7 +29,7 @@ public class RoomService : IRoomService
         if (filter.RoomTypeId.HasValue) query = query.Where(r => r.RoomTypeId == filter.RoomTypeId.Value);
 
         return await query.Select(r => new RoomResponseDto(
-            r.Id, r.RoomNumber, r.Status, r.CleaningStatus, r.RoomType != null ? r.RoomType.Name : "N/A", r.RoomTypeId
+            r.Id, r.RoomNumber, r.Floor, r.Status, r.CleaningStatus, r.RoomType != null ? r.RoomType.Name : "N/A", r.RoomTypeId
         )).ToListAsync();
     }
 
@@ -49,6 +49,7 @@ public class RoomService : IRoomService
     {
         var room = new Room { 
             RoomNumber = request.RoomNumber, 
+            Floor = request.Floor,
             RoomTypeId = request.RoomTypeId, 
             Status = request.Status.ToUpper(), 
             CleaningStatus = request.CleaningStatus.ToUpper(),
