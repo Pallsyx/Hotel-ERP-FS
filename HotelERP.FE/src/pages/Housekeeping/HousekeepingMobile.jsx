@@ -26,16 +26,16 @@ const HousekeepingMobile = () => {
         await connection.start();
         if (isMounted) {
           connection.on("ReceiveRoomStatusUpdate", (roomId, status, cleaningStatus) => {
-             if (cleaningStatus === 'DIRTY') {
-                 message.warning(`Phòng #${roomId} vừa trả khách – cần dọn dẹp!`);
-                 fetchDirtyRooms();
-             } else if (cleaningStatus === 'INSPECTING') {
-                 message.info(`Phòng #${roomId} đang được kiểm tra...`);
-                 fetchDirtyRooms();
-             } else if (cleaningStatus === 'CLEAN') {
-                 message.success(`Phòng #${roomId} đã dọn xong – sẵn sàng đón khách!`);
-                 fetchDirtyRooms();
-             }
+            if (cleaningStatus === 'DIRTY') {
+              message.warning(`Phòng #${roomId} vừa trả khách – cần dọn dẹp!`);
+              fetchDirtyRooms();
+            } else if (cleaningStatus === 'INSPECTING') {
+              message.info(`Phòng #${roomId} đang được kiểm tra...`);
+              fetchDirtyRooms();
+            } else if (cleaningStatus === 'CLEAN') {
+              message.success(`Phòng #${roomId} đã dọn xong – sẵn sàng đón khách!`);
+              fetchDirtyRooms();
+            }
           });
         }
       } catch (err) {
@@ -69,8 +69,8 @@ const HousekeepingMobile = () => {
   const openRoomTasks = async (room) => {
     try {
       // Đổi trạng thái sang INSPECTING (Đang kiểm tra)
-      await axiosClient.patch(`/rooms/${room.id}/cleaning-status`, { 
-        NewCleaningStatus: 'INSPECTING' 
+      await axiosClient.patch(`/rooms/${room.id}/cleaning-status`, {
+        NewCleaningStatus: 'INSPECTING'
       });
       navigate(`/admin/housekeeping/room/${room.id}`, { state: { roomNumber: room.roomNumber } });
     } catch (error) {
@@ -81,24 +81,24 @@ const HousekeepingMobile = () => {
   return (
     <div style={{ padding: '16px', backgroundColor: '#f0f2f5', minHeight: '100vh', maxWidth: '600px', margin: '0 auto' }}>
       <Title level={4} style={{ marginBottom: 16 }}>Phòng Cần Dọn</Title>
-      
+
       <Space orientation="vertical" style={{ width: '100%' }} size="middle">
         {dirtyRooms.map(room => (
-          <Badge.Ribbon 
-            text={room.cleaningStatus === 'INSPECTING' ? 'ĐANG KIỂM TRA' : 'CẦN DỌN'} 
-            color={room.cleaningStatus === 'INSPECTING' ? 'purple' : 'volcano'} 
+          <Badge.Ribbon
+            text={room.cleaningStatus === 'INSPECTING' ? 'ĐANG KIỂM TRA' : 'CẦN DỌN'}
+            color={room.cleaningStatus === 'INSPECTING' ? 'purple' : 'volcano'}
             key={room.id}
           >
-            <Card 
-              onClick={() => room.cleaningStatus !== 'INSPECTING' && openRoomTasks(room)} 
-              hoverable={room.cleaningStatus !== 'INSPECTING'}
-              style={{ borderRadius: 12, opacity: room.cleaningStatus === 'INSPECTING' ? 0.75 : 1 }}
+            <Card
+              onClick={() => openRoomTasks(room)}
+              hoverable
+              style={{ borderRadius: 12 }}
             >
               <Title level={3} style={{ marginTop: 0, marginBottom: 8 }}>P.{room.roomNumber}</Title>
               <Text type="secondary">Loại: {room.roomTypeName || 'N/A'}</Text>
               {room.cleaningStatus === 'INSPECTING' && (
                 <div style={{ marginTop: 6 }}>
-                  <Text style={{ color: '#722ed1', fontSize: 12 }}>⏳ Đang có người kiểm tra phòng này</Text>
+                  <Text style={{ color: '#722ed1', fontSize: 12 }}>⏳ Đang kiểm tra – nhấn để tiếp tục</Text>
                 </div>
               )}
             </Card>

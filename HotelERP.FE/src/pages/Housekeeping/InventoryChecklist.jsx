@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, Input, Button, message, Spin, Empty, Typography, Modal, Form, InputNumber, Upload, Tag } from 'antd';
 import { ArrowLeftOutlined, CheckCircleOutlined, SearchOutlined, WarningOutlined, CameraOutlined, SyncOutlined } from '@ant-design/icons';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
@@ -18,11 +18,13 @@ const InventoryChecklist = () => {
   const [loading, setLoading] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [cleaningStatus, setCleaningStatus] = useState('INSPECTING');
-  
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [form] = Form.useForm();
   const connectionRef = useRef(null);
+  // Track xem người dùng đã bấm "Hoàn tất" chưa để tránh reset sai
+  const isCompletedRef = useRef(false);
 
   useEffect(() => {
     if (!roomId) return;
@@ -58,6 +60,12 @@ const InventoryChecklist = () => {
 
     return () => {
       connection.stop();
+      // Khi rời khỏi trang mà chưa hoàn tất -> reset về DIRTY
+      if (!isCompletedRef.current) {
+        axiosClient.patch(`/rooms/${roomId}/cleaning-status`, {
+          NewCleaningStatus: 'DIRTY'
+        }).catch(() => { });
+      }
     };
   }, [roomId]);
 
@@ -73,20 +81,39 @@ const InventoryChecklist = () => {
     }
   };
 
-  const filteredItems = (Array.isArray(items) ? items : []).filter(item => 
+  const filteredItems = (Array.isArray(items) ? items : []).filter(item =>
     item.itemName.toLowerCase().includes(searchText.toLowerCase())
   );
 
   const handleFinishCleaning = async () => {
     try {
       // Gọi API → backend sẽ cập nhật DB và bắn SignalR tới tất cả client
-      await axiosClient.patch(`/rooms/${roomId}/cleaning-status`, { 
-        NewCleaningStatus: 'CLEAN' 
+      await axiosClient.patch(`/rooms/${roomId}/cleaning-status`, {
+        NewCleaningStatus: 'CLEAN'
       });
+      // Đánh dấu đã hoàn tất để cleanup effect không reset ngược lại
+      isCompletedRef.current = true;
       message.success('Đã hoàn tất dọn phòng! Thông báo realtime đã gửi.');
       navigate('/admin/housekeeping');
     } catch (error) {
       message.error('Lỗi khi cập nhật trạng thái phòng.');
+    }
+  };
+
+  const handleGoBack = async () => {
+    try {
+      // Reset trạng thái phòng về DIRTY khi thoát mà chưa hoàn tất
+      await axiosClient.patch(`/rooms/${roomId}/cleaning-status`, {
+        NewCleaningStatus: 'DIRTY'
+      });
+      // Đánh dấu đã xử lý để cleanup effect không gọi lại lần nữa
+      isCompletedRef.current = true;
+      message.info('Đã đặt lại phòng về trạng thái chưa dọn.');
+    } catch (error) {
+      // Dù lỗi vẫn cho phép điều hướng về
+      console.error('Lỗi khi reset trạng thái phòng:', error);
+    } finally {
+      navigate('/admin/housekeeping');
     }
   };
 
@@ -111,7 +138,7 @@ const InventoryChecklist = () => {
       formData.append('PenaltyAmount', values.PenaltyAmount);
       formData.append('Description', values.Reason || '');
       formData.append('Reason', values.Reason || 'Báo hỏng nội bộ');
-      
+
       if (values.EvidenceImage?.fileList?.[0]?.originFileObj) {
         formData.append('EvidenceImage', values.EvidenceImage.fileList[0].originFileObj);
       }
@@ -119,7 +146,7 @@ const InventoryChecklist = () => {
       await axiosClient.post(`/Rooms/loss-damages`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      
+
       message.success("Đã gửi biên bản báo hỏng thành công!");
       setIsModalOpen(false);
       form.resetFields();
@@ -132,7 +159,7 @@ const InventoryChecklist = () => {
   return (
     <div style={{ backgroundColor: '#f0f2f5', minHeight: '100vh', padding: '16px', maxWidth: '600px', margin: '0 auto', fontFamily: 'Arial, sans-serif' }}>
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
-        <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate('/admin/housekeeping')} style={{ fontSize: '18px' }} />
+        <Button type="text" icon={<ArrowLeftOutlined />} onClick={handleGoBack} style={{ fontSize: '18px' }} />
         <Title level={4} style={{ margin: 0, marginLeft: 8, fontSize: '18px' }}>Checklist: {roomNumber}</Title>
       </div>
 
@@ -151,15 +178,15 @@ const InventoryChecklist = () => {
         )}
       </div>
 
-      <Button 
-        type="primary" 
-        block 
-        size="large" 
+      <Button
+        type="primary"
+        block
+        size="large"
         icon={<CheckCircleOutlined />}
-        style={{ 
-          backgroundColor: '#52c41a', 
-          borderColor: '#52c41a', 
-          marginBottom: '24px', 
+        style={{
+          backgroundColor: '#52c41a',
+          borderColor: '#52c41a',
+          marginBottom: '24px',
           height: '48px',
           fontSize: '16px',
           fontWeight: 'bold',
@@ -171,9 +198,9 @@ const InventoryChecklist = () => {
       </Button>
 
       <Title level={5} style={{ marginBottom: '12px', paddingLeft: '8px', fontSize: '15px' }}>Danh sách đồ đạc:</Title>
-      
-      <Input 
-        placeholder="Tìm nhanh vật tư..." 
+
+      <Input
+        placeholder="Tìm nhanh vật tư..."
         prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
         style={{ marginBottom: '16px', borderRadius: '8px', height: '40px' }}
         value={searchText}
@@ -183,12 +210,12 @@ const InventoryChecklist = () => {
       <Spin spinning={loading}>
         <div style={{ paddingBottom: '40px' }}>
           {filteredItems.map(item => (
-            <Card 
-              key={item.id} 
-              size="small" 
-              style={{ 
-                marginBottom: '12px', 
-                borderRadius: '8px', 
+            <Card
+              key={item.id}
+              size="small"
+              style={{
+                marginBottom: '12px',
+                borderRadius: '8px',
                 boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
                 border: '1px solid #e8e8e8'
               }}
@@ -198,14 +225,14 @@ const InventoryChecklist = () => {
                 <Text strong style={{ fontSize: '14px', color: '#1f1f1f' }}>{item.itemName}</Text>
                 <Text style={{ color: '#1890ff', fontWeight: 'bold', fontSize: '13px' }}>SL: {item.quantity}</Text>
               </div>
-              <Button 
-                danger 
-                block 
+              <Button
+                danger
+                block
                 icon={<WarningOutlined />}
-                style={{ 
-                  backgroundColor: '#a8071a', 
-                  borderColor: '#a8071a', 
-                  color: '#fff', 
+                style={{
+                  backgroundColor: '#a8071a',
+                  borderColor: '#a8071a',
+                  color: '#fff',
                   fontWeight: '600',
                   borderRadius: '6px',
                   height: '36px'
@@ -234,10 +261,10 @@ const InventoryChecklist = () => {
             <Input placeholder="Vd: Vỡ cốc, rách khăn..." disabled />
           </Form.Item>
           <Form.Item label="Số lượng" name="Quantity" rules={[{ required: true }]} initialValue={1}>
-            <InputNumber 
-              min={1} 
-              max={selectedItem?.quantity || 1} 
-              style={{ width: '100%' }} 
+            <InputNumber
+              min={1}
+              max={selectedItem?.quantity || 1}
+              style={{ width: '100%' }}
               onChange={(val) => {
                 const penaltyPrice = selectedItem?.priceIfLost || 0;
                 form.setFieldsValue({ PenaltyAmount: (val || 1) * penaltyPrice });
