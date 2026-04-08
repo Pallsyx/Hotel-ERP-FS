@@ -147,7 +147,6 @@ const MainLayout = () => {
 
   const menuItems = filterMenuItems(rawMenuItems);
 
-  // === ĐÃ SỬA MENU Ở ĐÂY ===
   const userMenu = {
     items: [
       {
