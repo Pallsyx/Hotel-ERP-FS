@@ -1458,6 +1458,23 @@ GO
 EXEC sp_msforeachtable 'ALTER TABLE ? CHECK CONSTRAINT ALL';
 GO
 
-PRINT '=========================================================';
-PRINT '   KHỞI TẠO DATABASE HOTEL ERP THÀNH CÔNG RỰC RỠ! 🎉   ';
-PRINT '=========================================================';
+-- ========================================================================
+-- 5. TINH CHỈNH CÁC DỮ LIỆU Ở ĐÂY
+-- ========================================================================
+
+-- 1. Quét sạch các ô trống của dữ liệu cũ và lấp đầy bằng ngày giờ hiện tại
+UPDATE Users SET created_at = GETDATE() WHERE created_at IS NULL;
+UPDATE Users SET updated_at = GETDATE() WHERE updated_at IS NULL;
+UPDATE Users SET last_login_at = GETDATE() WHERE last_login_at IS NULL;
+
+UPDATE Roles SET created_at = GETDATE() WHERE created_at IS NULL;
+UPDATE Roles SET updated_at = GETDATE() WHERE updated_at IS NULL;
+
+-- 2. Đặt "Chế độ tự động" (Default Constraint) cho tương lai
+-- Từ nay về sau, nếu C# hoặc ai đó thêm User/Role mới mà quên nhập ngày tháng, 
+-- SQL sẽ tự động lấy giờ hệ thống điền vào, tuyệt đối không bao giờ bị NULL nữa.
+ALTER TABLE Users ADD CONSTRAINT DF_Users_CreatedAt DEFAULT GETDATE() FOR created_at;
+ALTER TABLE Users ADD CONSTRAINT DF_Users_UpdatedAt DEFAULT GETDATE() FOR updated_at;
+
+ALTER TABLE Roles ADD CONSTRAINT DF_Roles_CreatedAt DEFAULT GETDATE() FOR created_at;
+ALTER TABLE Roles ADD CONSTRAINT DF_Roles_UpdatedAt DEFAULT GETDATE() FOR updated_at;
