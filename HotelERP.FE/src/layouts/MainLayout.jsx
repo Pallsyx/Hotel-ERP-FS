@@ -9,7 +9,11 @@ import {
   HomeOutlined,
   DatabaseOutlined,
   FormatPainterOutlined,
-  WarningOutlined
+  WarningOutlined,
+  DashboardOutlined, // Icon cho Dashboard
+  IdcardOutlined,    // Icon cho Quầy lễ tân
+  FileTextOutlined,  // Icon cho Hóa đơn
+  GiftOutlined       // Icon cho Voucher
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
@@ -30,23 +34,20 @@ const MainLayout = () => {
     navigate('/login');
   };
 
+  const isAdmin = user?.roleName === 'Admin' || user?.fullName === 'Admin';
+
+  // === ĐÃ NÂNG CẤP: DANH SÁCH MENU MỚI CHUẨN ERP ===
   const rawMenuItems = [
     {
-      key: '/admin/users',
-      icon: <TeamOutlined />,
-      label: 'Quản lý Nhân sự',
-      requiredPermission: 'MANAGE_USERS',
-    },
-    {
-      key: '/admin/roles',
-      icon: <SafetyCertificateOutlined />,
-      label: 'Phân quyền (RBAC)',
-      requiredPermission: 'MANAGE_ROLES',
+      key: '/admin/dashboard',
+      icon: <DashboardOutlined />,
+      label: 'Dashboard',
+      requiredPermission: 'VIEW_DASHBOARD',
     },
     {
       key: '/admin/room-types',
       icon: <AppstoreOutlined />,
-      label: 'Loại phòng & Tiện ích',
+      label: 'Hạng phòng',
       requiredPermission: 'MANAGE_AMENITIES',
     },
     {
@@ -58,31 +59,94 @@ const MainLayout = () => {
     {
       key: '/admin/inventory',
       icon: <DatabaseOutlined />,
-      label: 'Kho quản lý vật tư',
+      label: 'Kho vật tư',
+      requiredPermission: 'MANAGE_INVENTORY',
+    },
+    {
+      key: '/admin/loss-and-damages',
+      icon: <WarningOutlined />, 
+      label: 'Thất thoát & Đền bù',
+      requiredPermission: 'MANAGE_INVENTORY', 
     },
     {
       key: '/admin/housekeeping',
       icon: <FormatPainterOutlined />,
       label: 'Dọn phòng',
+      requiredPermission: 'UPDATE_ROOM_STATUS',
     },
-    {    
-      key: '/admin/loss-and-damages',
-      icon: <WarningOutlined />, 
-      label: 'Thất thoát & Đền bù', 
-    }
+    // MENU THẢ XUỐNG: QUẦY LỄ TÂN
+    {
+      key: 'reception_menu',
+      icon: <IdcardOutlined />,
+      label: 'Quầy lễ tân',
+      requiredPermission: 'MANAGE_BOOKINGS',
+      children: [
+        {
+          key: '/admin/bookings',
+          label: 'Quản lý Đặt phòng',
+        },
+        {
+          key: '/admin/arrivals',
+          label: 'Khách đến hôm nay',
+        },
+        {
+          key: '/admin/in-house',
+          label: 'Khách đang lưu trú',
+        },
+        {
+          key: '/admin/departures',
+          label: 'Thủ tục trả phòng',
+        },
+      ],
+    },
+    {
+      key: '/admin/invoices',
+      icon: <FileTextOutlined />,
+      label: 'Quản lý hóa đơn',
+      requiredPermission: 'MANAGE_INVOICES',
+    },
+    {
+      key: '/admin/vouchers',
+      icon: <GiftOutlined />,
+      label: 'Quản lý Voucher',
+      requiredPermission: 'MANAGE_SERVICES',
+    },
+    {
+      key: '/admin/users',
+      icon: <TeamOutlined />,
+      label: 'Danh sách Nhân sự',
+      requiredPermission: 'MANAGE_USERS',
+    },
+    {
+      key: '/admin/roles',
+      icon: <SafetyCertificateOutlined />,
+      label: 'Vai trò & Phân quyền',
+      requiredPermission: 'MANAGE_ROLES',
+    },
   ];
 
-  const isAdmin = user?.roleName === 'Admin' || user?.fullName === 'Admin';
+  // === ĐÃ NÂNG CẤP: Hàm lọc quyền thông minh (Lọc cả Menu cha lẫn Menu con) ===
+  const filterMenuItems = (items) => {
+    return items
+      .filter((item) => {
+        if (isAdmin) return true; // Admin thấy hết
+        if (!item.requiredPermission) return true; // Không yêu cầu quyền thì ai cũng thấy
+        return permissions && permissions.includes(item.requiredPermission);
+      })
+      .map((item) => {
+        // Nếu có menu con thì dùng đệ quy để lọc tiếp bên trong
+        if (item.children) {
+          const filteredChildren = filterMenuItems(item.children);
+          return { ...item, children: filteredChildren };
+        }
+        return item;
+      })
+      // Xóa bỏ thuộc tính requiredPermission trước khi ném vào UI của Ant Design
+      .map(({ requiredPermission, ...rest }) => rest);
+  };
 
-  const menuItems = rawMenuItems
-    .filter((item) => {
-      if (isAdmin) return true;
-      if (!item.requiredPermission) return true;
-      return permissions && permissions.includes(item.requiredPermission);
-    })
-    .map(({ requiredPermission, ...rest }) => rest);
+  const menuItems = filterMenuItems(rawMenuItems);
 
-  // === ĐÃ SỬA MENU Ở ĐÂY ===
   const userMenu = {
     items: [
       {
@@ -98,7 +162,7 @@ const MainLayout = () => {
         key: 'logout',
         icon: <LogoutOutlined />,
         label: 'Đăng xuất',
-        danger: true, // Thêm màu đỏ cho nút đăng xuất nhìn đẹp hơn
+        danger: true, 
         onClick: handleLogout,
       },
     ],
@@ -129,6 +193,8 @@ const MainLayout = () => {
           <Menu
             theme="dark"
             mode="inline"
+            // Tính năng tự mở menu cha khi đang ở trang con
+            defaultOpenKeys={location.pathname.startsWith('/admin/') ? ['reception_menu'] : []}
             selectedKeys={[location.pathname]}
             items={menuItems}
             onClick={(e) => navigate(e.key)}
