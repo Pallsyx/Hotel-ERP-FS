@@ -70,7 +70,7 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
     };
 });
 
-// Cấu hình CORS cho SignalR của Long
+// Cấu hình CORS cho SignalR 
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowSignalR", policy =>
@@ -82,10 +82,9 @@ builder.Services.AddCors(options =>
     });
 });
 
-// SignalR của Long
+// SignalR của L
 builder.Services.AddSignalR();
 
-// --- 3. CẤU HÌNH JWT AUTHENTICATION ---
 // --- 3. CẤU HÌNH JWT AUTHENTICATION ---
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
 var secretKeyString = jwtSettings["Secret"] ?? "HotelERP_Super_Secret_Key_Must_Be_Long_Enough_2026_DotNet10";
@@ -132,7 +131,7 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
-// --- 3. CẤU HÌNH RBAC DYNAMICS (Tự động tạo Policy từ PermissionKeys) ---
+// --- 4. CẤU HÌNH RBAC DYNAMICS (Tự động tạo Policy từ PermissionKeys) ---
 builder.Services.AddAuthorization(options =>
 {
     // Lấy tất cả các hằng số string trong lớp PermissionKeys
@@ -150,7 +149,7 @@ builder.Services.AddAuthorization(options =>
     }
 });
 
-// --- 4. CẤU HÌNH HANGFIRE & REDIS ---
+// --- 5. CẤU HÌNH HANGFIRE & REDIS ---
 builder.Services.AddHangfire(config => config
     .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
     .UseSimpleAssemblyNameTypeSerializer()
@@ -159,7 +158,17 @@ builder.Services.AddHangfire(config => config
 
 builder.Services.AddHangfireServer(); 
 
-var redisConnection = ConnectionMultiplexer.Connect("localhost:6380");
+// Lấy chuỗi kết nối từ appsettings.json
+var redisConnectionString = builder.Configuration.GetConnectionString("Redis");
+// KIỂM TRA CHUỖI KẾT NỐI REDIS
+Console.WriteLine("Redis Connection String: " + redisConnectionString);
+// Nếu chuỗi bị rỗng (null) thì báo lỗi ngay lập tức 
+if (string.IsNullOrEmpty(redisConnectionString))
+{
+    throw new Exception("LỖI: Chưa lấy được chuỗi kết nối Redis từ appsettings.json!");
+}
+// Kết nối bằng chuỗi đã lấy
+var redisConnection = ConnectionMultiplexer.Connect(redisConnectionString);
 builder.Services.AddSingleton<IConnectionMultiplexer>(redisConnection);
 
 builder.Services.AddSingleton<IDistributedLockFactory>(provider =>
@@ -168,7 +177,7 @@ builder.Services.AddSingleton<IDistributedLockFactory>(provider =>
     return RedLockFactory.Create(multiplexers);
 });
 
-// --- 5. ĐĂNG KÝ SERVICES ---
+// --- 6. ĐĂNG KÝ SERVICES ---
 
 // Options của Loyalty Points
 builder.Services.Configure<LoyaltyPointsOptions>(
@@ -204,7 +213,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddAuthorization();
 builder.Services.AddEndpointsApiExplorer();
 
-// --- 6. CẤU HÌNH SWAGGER ---
+// --- 7. CẤU HÌNH SWAGGER ---
 builder.Services.AddSwaggerGen(c =>
 {
     c.OperationFilter<AuditReasonHeaderFilter>(); 
@@ -244,7 +253,7 @@ builder.Services.AddCors(options => {
 var app = builder.Build();
 
 // --- 7. MIDDLEWARE PIPELINE ---
-app.UseCors("AllowSignalR"); // CORS của Long phải nằm trước Auth
+app.UseCors("AllowSignalR"); // CORS của phải nằm trước Auth
 
 app.UseSwagger();
 app.UseSwaggerUI(c =>
@@ -270,7 +279,7 @@ app.MapHub<NotificationHub>("/notificationHub"); // SignalR Hub
 app.MapControllers();
 
 
-// SignalR Hub của Long
+// SignalR Hub 
 app.MapHub<HotelERP.BE.DTOs.Hubs.RoomHub>("/roomHub");
 app.MapHub<DamageHub>("/damageHub");
 

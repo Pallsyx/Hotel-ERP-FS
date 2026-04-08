@@ -1,72 +1,373 @@
--- Chèn đoạn này lên TRÊN CÙNG của file
-IF DB_ID(N'HotelManagementDB') IS NULL
+-- ========================================================================
+-- PHẦN 1: TẠO DATABASE VÀ CẤU TRÚC BẢNG (ĐÃ GỘP 100% CÁC BỔ SUNG MỚI NHẤT)
+-- ========================================================================
+USE master;
+GO
+
+IF DB_ID(N'HotelManagementDB') IS NOT NULL
 BEGIN
-    CREATE DATABASE [HotelManagementDB];
+    ALTER DATABASE [HotelManagementDB] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+    DROP DATABASE [HotelManagementDB];
 END
 GO
 
-USE [HotelManagementDB]
-EXEC sp_msforeachtable 'ALTER TABLE ? NOCHECK CONSTRAINT ALL'
+CREATE DATABASE [HotelManagementDB];
 GO
 
-SET ANSI_NULLS ON
+USE [HotelManagementDB];
 GO
-SET QUOTED_IDENTIFIER ON
+
+-- Tạm thời tắt kiểm tra khóa ngoại để tránh lỗi khi chèn dữ liệu
+EXEC sp_msforeachtable 'ALTER TABLE ? NOCHECK CONSTRAINT ALL';
 GO
+
+-- ==========================================
+-- 1. QUẢN LÝ QUYỀN VÀ NGƯỜI DÙNG
+-- ==========================================
+CREATE TABLE [dbo].[Roles](
+	[id] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
+	[name] [nvarchar](100) NOT NULL,
+	[description] [nvarchar](max) NULL,
+	[status] [nvarchar](20) NOT NULL DEFAULT 'ACTIVE',
+	[created_at] [datetime] NOT NULL DEFAULT GETDATE(),
+	[updated_at] [datetime] NULL
+);
+
+CREATE TABLE [dbo].[Permissions](
+	[id] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
+	[name] [nvarchar](100) NOT NULL,
+	[description] [nvarchar](500) NULL,
+	[group_name] [nvarchar](100) NULL,
+	[created_at] [datetime] NOT NULL DEFAULT GETDATE()
+);
+
+CREATE TABLE [dbo].[Role_Permissions](
+	[role_id] [int] NOT NULL,
+	[permission_id] [int] NOT NULL,
+	[created_at] [datetime] DEFAULT GETDATE(),
+    PRIMARY KEY ([role_id], [permission_id])
+);
+
+CREATE TABLE [dbo].[Memberships](
+	[id] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
+	[tier_name] [nvarchar](100) NOT NULL,
+	[min_points] [int] NULL DEFAULT 0,
+	[discount_percent] [decimal](5, 2) NULL DEFAULT 0.00,
+	[benefits] [nvarchar](1000) NULL,
+	[status] [nvarchar](20) NOT NULL DEFAULT 'ACTIVE',
+	[created_at] [datetime] NOT NULL DEFAULT GETDATE(),
+	[updated_at] [datetime] NULL
+);
+
+CREATE TABLE [dbo].[Users](
+	[id] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
+	[role_id] [int] NULL,
+	[membership_id] [int] NULL,
+	[full_name] [nvarchar](255) NOT NULL,
+	[email] [nvarchar](255) NOT NULL UNIQUE,
+	[phone] [nvarchar](50) NULL,
+	[password_hash] [nvarchar](max) NOT NULL,
+	[status] [bit] NULL DEFAULT 1,
+	[avatar_url] [nvarchar](255) NULL,
+	[avatar_public_id] [nvarchar](255) NULL,
+	[loyalty_points] [int] NOT NULL DEFAULT 0,
+	[address] [nvarchar](500) NULL,
+	[date_of_birth] [date] NULL,
+	[created_at] [datetime] NULL DEFAULT GETDATE(),
+	[updated_at] [datetime] NULL,
+	[last_login_at] [datetime] NULL
+);
+
+-- BẢNG MỚI THEO CODE CỦA BẠN
+CREATE TABLE [dbo].[User_Permissions] (
+    [user_id] INT NOT NULL,
+    [permission_id] INT NOT NULL,
+    [is_granted] BIT NOT NULL, 
+    [created_at] DATETIME DEFAULT GETDATE(),
+    PRIMARY KEY ([user_id], [permission_id])
+);
+
+-- BẢNG MỚI THEO CODE CỦA BẠN
+CREATE TABLE [dbo].[Refresh_Tokens] (
+    [id] int NOT NULL IDENTITY(1,1) PRIMARY KEY,
+    [user_id] int NOT NULL,
+    [token] nvarchar(500) NOT NULL,
+    [jwt_id] nvarchar(255) NOT NULL,
+    [is_used] bit NOT NULL DEFAULT 0,
+    [is_revoked] bit NOT NULL DEFAULT 0,
+    [created_at] datetime NOT NULL DEFAULT GETDATE(),
+    [expire_at] datetime NOT NULL
+);
+CREATE INDEX [IX_Refresh_Tokens_user_id] ON [dbo].[Refresh_Tokens] ([user_id]);
+
+
+-- ==========================================
+-- 2. PHÒNG VÀ VẬT TƯ (INVENTORY)
+-- ==========================================
 CREATE TABLE [dbo].[Amenities](
-	[id] [int] IDENTITY(1,1) NOT NULL,
+	[id] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
 	[name] [nvarchar](255) NOT NULL,
 	[icon_url] [nvarchar](max) NULL,
-	[is_active] [bit] NULL,
-PRIMARY KEY CLUSTERED 
-(
-	[id] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
-GO
-/****** Object:  Table [dbo].[Article_Categories]    Script Date: 3/28/2026 9:25:30 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-CREATE TABLE [dbo].[Article_Categories](
-	[id] [int] IDENTITY(1,1) NOT NULL,
+	[is_active] [bit] NULL DEFAULT 1,
+	[DeletedAt] [datetime] NULL
+);
+
+CREATE TABLE [dbo].[Room_Types](
+	[id] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
 	[name] [nvarchar](255) NOT NULL,
-	[is_active] [bit] NULL,
-PRIMARY KEY CLUSTERED 
-(
-	[id] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY]
-GO
-/****** Object:  Table [dbo].[Articles]    Script Date: 3/28/2026 9:25:30 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
+	[base_price] [decimal](18, 2) NOT NULL,
+	[capacity_adults] [int] NOT NULL DEFAULT 2,
+	[capacity_children] [int] NOT NULL DEFAULT 0,
+	[description] [nvarchar](max) NULL,
+	[size_sqm] [int] NULL,
+	[bed_type] [nvarchar](100) NULL,
+	[view_type] [nvarchar](100) NULL,
+	[slug] [varchar](255) NULL,
+	[content] [nvarchar](max) NULL,
+	[early_checkin_fee_percent] [decimal](5,2) NOT NULL DEFAULT 0,
+	[late_checkout_fee_percent] [decimal](5,2) NOT NULL DEFAULT 0,
+	[extra_hour_price] [decimal](18,2) NOT NULL DEFAULT 0,
+	[status] [nvarchar](20) NOT NULL DEFAULT 'ACTIVE',
+	[is_active] [bit] NULL DEFAULT 1,
+	[ImageUrl] [nvarchar](max) NULL,
+	[CloudinaryPublicId] [nvarchar](255) NULL,
+	[created_at] [datetime] NOT NULL DEFAULT GETDATE(),
+	[updated_at] [datetime] NULL,
+	[DeletedAt] [datetime] NULL
+);
+
+CREATE TABLE [dbo].[RoomType_Amenities](
+	[room_type_id] [int] NOT NULL,
+	[amenity_id] [int] NOT NULL,
+    PRIMARY KEY ([room_type_id], [amenity_id])
+);
+
+CREATE TABLE [dbo].[Room_Images](
+	[id] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
+	[room_type_id] [int] NULL,
+	[image_url] [nvarchar](max) NOT NULL,
+	[cloud_public_id] [nvarchar](255) NULL,
+	[is_primary] [bit] NULL DEFAULT 0,
+	[is_active] [bit] NULL DEFAULT 1,
+	[status] [nvarchar](20) NOT NULL DEFAULT 'ACTIVE',
+	[created_at] [datetime] NOT NULL DEFAULT GETDATE()
+);
+
+CREATE TABLE [dbo].[Rooms](
+	[id] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
+	[room_type_id] [int] NULL,
+	[room_number] [nvarchar](50) NOT NULL,
+	[floor] [int] NULL,
+	[status] [nvarchar](50) NULL DEFAULT 'Available',
+	[cleaning_status] [varchar](50) NULL DEFAULT 'Clean',
+	[extension_number] [varchar](20) NULL,
+	[notes] [nvarchar](max) NULL,
+	[is_active] [bit] NULL DEFAULT 1,
+	[created_at] [datetime] NOT NULL DEFAULT GETDATE(),
+	[updated_at] [datetime] NULL,
+    [DeletedAt] [datetime] NULL
+);
+
+CREATE TABLE [dbo].[Equipments](
+	[Id] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
+	[ItemCode] [varchar](50) NOT NULL UNIQUE,
+	[Name] [nvarchar](255) NOT NULL,
+	[Category] [nvarchar](100) NOT NULL,
+	[Unit] [nvarchar](50) NOT NULL,
+	[TotalQuantity] [int] NOT NULL DEFAULT 0,
+	[InUseQuantity] [int] NOT NULL DEFAULT 0,
+	[DamagedQuantity] [int] NOT NULL DEFAULT 0,
+	[LiquidatedQuantity] [int] NOT NULL DEFAULT 0,
+	[InStockQuantity] AS ((([TotalQuantity]-[InUseQuantity])-[DamagedQuantity])-[LiquidatedQuantity]),
+	[BasePrice] [decimal](18, 2) NOT NULL DEFAULT 0,
+	[DefaultPriceIfLost] [decimal](18, 2) NOT NULL DEFAULT 0,
+	[Supplier] [nvarchar](255) NULL,
+	[IsActive] [bit] NOT NULL DEFAULT 1,
+	[ImageUrl] [nvarchar](max) NULL,
+	[CreatedAt] [datetime] NULL DEFAULT GETUTCDATE(),
+	[UpdatedAt] [datetime] NULL,
+	[DeletedAt] [datetime] NULL
+);
+
+CREATE TABLE [dbo].[Room_Inventory](
+	[id] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
+	[room_id] [int] NULL,
+    [EquipmentId] [int] NOT NULL DEFAULT 0,
+	[item_type] [varchar](50) NULL DEFAULT 'Asset',
+	[quantity] [int] NULL DEFAULT 1,
+	[price_if_lost] [decimal](18, 2) NULL DEFAULT 0,
+	[note] [nvarchar](255) NULL,
+	[is_active] [bit] NULL DEFAULT 1
+);
+
+
+-- ==========================================
+-- 3. BOOKING, VOUCHERS VÀ DỊCH VỤ
+-- ==========================================
+CREATE TABLE [dbo].[Vouchers](
+	[id] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
+	[code] [nvarchar](50) NOT NULL UNIQUE,
+	[discount_type] [nvarchar](50) NOT NULL,
+	[discount_value] [decimal](18, 2) NOT NULL,
+	[min_booking_value] [decimal](18, 2) NULL DEFAULT 0,
+	[valid_from] [datetime] NULL,
+	[valid_to] [datetime] NULL,
+	[usage_limit] [int] NULL
+);
+
+CREATE TABLE [dbo].[Bookings](
+	[id] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
+	[user_id] [int] NULL,
+	[guest_name] [nvarchar](255) NULL,
+	[guest_phone] [nvarchar](50) NULL,
+	[guest_email] [nvarchar](255) NULL,
+	[booking_code] [nvarchar](50) NOT NULL UNIQUE,
+	[voucher_id] [int] NULL,
+	[booked_at] [datetime] NOT NULL DEFAULT GETDATE(),
+	[hold_expires_at] [datetime] NULL,
+	[booking_subtotal] [decimal](18, 2) NOT NULL DEFAULT 0,
+	[discount_amount] [decimal](18, 2) NOT NULL DEFAULT 0,
+	[final_amount] [decimal](18, 2) NOT NULL DEFAULT 0,
+	[payment_status] [nvarchar](50) NOT NULL DEFAULT 'UNPAID',
+	[status] [nvarchar](50) NULL DEFAULT 'Pending',
+	[notes] [nvarchar](1000) NULL,
+	[is_points_awarded] [bit] DEFAULT 0,
+	[created_at] [datetime] NOT NULL DEFAULT GETDATE(),
+	[updated_at] [datetime] NULL
+);
+
+CREATE TABLE [dbo].[Booking_Details](
+	[id] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
+	[booking_id] [int] NULL,
+	[room_id] [int] NULL,
+	[room_type_id] [int] NULL,
+	[check_in_date] [datetime] NOT NULL,
+	[check_out_date] [datetime] NOT NULL,
+	[price_per_night] [decimal](18, 2) NOT NULL,
+	[adults_count] [int] NOT NULL DEFAULT 1,
+	[children_count] [int] NOT NULL DEFAULT 0,
+	[nights] [int] NOT NULL DEFAULT 1,
+	[early_check_in_fee] [decimal](18, 2) NOT NULL DEFAULT 0,
+	[late_check_out_fee] [decimal](18, 2) NOT NULL DEFAULT 0,
+	[line_total] [decimal](18, 2) NOT NULL DEFAULT 0,
+	[status] [nvarchar](50) NOT NULL DEFAULT 'Booked',
+	[identity_document_url] [nvarchar](max) NULL,
+	[actual_check_in_at] [datetime] NULL,
+	[actual_check_out_at] [datetime] NULL,
+	[created_at] [datetime] NOT NULL DEFAULT GETDATE(),
+	[updated_at] [datetime] NULL
+);
+
+CREATE TABLE [dbo].[Invoices](
+	[id] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
+	[booking_id] [int] NULL,
+	[total_room_amount] [decimal](18, 2) NULL DEFAULT 0,
+	[total_service_amount] [decimal](18, 2) NULL DEFAULT 0,
+	[discount_amount] [decimal](18, 2) NULL DEFAULT 0,
+	[tax_amount] [decimal](18, 2) NULL DEFAULT 0,
+	[final_total] [decimal](18, 2) NULL DEFAULT 0,
+	[status] [nvarchar](50) NULL DEFAULT 'Unpaid'
+);
+
+CREATE TABLE [dbo].[Payments](
+	[id] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
+	[invoice_id] [int] NULL,
+	[payment_method] [nvarchar](50) NULL,
+	[amount_paid] [decimal](18, 2) NOT NULL,
+	[transaction_code] [nvarchar](100) NULL,
+	[payment_date] [datetime] NULL DEFAULT GETDATE()
+);
+
+CREATE TABLE [dbo].[Loss_And_Damages](
+	[id] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
+	[booking_detail_id] [int] NULL,
+	[room_inventory_id] [int] NULL,
+	[room_id] [int] NULL,
+	[quantity] [int] NOT NULL,
+	[penalty_amount] [decimal](18, 2) NOT NULL,
+	[description] [nvarchar](max) NULL,
+	[ImageUrl] [nvarchar](max) NULL,
+    [evidence_image_url] [nvarchar](max) NULL,
+    [evidence_public_id] [nvarchar](255) NULL,
+    [reported_by_user_id] [int] NULL,
+    [status] [nvarchar](50) DEFAULT 'Pending',
+	[created_at] [datetime] NULL DEFAULT GETDATE(),
+    [updated_at] [datetime] NULL
+);
+
+CREATE TABLE [dbo].[Service_Categories](
+	[id] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
+	[name] [nvarchar](255) NOT NULL
+);
+
+CREATE TABLE [dbo].[Services](
+	[id] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
+	[category_id] [int] NULL,
+	[name] [nvarchar](255) NOT NULL,
+	[price] [decimal](18, 2) NOT NULL,
+	[unit] [nvarchar](50) NULL,
+	[DeletedAt] [datetime] NULL
+);
+
+CREATE TABLE [dbo].[Order_Services](
+	[id] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
+	[booking_detail_id] [int] NULL,
+	[order_date] [datetime] NULL DEFAULT GETDATE(),
+	[total_amount] [decimal](18, 2) NULL DEFAULT 0,
+	[status] [nvarchar](50) NULL DEFAULT 'Pending'
+);
+
+CREATE TABLE [dbo].[Order_Service_Details](
+	[id] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
+	[order_service_id] [int] NULL,
+	[service_id] [int] NULL,
+	[quantity] [int] NOT NULL,
+	[unit_price] [decimal](18, 2) NOT NULL
+);
+
+
+-- ==========================================
+-- 4. BÀI VIẾT, ĐÁNH GIÁ VÀ HỆ THỐNG KHÁC
+-- ==========================================
+CREATE TABLE [dbo].[Reviews](
+	[id] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
+	[user_id] [int] NULL,
+	[room_type_id] [int] NULL,
+	[rating] [int] NULL CHECK (rating >= 1 AND rating <= 5),
+	[comment] [nvarchar](max) NULL,
+	[ImageUrl] [nvarchar](max) NULL, 
+    [ImagePublicId] [nvarchar](255) NULL, 
+    [IsApproved] [bit] DEFAULT 1,
+    [Status] [varchar](50) DEFAULT 'VISIBLE',
+	[created_at] [datetime] NULL DEFAULT GETDATE()
+);
+
+CREATE TABLE [dbo].[Article_Categories](
+	[id] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
+	[name] [nvarchar](255) NOT NULL,
+	[is_active] [bit] NULL DEFAULT 1
+);
+
 CREATE TABLE [dbo].[Articles](
-	[id] [int] IDENTITY(1,1) NOT NULL,
+	[id] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
 	[category_id] [int] NULL,
 	[author_id] [int] NULL,
 	[title] [nvarchar](max) NOT NULL,
-	[slug] [nvarchar](255) NULL,
+	[slug] [nvarchar](255) NULL UNIQUE,
+	[summary] [nvarchar](1000) NULL,
 	[content] [nvarchar](max) NULL,
 	[thumbnail_url] [nvarchar](max) NULL,
-	[published_at] [datetime] NULL,
-	[is_active] [bit] NULL,
-PRIMARY KEY CLUSTERED 
-(
-	[id] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
-GO
-/****** Object:  Table [dbo].[Attractions]    Script Date: 3/28/2026 9:25:30 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
+	[thumbnail_public_id] [nvarchar](255) NULL,
+	[status] [nvarchar](20) NOT NULL DEFAULT 'ACTIVE',
+	[is_published] [bit] NULL DEFAULT 0,
+	[published_at] [datetime] NULL DEFAULT GETDATE(),
+	[is_active] [bit] NULL DEFAULT 1,
+	[created_at] [datetime] NOT NULL DEFAULT GETDATE(),
+	[updated_at] [datetime] NULL
+);
+
 CREATE TABLE [dbo].[Attractions](
-	[id] [int] IDENTITY(1,1) NOT NULL,
+	[id] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
 	[name] [nvarchar](255) NOT NULL,
 	[distance_km] [decimal](5, 2) NULL,
 	[description] [nvarchar](max) NULL,
@@ -74,456 +375,40 @@ CREATE TABLE [dbo].[Attractions](
 	[latitude] [decimal](10, 8) NULL,
 	[longitude] [decimal](11, 8) NULL,
 	[address] [nvarchar](500) NULL,
-	[is_active] [bit] NULL,
-PRIMARY KEY CLUSTERED 
-(
-	[id] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
-GO
-/****** Object:  Table [dbo].[Audit_Logs]    Script Date: 3/28/2026 9:25:30 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
+	[ImageUrl] [nvarchar](max) NULL, 
+    [ImagePublicId] [nvarchar](255) NULL, 
+    [CreatedAt] [datetime] NULL, 
+    [Status] [varchar](50) DEFAULT 'ACTIVE',
+	[is_active] [bit] NULL DEFAULT 1
+);
+
 CREATE TABLE [dbo].[Audit_Logs](
-	[id] [int] IDENTITY(1,1) NOT NULL,
+	[id] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
 	[user_id] [int] NULL,
 	[action] [nvarchar](50) NOT NULL,
 	[table_name] [nvarchar](100) NOT NULL,
 	[record_id] [int] NOT NULL,
 	[old_value] [nvarchar](max) NULL,
 	[new_value] [nvarchar](max) NULL,
-	[created_at] [datetime] NULL,
-PRIMARY KEY CLUSTERED 
-(
-	[id] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
-GO
-/****** Object:  Table [dbo].[Booking_Details]    Script Date: 3/28/2026 9:25:30 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-CREATE TABLE [dbo].[Booking_Details](
-	[id] [int] IDENTITY(1,1) NOT NULL,
-	[booking_id] [int] NULL,
-	[room_id] [int] NULL,
-	[room_type_id] [int] NULL,
-	[check_in_date] [datetime] NOT NULL,
-	[check_out_date] [datetime] NOT NULL,
-	[price_per_night] [decimal](18, 2) NOT NULL,
-PRIMARY KEY CLUSTERED 
-(
-	[id] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY]
-GO
-/****** Object:  Table [dbo].[Bookings]    Script Date: 3/28/2026 9:25:30 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-CREATE TABLE [dbo].[Bookings](
-	[id] [int] IDENTITY(1,1) NOT NULL,
-	[user_id] [int] NULL,
-	[guest_name] [nvarchar](255) NULL,
-	[guest_phone] [nvarchar](50) NULL,
-	[guest_email] [nvarchar](255) NULL,
-	[booking_code] [nvarchar](50) NOT NULL,
-	[voucher_id] [int] NULL,
-	[status] [nvarchar](50) NULL,
-PRIMARY KEY CLUSTERED 
-(
-	[id] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY]
-GO
-/****** Object:  Table [dbo].[Equipments]    Script Date: 3/28/2026 9:25:30 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-CREATE TABLE [dbo].[Equipments](
-	[Id] [int] IDENTITY(1,1) NOT NULL,
-	[ItemCode] [varchar](50) NOT NULL,
-	[Name] [nvarchar](255) NOT NULL,
-	[Category] [nvarchar](100) NOT NULL,
-	[Unit] [nvarchar](50) NOT NULL,
-	[TotalQuantity] [int] NOT NULL,
-	[InUseQuantity] [int] NOT NULL,
-	[DamagedQuantity] [int] NOT NULL,
-	[LiquidatedQuantity] [int] NOT NULL,
-	[InStockQuantity]  AS ((([TotalQuantity]-[InUseQuantity])-[DamagedQuantity])-[LiquidatedQuantity]),
-	[BasePrice] [decimal](18, 2) NOT NULL,
-	[DefaultPriceIfLost] [decimal](18, 2) NOT NULL,
-	[Supplier] [nvarchar](255) NULL,
-	[IsActive] [bit] NOT NULL,
-	[CreatedAt] [datetime] NULL,
-	[UpdatedAt] [datetime] NULL,
-	[ImageUrl] [nvarchar](max) NULL,
-PRIMARY KEY CLUSTERED 
-(
-	[Id] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
-GO
-/****** Object:  Table [dbo].[Invoices]    Script Date: 3/28/2026 9:25:30 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-CREATE TABLE [dbo].[Invoices](
-	[id] [int] IDENTITY(1,1) NOT NULL,
-	[booking_id] [int] NULL,
-	[total_room_amount] [decimal](18, 2) NULL,
-	[total_service_amount] [decimal](18, 2) NULL,
-	[discount_amount] [decimal](18, 2) NULL,
-	[tax_amount] [decimal](18, 2) NULL,
-	[final_total] [decimal](18, 2) NULL,
-	[status] [nvarchar](50) NULL,
-PRIMARY KEY CLUSTERED 
-(
-	[id] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY]
-GO
-/****** Object:  Table [dbo].[Loss_And_Damages]    Script Date: 3/28/2026 9:25:30 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-CREATE TABLE [dbo].[Loss_And_Damages](
-	[id] [int] IDENTITY(1,1) NOT NULL,
-	[booking_detail_id] [int] NULL,
-	[room_inventory_id] [int] NULL,
-	[quantity] [int] NOT NULL,
-	[penalty_amount] [decimal](18, 2) NOT NULL,
-	[description] [nvarchar](max) NULL,
-	[created_at] [datetime] NULL,
-	[ImageUrl] [nvarchar](max) NULL,
-PRIMARY KEY CLUSTERED 
-(
-	[id] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
-GO
-/****** Object:  Table [dbo].[Memberships]    Script Date: 3/28/2026 9:25:30 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-CREATE TABLE [dbo].[Memberships](
-	[id] [int] IDENTITY(1,1) NOT NULL,
-	[tier_name] [nvarchar](100) NOT NULL,
-	[min_points] [int] NULL,
-	[discount_percent] [decimal](5, 2) NULL,
-PRIMARY KEY CLUSTERED 
-(
-	[id] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY]
-GO
-/****** Object:  Table [dbo].[Notifications]    Script Date: 3/28/2026 9:25:30 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
+	[reason] [nvarchar](1000) NULL,
+	[created_at] [datetime] NULL DEFAULT GETDATE()
+);
+
 CREATE TABLE [dbo].[Notifications](
-	[id] [int] IDENTITY(1,1) NOT NULL,
+	[id] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
 	[user_id] [int] NULL,
 	[title] [nvarchar](255) NOT NULL,
 	[content] [nvarchar](max) NOT NULL,
 	[type] [varchar](50) NULL,
 	[reference_link] [varchar](255) NULL,
-	[is_read] [bit] NOT NULL,
-	[created_at] [datetime] NULL,
- CONSTRAINT [PK_Notifications] PRIMARY KEY CLUSTERED 
-(
-	[id] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
-GO
-/****** Object:  Table [dbo].[Order_Service_Details]    Script Date: 3/28/2026 9:25:30 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-CREATE TABLE [dbo].[Order_Service_Details](
-	[id] [int] IDENTITY(1,1) NOT NULL,
-	[order_service_id] [int] NULL,
-	[service_id] [int] NULL,
-	[quantity] [int] NOT NULL,
-	[unit_price] [decimal](18, 2) NOT NULL,
-PRIMARY KEY CLUSTERED 
-(
-	[id] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY]
-GO
-/****** Object:  Table [dbo].[Order_Services]    Script Date: 3/28/2026 9:25:30 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-CREATE TABLE [dbo].[Order_Services](
-	[id] [int] IDENTITY(1,1) NOT NULL,
-	[booking_detail_id] [int] NULL,
-	[order_date] [datetime] NULL,
-	[total_amount] [decimal](18, 2) NULL,
-	[status] [nvarchar](50) NULL,
-PRIMARY KEY CLUSTERED 
-(
-	[id] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY]
-GO
-/****** Object:  Table [dbo].[Payments]    Script Date: 3/28/2026 9:25:30 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-CREATE TABLE [dbo].[Payments](
-	[id] [int] IDENTITY(1,1) NOT NULL,
-	[invoice_id] [int] NULL,
-	[payment_method] [nvarchar](50) NULL,
-	[amount_paid] [decimal](18, 2) NOT NULL,
-	[transaction_code] [nvarchar](100) NULL,
-	[payment_date] [datetime] NULL,
-PRIMARY KEY CLUSTERED 
-(
-	[id] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY]
-GO
-/****** Object:  Table [dbo].[Permissions]    Script Date: 3/28/2026 9:25:30 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-CREATE TABLE [dbo].[Permissions](
-	[id] [int] IDENTITY(1,1) NOT NULL,
-	[name] [nvarchar](100) NOT NULL,
-PRIMARY KEY CLUSTERED 
-(
-	[id] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY]
-GO
-/****** Object:  Table [dbo].[Reviews]    Script Date: 3/28/2026 9:25:30 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-CREATE TABLE [dbo].[Reviews](
-	[id] [int] IDENTITY(1,1) NOT NULL,
-	[user_id] [int] NULL,
-	[room_type_id] [int] NULL,
-	[rating] [int] NULL,
-	[comment] [nvarchar](max) NULL,
-	[created_at] [datetime] NULL,
-PRIMARY KEY CLUSTERED 
-(
-	[id] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
-GO
-/****** Object:  Table [dbo].[Role_Permissions]    Script Date: 3/28/2026 9:25:30 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-CREATE TABLE [dbo].[Role_Permissions](
-	[role_id] [int] NOT NULL,
-	[permission_id] [int] NOT NULL,
-PRIMARY KEY CLUSTERED 
-(
-	[role_id] ASC,
-	[permission_id] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY]
-GO
-/****** Object:  Table [dbo].[Roles]    Script Date: 3/28/2026 9:25:30 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-CREATE TABLE [dbo].[Roles](
-	[id] [int] IDENTITY(1,1) NOT NULL,
-	[name] [nvarchar](100) NOT NULL,
-	[description] [nvarchar](max) NULL,
-PRIMARY KEY CLUSTERED 
-(
-	[id] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
-GO
-/****** Object:  Table [dbo].[Room_Images]    Script Date: 3/28/2026 9:25:30 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-CREATE TABLE [dbo].[Room_Images](
-	[id] [int] IDENTITY(1,1) NOT NULL,
-	[room_type_id] [int] NULL,
-	[image_url] [nvarchar](max) NOT NULL,
-	[is_primary] [bit] NULL,
-	[is_active] [bit] NULL,
-PRIMARY KEY CLUSTERED 
-(
-	[id] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
-GO
-/****** Object:  Table [dbo].[Room_Inventory]    Script Date: 3/28/2026 9:25:30 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-CREATE TABLE [dbo].[Room_Inventory](
-    [id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-    [room_id] INT NULL,
-    [item_type] NVARCHAR(50) NOT NULL, 
-    [quantity] INT NOT NULL,           
-    [price_if_lost] DECIMAL(18, 2) NOT NULL,
-    [note] NVARCHAR(MAX) NULL,
-    [is_active] BIT NULL,
-    [EquipmentId] INT NOT NULL
+	[is_read] [bit] NOT NULL DEFAULT 0,
+	[created_at] [datetime] NULL DEFAULT GETDATE()
 );
-/****** Object:  Table [dbo].[Room_Types]    Script Date: 3/28/2026 9:25:30 AM ******/
-SET ANSI_NULLS ON
 GO
-SET QUOTED_IDENTIFIER ON
-GO
-CREATE TABLE [dbo].[Room_Types](
-	[id] [int] IDENTITY(1,1) NOT NULL,
-	[name] [nvarchar](255) NOT NULL,
-	[base_price] [decimal](18, 2) NOT NULL,
-	[capacity_adults] [int] NOT NULL,
-	[capacity_children] [int] NOT NULL,
-	[description] [nvarchar](max) NULL,
-	[size_sqm] [int] NULL,
-	[bed_type] [nvarchar](100) NULL,
-	[view_type] [nvarchar](100) NULL,
-	[is_active] [bit] NULL,
-	[slug] [varchar](255) NULL,
-	[content] [nvarchar](max) NULL,
-PRIMARY KEY CLUSTERED 
-(
-	[id] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
-GO
-/****** Object:  Table [dbo].[Rooms]    Script Date: 3/28/2026 9:25:30 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-CREATE TABLE [dbo].[Rooms](
-	[id] [int] IDENTITY(1,1) NOT NULL,
-	[room_type_id] [int] NULL,
-	[room_number] [nvarchar](50) NOT NULL,
-	[floor] [int] NULL,
-	[status] [nvarchar](50) NULL,
-	[cleaning_status] [varchar](50) NULL,
-	[extension_number] [varchar](20) NULL,
-PRIMARY KEY CLUSTERED 
-(
-	[id] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY]
-GO
-/****** Object:  Table [dbo].[RoomType_Amenities]    Script Date: 3/28/2026 9:25:30 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-CREATE TABLE [dbo].[RoomType_Amenities](
-	[room_type_id] [int] NOT NULL,
-	[amenity_id] [int] NOT NULL,
-PRIMARY KEY CLUSTERED 
-(
-	[room_type_id] ASC,
-	[amenity_id] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY]
-GO
-/****** Object:  Table [dbo].[Service_Categories]    Script Date: 3/28/2026 9:25:30 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-CREATE TABLE [dbo].[Service_Categories](
-	[id] [int] IDENTITY(1,1) NOT NULL,
-	[name] [nvarchar](255) NOT NULL,
-PRIMARY KEY CLUSTERED 
-(
-	[id] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY]
-GO
-/****** Object:  Table [dbo].[Services]    Script Date: 3/28/2026 9:25:30 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-CREATE TABLE [dbo].[Services](
-	[id] [int] IDENTITY(1,1) NOT NULL,
-	[category_id] [int] NULL,
-	[name] [nvarchar](255) NOT NULL,
-	[price] [decimal](18, 2) NOT NULL,
-	[unit] [nvarchar](50) NULL,
-PRIMARY KEY CLUSTERED 
-(
-	[id] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY]
-GO
-/****** Object:  Table [dbo].[Users]    Script Date: 3/28/2026 9:25:30 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-CREATE TABLE [dbo].[Users](
-	[id] [int] IDENTITY(1,1) NOT NULL,
-	[role_id] [int] NULL,
-	[membership_id] [int] NULL,
-	[full_name] [nvarchar](255) NOT NULL,
-	[email] [nvarchar](255) NOT NULL,
-	[phone] [nvarchar](50) NULL,
-	[password_hash] [nvarchar](max) NOT NULL,
-	[status] [bit] NULL,
-	[avatar_url] [nvarchar](255) NULL,
-	[created_at] [datetime] NULL,
-	[date_of_birth] [date] NULL,
-	[address] [nvarchar](500) NULL,
-PRIMARY KEY CLUSTERED 
-(
-	[id] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
-GO
-/****** Object:  Table [dbo].[Vouchers]    Script Date: 3/28/2026 9:25:30 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
-CREATE TABLE [dbo].[Vouchers](
-	[id] [int] IDENTITY(1,1) NOT NULL,
-	[code] [nvarchar](50) NOT NULL,
-	[discount_type] [nvarchar](50) NOT NULL,
-	[discount_value] [decimal](18, 2) NOT NULL,
-	[min_booking_value] [decimal](18, 2) NULL,
-	[valid_from] [datetime] NULL,
-	[valid_to] [datetime] NULL,
-	[usage_limit] [int] NULL,
-PRIMARY KEY CLUSTERED 
-(
-	[id] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY]
-GO
+-- ========================================================================
+-- PHẦN 2: CHÈN DỮ LIỆU & THIẾT LẬP KHÓA NGOẠI (FOREIGN KEYS)
+-- ========================================================================
+
 SET IDENTITY_INSERT [dbo].[Amenities] ON 
 
 INSERT [dbo].[Amenities] ([id], [name], [icon_url], [is_active]) VALUES (1, N'Wifi Miễn Phí', N'wifi.png', 1)
@@ -1411,6 +1296,44 @@ INSERT [dbo].[Roles] ([id], [name], [description]) VALUES
 SET IDENTITY_INSERT [dbo].[Roles] OFF
 GO
 
+-- Chèn danh sách 17 Quyền hạn
+SET IDENTITY_INSERT [dbo].[Permissions] ON;
+IF NOT EXISTS (SELECT 1 FROM [dbo].[Permissions] WHERE id = 1)
+BEGIN
+    INSERT [dbo].[Permissions] ([id], [name], [description]) VALUES 
+    (1, N'VIEW_DASHBOARD', N'Xem bảng điều khiển tổng quan'),
+    (2, N'MANAGE_USERS', N'Quản lý tài khoản người dùng'),
+    (3, N'MANAGE_ROLES', N'Quản lý các vai trò phân quyền'),
+    (4, N'MANAGE_ROOMS', N'Quản lý danh mục và phòng'),
+    (5, N'MANAGE_BOOKINGS', N'Quản lý các đơn đặt phòng'),
+    (6, N'MANAGE_INVOICES', N'Quản lý hóa đơn và thanh toán'),
+    (7, N'MANAGE_SERVICES', N'Quản lý các dịch vụ đi kèm'),
+    (8, N'VIEW_REPORTS', N'Xem các báo cáo thống kê'),
+    (9, N'MANAGE_CONTENT', N'Quản lý bài viết và nội dung'),
+    (10, N'MANAGE_INVENTORY', N'Quản lý kho và tài sản thiết bị'),
+    (11, N'VIEW_SYSTEM_LOGS', N'Xem nhật ký hệ thống'),
+    (12, N'VIEW_NOTIFICATIONS', N'Xem thông báo'),
+    (13, N'VIEW_ROOMS', N'Xem trạng thái phòng'),
+    (14, N'UPDATE_ROOM_STATUS', N'Cập nhật dọn phòng'),
+    (15, N'CHECK_IN_OUT', N'Thủ tục nhận/trả phòng'),
+    (16, N'MANAGE_AMENITIES', N'Quản lý tiện nghi'),
+    (17, N'MANAGE_MAINTENANCE', N'Quản lý bảo trì');
+END
+SET IDENTITY_INSERT [dbo].[Permissions] OFF;
+GO
+
+-- Phân quyền cho các vai trò (Các role 6-10 hiện tại chưa có quyền admin dashboard, nếu cần bạn có thể thêm sau)
+IF NOT EXISTS (SELECT 1 FROM [dbo].[Role_Permissions] WHERE role_id = 1)
+BEGIN
+    INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES 
+    (1,1), (1,2), (1,3), (1,4), (1,5), (1,6), (1,7), (1,8), (1,9), (1,10), (1,11), (1,12), (1,13), (1,14), (1,15), (1,16), (1,17), -- Admin
+    (2,1), (2,4), (2,5), (2,6), (2,7), (2,8), (2,10), -- Manager
+    (3,1), (3,4), (3,5), (3,6), (3,7), -- Receptionist
+    (4,1), (4,6), (4,8), -- Accountant
+    (5,4), (5,10); -- Housekeeping
+END
+GO
+
 SET IDENTITY_INSERT [dbo].[Users] ON 
 
 INSERT [dbo].[Users] ([id], [role_id], [membership_id], [full_name], [email], [phone], [password_hash], [status], [avatar_url], [created_at], [date_of_birth], [address]) VALUES (1, 1, NULL, N'Admin', N'admin@hotel.com', N'0589784564', N'$2a$11$Ps2lDwm2Ewmq8R7aWM4G3OAL.YeltOJLTideDnNcJXGbXDWB6zO2C', 1, N'https://res.cloudinary.com/dzfuzh2xg/image/upload/v1773398430/QuanTriKhachSan/Avatars/ufmestnrdxqu9ulbgkko.png', NULL, NULL, NULL)
@@ -1445,389 +1368,13 @@ INSERT [dbo].[Vouchers] ([id], [code], [discount_type], [discount_value], [min_b
 INSERT [dbo].[Vouchers] ([id], [code], [discount_type], [discount_value], [min_booking_value], [valid_from], [valid_to], [usage_limit]) VALUES (10, N'KM10', N'FIXED_AMOUNT', CAST(1000000.00 AS Decimal(18, 2)), CAST(20000000.00 AS Decimal(18, 2)), CAST(N'2025-01-01T00:00:00.000' AS DateTime), CAST(N'2026-12-31T00:00:00.000' AS DateTime), 2)
 SET IDENTITY_INSERT [dbo].[Vouchers] OFF
 GO
-SET ANSI_PADDING ON
-GO
-/****** Object:  Index [UQ__Articles__32DD1E4C621B9F62]    Script Date: 3/28/2026 9:25:30 AM ******/
-ALTER TABLE [dbo].[Articles] ADD UNIQUE NONCLUSTERED 
-(
-	[slug] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, SORT_IN_TEMPDB = OFF, IGNORE_DUP_KEY = OFF, ONLINE = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-GO
-SET ANSI_PADDING ON
-GO
-/****** Object:  Index [UQ__Bookings__FF29040FE8CDD631]    Script Date: 3/28/2026 9:25:30 AM ******/
-ALTER TABLE [dbo].[Bookings] ADD UNIQUE NONCLUSTERED 
-(
-	[booking_code] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, SORT_IN_TEMPDB = OFF, IGNORE_DUP_KEY = OFF, ONLINE = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-GO
-SET ANSI_PADDING ON
-GO
-/****** Object:  Index [UQ__Equipmen__3ECC0FEA57E3E7F2]    Script Date: 3/28/2026 9:25:30 AM ******/
-ALTER TABLE [dbo].[Equipments] ADD UNIQUE NONCLUSTERED 
-(
-	[ItemCode] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, SORT_IN_TEMPDB = OFF, IGNORE_DUP_KEY = OFF, ONLINE = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-GO
-/****** Object:  Index [IX_Notifications_UserId_IsRead]    Script Date: 3/28/2026 9:25:30 AM ******/
-CREATE NONCLUSTERED INDEX [IX_Notifications_UserId_IsRead] ON [dbo].[Notifications]
-(
-	[user_id] ASC,
-	[is_read] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, SORT_IN_TEMPDB = OFF, DROP_EXISTING = OFF, ONLINE = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-GO
-SET ANSI_PADDING ON
-GO
-/****** Object:  Index [UQ__Users__AB6E61641B61BEEC]    Script Date: 3/28/2026 9:25:30 AM ******/
-ALTER TABLE [dbo].[Users] ADD UNIQUE NONCLUSTERED 
-(
-	[email] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, SORT_IN_TEMPDB = OFF, IGNORE_DUP_KEY = OFF, ONLINE = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-GO
-SET ANSI_PADDING ON
-GO
-/****** Object:  Index [UQ__Vouchers__357D4CF9D9E4CA0D]    Script Date: 3/28/2026 9:25:30 AM ******/
-ALTER TABLE [dbo].[Vouchers] ADD UNIQUE NONCLUSTERED 
-(
-	[code] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, SORT_IN_TEMPDB = OFF, IGNORE_DUP_KEY = OFF, ONLINE = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-GO
-ALTER TABLE [dbo].[Amenities] ADD  DEFAULT ((1)) FOR [is_active]
-GO
-ALTER TABLE [dbo].[Article_Categories] ADD  DEFAULT ((1)) FOR [is_active]
-GO
-ALTER TABLE [dbo].[Articles] ADD  DEFAULT (getdate()) FOR [published_at]
-GO
-ALTER TABLE [dbo].[Articles] ADD  DEFAULT ((1)) FOR [is_active]
-GO
-ALTER TABLE [dbo].[Attractions] ADD  DEFAULT ((1)) FOR [is_active]
-GO
-ALTER TABLE [dbo].[Audit_Logs] ADD  DEFAULT (getdate()) FOR [created_at]
-GO
-ALTER TABLE [dbo].[Bookings] ADD  DEFAULT ('Pending') FOR [status]
-GO
-ALTER TABLE [dbo].[Equipments] ADD  DEFAULT ((0)) FOR [TotalQuantity]
-GO
-ALTER TABLE [dbo].[Equipments] ADD  DEFAULT ((0)) FOR [InUseQuantity]
-GO
-ALTER TABLE [dbo].[Equipments] ADD  DEFAULT ((0)) FOR [DamagedQuantity]
-GO
-ALTER TABLE [dbo].[Equipments] ADD  DEFAULT ((0)) FOR [LiquidatedQuantity]
-GO
-ALTER TABLE [dbo].[Equipments] ADD  DEFAULT ((0)) FOR [BasePrice]
-GO
-ALTER TABLE [dbo].[Equipments] ADD  DEFAULT ((0)) FOR [DefaultPriceIfLost]
-GO
-ALTER TABLE [dbo].[Equipments] ADD  DEFAULT ((1)) FOR [IsActive]
-GO
-ALTER TABLE [dbo].[Equipments] ADD  DEFAULT (getutcdate()) FOR [CreatedAt]
-GO
-ALTER TABLE [dbo].[Invoices] ADD  DEFAULT ((0)) FOR [total_room_amount]
-GO
-ALTER TABLE [dbo].[Invoices] ADD  DEFAULT ((0)) FOR [total_service_amount]
-GO
-ALTER TABLE [dbo].[Invoices] ADD  DEFAULT ((0)) FOR [discount_amount]
-GO
-ALTER TABLE [dbo].[Invoices] ADD  DEFAULT ((0)) FOR [tax_amount]
-GO
-ALTER TABLE [dbo].[Invoices] ADD  DEFAULT ((0)) FOR [final_total]
-GO
-ALTER TABLE [dbo].[Invoices] ADD  DEFAULT ('Unpaid') FOR [status]
-GO
-ALTER TABLE [dbo].[Loss_And_Damages] ADD  DEFAULT (getdate()) FOR [created_at]
-GO
-ALTER TABLE [dbo].[Memberships] ADD  DEFAULT ((0)) FOR [min_points]
-GO
-ALTER TABLE [dbo].[Memberships] ADD  DEFAULT ((0.00)) FOR [discount_percent]
-GO
-ALTER TABLE [dbo].[Notifications] ADD  CONSTRAINT [DF_Notifications_is_read]  DEFAULT ((0)) FOR [is_read]
-GO
-ALTER TABLE [dbo].[Notifications] ADD  CONSTRAINT [DF_Notifications_created_at]  DEFAULT (getdate()) FOR [created_at]
-GO
-ALTER TABLE [dbo].[Order_Services] ADD  DEFAULT (getdate()) FOR [order_date]
-GO
-ALTER TABLE [dbo].[Order_Services] ADD  DEFAULT ((0)) FOR [total_amount]
-GO
-ALTER TABLE [dbo].[Order_Services] ADD  DEFAULT ('Pending') FOR [status]
-GO
-ALTER TABLE [dbo].[Payments] ADD  DEFAULT (getdate()) FOR [payment_date]
-GO
-ALTER TABLE [dbo].[Reviews] ADD  DEFAULT (getdate()) FOR [created_at]
-GO
-ALTER TABLE [dbo].[Room_Images] ADD  DEFAULT ((0)) FOR [is_primary]
-GO
-ALTER TABLE [dbo].[Room_Images] ADD  DEFAULT ((1)) FOR [is_active]
-GO
-ALTER TABLE [dbo].[Room_Inventory] ADD  DEFAULT ((1)) FOR [quantity]
-GO
-ALTER TABLE [dbo].[Room_Inventory] ADD  DEFAULT ((0)) FOR [price_if_lost]
-GO
-ALTER TABLE [dbo].[Room_Inventory] ADD  DEFAULT ((1)) FOR [is_active]
-GO
-ALTER TABLE [dbo].[Room_Inventory] ADD  DEFAULT ('Asset') FOR [item_type]
-GO
-ALTER TABLE [dbo].[Room_Types] ADD  DEFAULT ((1)) FOR [is_active]
-GO
-ALTER TABLE [dbo].[Rooms] ADD  DEFAULT ('Available') FOR [status]
-GO
-ALTER TABLE [dbo].[Rooms] ADD  DEFAULT ('Clean') FOR [cleaning_status]
-GO
-ALTER TABLE [dbo].[Users] ADD  DEFAULT ((1)) FOR [status]
-GO
-ALTER TABLE [dbo].[Vouchers] ADD  DEFAULT ((0)) FOR [min_booking_value]
-GO
-ALTER TABLE [dbo].[Articles]  WITH CHECK ADD FOREIGN KEY([author_id])
-REFERENCES [dbo].[Users] ([id])
-GO
-ALTER TABLE [dbo].[Articles]  WITH CHECK ADD FOREIGN KEY([category_id])
-REFERENCES [dbo].[Article_Categories] ([id])
-GO
-ALTER TABLE [dbo].[Audit_Logs]  WITH CHECK ADD FOREIGN KEY([user_id])
-REFERENCES [dbo].[Users] ([id])
-GO
-ALTER TABLE [dbo].[Booking_Details]  WITH CHECK ADD FOREIGN KEY([booking_id])
-REFERENCES [dbo].[Bookings] ([id])
-GO
-ALTER TABLE [dbo].[Booking_Details]  WITH CHECK ADD FOREIGN KEY([room_id])
-REFERENCES [dbo].[Rooms] ([id])
-GO
-ALTER TABLE [dbo].[Booking_Details]  WITH CHECK ADD FOREIGN KEY([room_type_id])
-REFERENCES [dbo].[Room_Types] ([id])
-GO
-ALTER TABLE [dbo].[Bookings]  WITH CHECK ADD FOREIGN KEY([user_id])
-REFERENCES [dbo].[Users] ([id])
-GO
-ALTER TABLE [dbo].[Bookings]  WITH CHECK ADD FOREIGN KEY([voucher_id])
-REFERENCES [dbo].[Vouchers] ([id])
-GO
-ALTER TABLE [dbo].[Invoices]  WITH CHECK ADD FOREIGN KEY([booking_id])
-REFERENCES [dbo].[Bookings] ([id])
-GO
-ALTER TABLE [dbo].[Loss_And_Damages]  WITH CHECK ADD FOREIGN KEY([booking_detail_id])
-REFERENCES [dbo].[Booking_Details] ([id])
-GO
-ALTER TABLE [dbo].[Loss_And_Damages]  WITH CHECK ADD FOREIGN KEY([room_inventory_id])
-REFERENCES [dbo].[Room_Inventory] ([id])
-GO
-ALTER TABLE [dbo].[Notifications]  WITH CHECK ADD  CONSTRAINT [FK_Notifications_Users] FOREIGN KEY([user_id])
-REFERENCES [dbo].[Users] ([id])
-GO
-ALTER TABLE [dbo].[Notifications] CHECK CONSTRAINT [FK_Notifications_Users]
-GO
-ALTER TABLE [dbo].[Order_Service_Details]  WITH CHECK ADD FOREIGN KEY([order_service_id])
-REFERENCES [dbo].[Order_Services] ([id])
-GO
-ALTER TABLE [dbo].[Order_Service_Details]  WITH CHECK ADD FOREIGN KEY([service_id])
-REFERENCES [dbo].[Services] ([id])
-GO
-ALTER TABLE [dbo].[Order_Services]  WITH CHECK ADD FOREIGN KEY([booking_detail_id])
-REFERENCES [dbo].[Booking_Details] ([id])
-GO
-ALTER TABLE [dbo].[Payments]  WITH CHECK ADD FOREIGN KEY([invoice_id])
-REFERENCES [dbo].[Invoices] ([id])
-GO
-ALTER TABLE [dbo].[Reviews]  WITH CHECK ADD FOREIGN KEY([room_type_id])
-REFERENCES [dbo].[Room_Types] ([id])
-GO
-ALTER TABLE [dbo].[Reviews]  WITH CHECK ADD FOREIGN KEY([user_id])
-REFERENCES [dbo].[Users] ([id])
-GO
-ALTER TABLE [dbo].[Role_Permissions]  WITH CHECK ADD FOREIGN KEY([permission_id])
-REFERENCES [dbo].[Permissions] ([id])
-GO
-ALTER TABLE [dbo].[Role_Permissions]  WITH CHECK ADD FOREIGN KEY([role_id])
-REFERENCES [dbo].[Roles] ([id])
-GO
-ALTER TABLE [dbo].[Room_Images]  WITH CHECK ADD FOREIGN KEY([room_type_id])
-REFERENCES [dbo].[Room_Types] ([id])
-GO
-ALTER TABLE [dbo].[Room_Inventory]  WITH CHECK ADD FOREIGN KEY([room_id])
-REFERENCES [dbo].[Rooms] ([id])
-GO
-ALTER TABLE [dbo].[Room_Inventory]  WITH CHECK ADD  CONSTRAINT [FK_RoomInventory_Equipments] FOREIGN KEY([EquipmentId])
-REFERENCES [dbo].[Equipments] ([Id])
-GO
-ALTER TABLE [dbo].[Room_Inventory] CHECK CONSTRAINT [FK_RoomInventory_Equipments]
-GO
-ALTER TABLE [dbo].[Rooms]  WITH CHECK ADD FOREIGN KEY([room_type_id])
-REFERENCES [dbo].[Room_Types] ([id])
-GO
-ALTER TABLE [dbo].[RoomType_Amenities]  WITH CHECK ADD FOREIGN KEY([amenity_id])
-REFERENCES [dbo].[Amenities] ([id])
-GO
-ALTER TABLE [dbo].[RoomType_Amenities]  WITH CHECK ADD FOREIGN KEY([room_type_id])
-REFERENCES [dbo].[Room_Types] ([id])
-GO
-ALTER TABLE [dbo].[Services]  WITH CHECK ADD FOREIGN KEY([category_id])
-REFERENCES [dbo].[Service_Categories] ([id])
-GO
-ALTER TABLE [dbo].[Users]  WITH CHECK ADD FOREIGN KEY([membership_id])
-REFERENCES [dbo].[Memberships] ([id])
-GO
-ALTER TABLE [dbo].[Users]  WITH CHECK ADD FOREIGN KEY([role_id])
-REFERENCES [dbo].[Roles] ([id])
-GO
-ALTER TABLE [dbo].[Reviews]  WITH CHECK ADD CHECK  (([rating]>=(1) AND [rating]<=(5)))
-GO
-USE [master]
-GO
-ALTER DATABASE [HotelManagementDB] SET  READ_WRITE 
-GO
 
 
--- =========================================================================
--- PHẦN BỔ SUNG: CẬP NHẬT CẤU TRÚC VÀ DỮ LIỆU TỪ BACKEND CỦA SINH VIÊN
--- BẠN CHỈ CẦN PASTE ĐOẠN NÀY VÀO DƯỚI CÙNG CỦA FILE GIẢNG VIÊN LÀ XONG!
--- =========================================================================
-
-USE [HotelManagementDB];
+-- ========================================================================
+-- 2. CẬP NHẬT DỮ LIỆU MẪU & PHÂN QUYỀN TỰ ĐỘNG (Dựa trên code bạn cung cấp)
+-- ========================================================================
 GO
-
--- 1. TẠO BẢNG MỚI (User_Permissions & Refresh_Tokens)
-IF OBJECT_ID(N'[dbo].[User_Permissions]', N'U') IS NULL
-BEGIN
-    CREATE TABLE [dbo].[User_Permissions] (
-        [user_id] INT NOT NULL,
-        [permission_id] INT NOT NULL,
-        [is_granted] BIT NOT NULL, 
-        [created_at] DATETIME DEFAULT GETDATE(),
-        CONSTRAINT [PK_User_Permissions] PRIMARY KEY ([user_id], [permission_id]),
-        CONSTRAINT [FK_UserPermissions_Users] FOREIGN KEY ([user_id]) REFERENCES [dbo].[Users]([id]),
-        CONSTRAINT [FK_UserPermissions_Permissions] FOREIGN KEY ([permission_id]) REFERENCES [dbo].[Permissions]([id])
-    );
-END
-
-IF OBJECT_ID(N'[dbo].[Refresh_Tokens]', N'U') IS NULL
-BEGIN
-    CREATE TABLE [dbo].[Refresh_Tokens] (
-        [id] int NOT NULL IDENTITY(1,1),
-        [user_id] int NOT NULL,
-        [token] nvarchar(500) NOT NULL,
-        [jwt_id] nvarchar(255) NOT NULL,
-        [is_used] bit NOT NULL DEFAULT 0,
-        [is_revoked] bit NOT NULL DEFAULT 0,
-        [created_at] datetime NOT NULL DEFAULT GETDATE(),
-        [expire_at] datetime NOT NULL,
-        CONSTRAINT [PK_Refresh_Tokens] PRIMARY KEY ([id]),
-        CONSTRAINT [FK_RefreshTokens_Users] FOREIGN KEY ([user_id]) REFERENCES [dbo].[Users] ([id])
-    );
-    CREATE INDEX [IX_Refresh_Tokens_user_id] ON [dbo].[Refresh_Tokens] ([user_id]);
-END
-GO
-
--- 2. THÊM CỘT MỚI VÀO CÁC BẢNG HIỆN TẠI (Dùng IF để không lỗi nếu chạy nhiều lần)
-IF COL_LENGTH('dbo.Users', 'avatar_public_id') IS NULL ALTER TABLE [dbo].[Users] ADD [avatar_public_id] NVARCHAR(255) NULL;
-IF COL_LENGTH('dbo.Users', 'loyalty_points') IS NULL ALTER TABLE [dbo].[Users] ADD [loyalty_points] INT NOT NULL DEFAULT 0;
-IF COL_LENGTH('dbo.Users', 'updated_at') IS NULL ALTER TABLE [dbo].[Users] ADD [updated_at] DATETIME NULL;
-IF COL_LENGTH('dbo.Users', 'last_login_at') IS NULL ALTER TABLE [dbo].[Users] ADD [last_login_at] DATETIME NULL;
-
-IF COL_LENGTH('dbo.Roles', 'status') IS NULL ALTER TABLE [dbo].[Roles] ADD [status] NVARCHAR(20) NOT NULL DEFAULT 'ACTIVE';
-IF COL_LENGTH('dbo.Roles', 'created_at') IS NULL ALTER TABLE [dbo].[Roles] ADD [created_at] DATETIME NOT NULL DEFAULT GETDATE();
-IF COL_LENGTH('dbo.Roles', 'updated_at') IS NULL ALTER TABLE [dbo].[Roles] ADD [updated_at] DATETIME NULL;
-
-IF COL_LENGTH('dbo.Permissions', 'description') IS NULL ALTER TABLE [dbo].[Permissions] ADD [description] NVARCHAR(500) NULL;
-IF COL_LENGTH('dbo.Permissions', 'group_name') IS NULL ALTER TABLE [dbo].[Permissions] ADD [group_name] NVARCHAR(100) NULL;
-IF COL_LENGTH('dbo.Permissions', 'created_at') IS NULL ALTER TABLE [dbo].[Permissions] ADD [created_at] DATETIME NOT NULL DEFAULT GETDATE();
-
-IF COL_LENGTH('dbo.Memberships', 'benefits') IS NULL ALTER TABLE [dbo].[Memberships] ADD [benefits] NVARCHAR(1000) NULL;
-IF COL_LENGTH('dbo.Memberships', 'status') IS NULL ALTER TABLE [dbo].[Memberships] ADD [status] NVARCHAR(20) NOT NULL DEFAULT 'ACTIVE';
-IF COL_LENGTH('dbo.Memberships', 'created_at') IS NULL ALTER TABLE [dbo].[Memberships] ADD [created_at] DATETIME NOT NULL DEFAULT GETDATE();
-IF COL_LENGTH('dbo.Memberships', 'updated_at') IS NULL ALTER TABLE [dbo].[Memberships] ADD [updated_at] DATETIME NULL;
-
-IF COL_LENGTH('dbo.Articles', 'summary') IS NULL ALTER TABLE [dbo].[Articles] ADD [summary] NVARCHAR(1000) NULL;
-IF COL_LENGTH('dbo.Articles', 'thumbnail_public_id') IS NULL ALTER TABLE [dbo].[Articles] ADD [thumbnail_public_id] NVARCHAR(255) NULL;
-IF COL_LENGTH('dbo.Articles', 'status') IS NULL ALTER TABLE [dbo].[Articles] ADD [status] NVARCHAR(20) NOT NULL DEFAULT 'ACTIVE';
-IF COL_LENGTH('dbo.Articles', 'created_at') IS NULL ALTER TABLE [dbo].[Articles] ADD [created_at] DATETIME NOT NULL DEFAULT GETDATE();
-IF COL_LENGTH('dbo.Articles', 'updated_at') IS NULL ALTER TABLE [dbo].[Articles] ADD [updated_at] DATETIME NULL;
-
-IF COL_LENGTH('dbo.Room_Types', 'early_checkin_fee_percent') IS NULL ALTER TABLE [dbo].[Room_Types] ADD [early_checkin_fee_percent] DECIMAL(5,2) NOT NULL DEFAULT 0;
-IF COL_LENGTH('dbo.Room_Types', 'late_checkout_fee_percent') IS NULL ALTER TABLE [dbo].[Room_Types] ADD [late_checkout_fee_percent] DECIMAL(5,2) NOT NULL DEFAULT 0;
-IF COL_LENGTH('dbo.Room_Types', 'extra_hour_price') IS NULL ALTER TABLE [dbo].[Room_Types] ADD [extra_hour_price] DECIMAL(18,2) NOT NULL DEFAULT 0;
-IF COL_LENGTH('dbo.Room_Types', 'status') IS NULL ALTER TABLE [dbo].[Room_Types] ADD [status] NVARCHAR(20) NOT NULL DEFAULT 'ACTIVE';
-IF COL_LENGTH('dbo.Room_Types', 'created_at') IS NULL ALTER TABLE [dbo].[Room_Types] ADD [created_at] DATETIME NOT NULL DEFAULT GETDATE();
-IF COL_LENGTH('dbo.Room_Types', 'updated_at') IS NULL ALTER TABLE [dbo].[Room_Types] ADD [updated_at] DATETIME NULL;
-
-IF COL_LENGTH('dbo.Rooms', 'notes') IS NULL ALTER TABLE [dbo].[Rooms] ADD [notes] NVARCHAR(500) NULL;
-IF COL_LENGTH('dbo.Rooms', 'created_at') IS NULL ALTER TABLE [dbo].[Rooms] ADD [created_at] DATETIME NOT NULL DEFAULT GETDATE();
-IF COL_LENGTH('dbo.Rooms', 'updated_at') IS NULL ALTER TABLE [dbo].[Rooms] ADD [updated_at] DATETIME NULL;
-
-IF COL_LENGTH('dbo.Room_Images', 'cloud_public_id') IS NULL ALTER TABLE [dbo].[Room_Images] ADD [cloud_public_id] NVARCHAR(255) NULL;
-IF COL_LENGTH('dbo.Room_Images', 'status') IS NULL ALTER TABLE [dbo].[Room_Images] ADD [status] NVARCHAR(20) NOT NULL DEFAULT 'ACTIVE';
-IF COL_LENGTH('dbo.Room_Images', 'created_at') IS NULL ALTER TABLE [dbo].[Room_Images] ADD [created_at] DATETIME NOT NULL DEFAULT GETDATE();
-
-IF COL_LENGTH('dbo.Bookings', 'booked_at') IS NULL ALTER TABLE [dbo].[Bookings] ADD [booked_at] DATETIME NOT NULL DEFAULT GETDATE();
-IF COL_LENGTH('dbo.Bookings', 'hold_expires_at') IS NULL ALTER TABLE [dbo].[Bookings] ADD [hold_expires_at] DATETIME NULL;
-IF COL_LENGTH('dbo.Bookings', 'booking_subtotal') IS NULL ALTER TABLE [dbo].[Bookings] ADD [booking_subtotal] DECIMAL(18,2) NOT NULL DEFAULT 0;
-IF COL_LENGTH('dbo.Bookings', 'discount_amount') IS NULL ALTER TABLE [dbo].[Bookings] ADD [discount_amount] DECIMAL(18,2) NOT NULL DEFAULT 0;
-IF COL_LENGTH('dbo.Bookings', 'final_amount') IS NULL ALTER TABLE [dbo].[Bookings] ADD [final_amount] DECIMAL(18,2) NOT NULL DEFAULT 0;
-IF COL_LENGTH('dbo.Bookings', 'payment_status') IS NULL ALTER TABLE [dbo].[Bookings] ADD [payment_status] NVARCHAR(50) NOT NULL DEFAULT 'UNPAID';
-IF COL_LENGTH('dbo.Bookings', 'notes') IS NULL ALTER TABLE [dbo].[Bookings] ADD [notes] NVARCHAR(1000) NULL;
-IF COL_LENGTH('dbo.Bookings', 'created_at') IS NULL ALTER TABLE [dbo].[Bookings] ADD [created_at] DATETIME NOT NULL DEFAULT GETDATE();
-IF COL_LENGTH('dbo.Bookings', 'updated_at') IS NULL ALTER TABLE [dbo].[Bookings] ADD [updated_at] DATETIME NULL;
-IF COL_LENGTH('dbo.Bookings', 'is_points_awarded') IS NULL ALTER TABLE [dbo].[Bookings] ADD [is_points_awarded] BIT DEFAULT 0;
-
-IF COL_LENGTH('dbo.Booking_Details', 'adults_count') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [adults_count] INT NOT NULL DEFAULT 1;
-IF COL_LENGTH('dbo.Booking_Details', 'children_count') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [children_count] INT NOT NULL DEFAULT 0;
-IF COL_LENGTH('dbo.Booking_Details', 'nights') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [nights] INT NOT NULL DEFAULT 1;
-IF COL_LENGTH('dbo.Booking_Details', 'early_check_in_fee') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [early_check_in_fee] DECIMAL(18,2) NOT NULL DEFAULT 0;
-IF COL_LENGTH('dbo.Booking_Details', 'late_check_out_fee') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [late_check_out_fee] DECIMAL(18,2) NOT NULL DEFAULT 0;
-IF COL_LENGTH('dbo.Booking_Details', 'line_total') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [line_total] DECIMAL(18,2) NOT NULL DEFAULT 0;
-IF COL_LENGTH('dbo.Booking_Details', 'status') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [status] NVARCHAR(50) NOT NULL DEFAULT 'Booked';
-IF COL_LENGTH('dbo.Booking_Details', 'identity_document_url') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [identity_document_url] NVARCHAR(MAX) NULL;
-IF COL_LENGTH('dbo.Booking_Details', 'actual_check_in_at') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [actual_check_in_at] DATETIME NULL;
-IF COL_LENGTH('dbo.Booking_Details', 'actual_check_out_at') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [actual_check_out_at] DATETIME NULL;
-IF COL_LENGTH('dbo.Booking_Details', 'created_at') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [created_at] DATETIME NOT NULL DEFAULT GETDATE();
-IF COL_LENGTH('dbo.Booking_Details', 'updated_at') IS NULL ALTER TABLE [dbo].[Booking_Details] ADD [updated_at] DATETIME NULL;
-GO
--- DATABASE SETTINGS RESTORED
-ALTER TABLE [dbo].[Audit_Logs]
-ADD CONSTRAINT [FK_AuditLogs_Users] FOREIGN KEY ([user_id]) REFERENCES [dbo].[Users]([id])
-GO
-
-IF COL_LENGTH('dbo.Rooms', 'DeletedAt') IS NULL 
-    ALTER TABLE [dbo].[Rooms] ADD [DeletedAt] DATETIME NULL;
-    
-IF COL_LENGTH('dbo.Services', 'DeletedAt') IS NULL 
-    ALTER TABLE [dbo].[Services] ADD [DeletedAt] DATETIME NULL;
-IF COL_LENGTH('dbo.Equipments', 'DeletedAt') IS NULL 
-    ALTER TABLE [dbo].[Equipments] ADD [DeletedAt] DATETIME NULL;
-
--- BẢNG QUYỀN HẠN & VAI TRÒ
-SET IDENTITY_INSERT [dbo].[Permissions] ON 
-INSERT [dbo].[Permissions] ([id], [name], [description]) VALUES 
-(1, N'VIEW_DASHBOARD', N'Xem bảng điều khiển'),
-(2, N'MANAGE_USERS', N'Quản lý nhân sự'),
-(3, N'MANAGE_ROLES', N'Quản lý chức vụ & quyền'),
-(4, N'MANAGE_ROOMS', N'Quản lý danh mục phòng'),
-(5, N'MANAGE_BOOKINGS', N'Quản lý đặt phòng'),
-(6, N'MANAGE_INVOICES', N'Quản lý hóa đơn'),
-(7, N'MANAGE_SERVICES', N'Quản lý dịch vụ'),
-(8, N'VIEW_REPORTS', N'Xem báo cáo'),
-(9, N'MANAGE_CONTENT', N'Quản lý bài viết/tin tức'),
-(10, N'MANAGE_INVENTORY', N'Quản lý kho vật tư'),
-(11, N'VIEW_SYSTEM_LOGS', N'Xem nhật ký hệ thống'),
-(12, N'VIEW_NOTIFICATIONS', N'Xem thông báo'),
-(13, N'VIEW_ROOMS', N'Xem trạng thái phòng'),
-(14, N'UPDATE_ROOM_STATUS', N'Cập nhật dọn phòng'),
-(15, N'CHECK_IN_OUT', N'Thủ tục nhận/trả phòng'),
-(16, N'MANAGE_AMENITIES', N'Quản lý tiện nghi'),
-(17, N'MANAGE_MAINTENANCE', N'Quản lý bảo trì')
-SET IDENTITY_INSERT [dbo].[Permissions] OFF
-GO
-
-
--- PHÂN QUYỀN CHO CÁC VAI TRÒ (RBAC)
-INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES 
-(1,1), (1,2), (1,3), (1,4), (1,5), (1,6), (1,7), (1,8), (1,9), (1,10), (1,11), (1,12), (1,13), (1,14), (1,15), (1,16), (1,17), -- Admin (Full 17 Quyền)
-(2,1), (2,4), (2,5), (2,6), (2,7), (2,8), (2,10), -- Manager
-(3,1), (3,4), (3,5), (3,6), (3,7), -- Receptionist
-(4,1), (4,6), (4,8), -- Accountant
-(5,4), (5,10) -- Housekeeping
-GO
-
-
-
--- 4. CẬP NHẬT PASSWORD MỚI (Mã hóa Bcrypt của bạn) CHO CÁC TÀI KHOẢN MẪU
+-- Cập nhật Password (Mã hóa Bcrypt) cho các tài khoản mẫu
 UPDATE [dbo].[Users] 
 SET [password_hash] = N'$2y$10$wN7KjZt59g0xK5A03v0s/eTq8P9g9B1N0jU3zR5M5N0x3B8b6Q1Oa' 
 WHERE [email] IN (
@@ -1835,9 +1382,8 @@ WHERE [email] IN (
     'reception2@hotel.com', 'accountant@hotel.com', 'guestA@gmail.com', 
     'guestB@gmail.com', 'guestC@gmail.com', 'guestD@gmail.com', 'guestE@gmail.com'
 );
-GO
 
--- Cập nhật mô tả (description) cho các quyền đã có sẵn của Giảng viên
+-- Cập nhật mô tả (description) cho các quyền
 UPDATE [dbo].[Permissions] SET [description] = N'Xem bảng điều khiển tổng quan' WHERE [name] = 'VIEW_DASHBOARD';
 UPDATE [dbo].[Permissions] SET [description] = N'Quản lý tài khoản người dùng' WHERE [name] = 'MANAGE_USERS';
 UPDATE [dbo].[Permissions] SET [description] = N'Quản lý các vai trò phân quyền' WHERE [name] = 'MANAGE_ROLES';
@@ -1848,154 +1394,70 @@ UPDATE [dbo].[Permissions] SET [description] = N'Quản lý các dịch vụ đi
 UPDATE [dbo].[Permissions] SET [description] = N'Xem các báo cáo thống kê' WHERE [name] = 'VIEW_REPORTS';
 UPDATE [dbo].[Permissions] SET [description] = N'Quản lý bài viết và nội dung' WHERE [name] = 'MANAGE_CONTENT';
 UPDATE [dbo].[Permissions] SET [description] = N'Quản lý kho và tài sản thiết bị' WHERE [name] = 'MANAGE_INVENTORY';
-UPDATE [dbo].[Permissions] SET [description] = N'Xem danh sách người dùng' WHERE [name] = 'VIEW_USERS';
-UPDATE [dbo].[Permissions] SET [description] = N'Xem danh sách vai trò' WHERE [name] = 'VIEW_ROLES';
-UPDATE [dbo].[Permissions] SET [description] = N'Chỉnh sửa thông tin vai trò' WHERE [name] = 'EDIT_ROLES';
-UPDATE [dbo].[Permissions] SET [description] = N'Tạo tài khoản người dùng mới' WHERE [name] = 'CREATE_USERS';
 GO
 
+-- ========================================================================
+-- 3. THIẾT LẬP TOÀN BỘ KHÓA NGOẠI (FOREIGN KEYS)
+-- ========================================================================
+ALTER TABLE [dbo].[Articles] WITH CHECK ADD FOREIGN KEY([author_id]) REFERENCES [dbo].[Users] ([id]);
+ALTER TABLE [dbo].[Articles] WITH CHECK ADD FOREIGN KEY([category_id]) REFERENCES [dbo].[Article_Categories] ([id]);
 
--- Cập nhật bảng Attractions
-ALTER TABLE Attractions ADD 
-    ImageUrl nvarchar(max) NULL, 
-    ImagePublicId nvarchar(255) NULL, 
-    CreatedAt datetime NULL, 
-    Status varchar(50) DEFAULT 'ACTIVE';
+ALTER TABLE [dbo].[Audit_Logs] WITH CHECK ADD CONSTRAINT [FK_AuditLogs_Users] FOREIGN KEY([user_id]) REFERENCES [dbo].[Users] ([id]);
+
+ALTER TABLE [dbo].[Booking_Details] WITH CHECK ADD FOREIGN KEY([booking_id]) REFERENCES [dbo].[Bookings] ([id]);
+ALTER TABLE [dbo].[Booking_Details] WITH CHECK ADD FOREIGN KEY([room_id]) REFERENCES [dbo].[Rooms] ([id]);
+ALTER TABLE [dbo].[Booking_Details] WITH CHECK ADD FOREIGN KEY([room_type_id]) REFERENCES [dbo].[Room_Types] ([id]);
+
+ALTER TABLE [dbo].[Bookings] WITH CHECK ADD FOREIGN KEY([user_id]) REFERENCES [dbo].[Users] ([id]);
+ALTER TABLE [dbo].[Bookings] WITH CHECK ADD FOREIGN KEY([voucher_id]) REFERENCES [dbo].[Vouchers] ([id]);
+
+ALTER TABLE [dbo].[Invoices] WITH CHECK ADD FOREIGN KEY([booking_id]) REFERENCES [dbo].[Bookings] ([id]);
+
+ALTER TABLE [dbo].[Loss_And_Damages] WITH CHECK ADD FOREIGN KEY([booking_detail_id]) REFERENCES [dbo].[Booking_Details] ([id]);
+ALTER TABLE [dbo].[Loss_And_Damages] WITH CHECK ADD FOREIGN KEY([room_inventory_id]) REFERENCES [dbo].[Room_Inventory] ([id]);
+
+ALTER TABLE [dbo].[Notifications] WITH CHECK ADD CONSTRAINT [FK_Notifications_Users] FOREIGN KEY([user_id]) REFERENCES [dbo].[Users] ([id]);
+
+ALTER TABLE [dbo].[Order_Service_Details] WITH CHECK ADD FOREIGN KEY([order_service_id]) REFERENCES [dbo].[Order_Services] ([id]);
+ALTER TABLE [dbo].[Order_Service_Details] WITH CHECK ADD FOREIGN KEY([service_id]) REFERENCES [dbo].[Services] ([id]);
+
+ALTER TABLE [dbo].[Order_Services] WITH CHECK ADD FOREIGN KEY([booking_detail_id]) REFERENCES [dbo].[Booking_Details] ([id]);
+
+ALTER TABLE [dbo].[Payments] WITH CHECK ADD FOREIGN KEY([invoice_id]) REFERENCES [dbo].[Invoices] ([id]);
+
+ALTER TABLE [dbo].[Refresh_Tokens] WITH CHECK ADD CONSTRAINT [FK_RefreshTokens_Users] FOREIGN KEY([user_id]) REFERENCES [dbo].[Users] ([id]);
+
+ALTER TABLE [dbo].[Reviews] WITH CHECK ADD FOREIGN KEY([room_type_id]) REFERENCES [dbo].[Room_Types] ([id]);
+ALTER TABLE [dbo].[Reviews] WITH CHECK ADD FOREIGN KEY([user_id]) REFERENCES [dbo].[Users] ([id]);
+
+ALTER TABLE [dbo].[Role_Permissions] WITH CHECK ADD FOREIGN KEY([permission_id]) REFERENCES [dbo].[Permissions] ([id]);
+ALTER TABLE [dbo].[Role_Permissions] WITH CHECK ADD FOREIGN KEY([role_id]) REFERENCES [dbo].[Roles] ([id]);
+
+ALTER TABLE [dbo].[Room_Images] WITH CHECK ADD FOREIGN KEY([room_type_id]) REFERENCES [dbo].[Room_Types] ([id]);
+
+ALTER TABLE [dbo].[Room_Inventory] WITH CHECK ADD CONSTRAINT [FK_RoomInventory_Rooms] FOREIGN KEY([room_id]) REFERENCES [dbo].[Rooms] ([id]);
+ALTER TABLE [dbo].[Room_Inventory] WITH CHECK ADD CONSTRAINT [FK_RoomInventory_Equipments] FOREIGN KEY([EquipmentId]) REFERENCES [dbo].[Equipments] ([Id]);
+
+ALTER TABLE [dbo].[Rooms] WITH CHECK ADD FOREIGN KEY([room_type_id]) REFERENCES [dbo].[Room_Types] ([id]);
+
+ALTER TABLE [dbo].[RoomType_Amenities] WITH CHECK ADD FOREIGN KEY([amenity_id]) REFERENCES [dbo].[Amenities] ([id]);
+ALTER TABLE [dbo].[RoomType_Amenities] WITH CHECK ADD FOREIGN KEY([room_type_id]) REFERENCES [dbo].[Room_Types] ([id]);
+
+ALTER TABLE [dbo].[Services] WITH CHECK ADD FOREIGN KEY([category_id]) REFERENCES [dbo].[Service_Categories] ([id]);
+
+ALTER TABLE [dbo].[User_Permissions] WITH CHECK ADD CONSTRAINT [FK_UserPermissions_Users] FOREIGN KEY([user_id]) REFERENCES [dbo].[Users] ([id]);
+ALTER TABLE [dbo].[User_Permissions] WITH CHECK ADD CONSTRAINT [FK_UserPermissions_Permissions] FOREIGN KEY([permission_id]) REFERENCES [dbo].[Permissions] ([id]);
+
+ALTER TABLE [dbo].[Users] WITH CHECK ADD FOREIGN KEY([membership_id]) REFERENCES [dbo].[Memberships] ([id]);
+ALTER TABLE [dbo].[Users] WITH CHECK ADD FOREIGN KEY([role_id]) REFERENCES [dbo].[Roles] ([id]);
 GO
 
--- Cập nhật bảng Articles
--- Tìm đoạn này ở cuối file và thay thế bằng nội dung bên dưới
-IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[Articles]') AND name = 'summary')
-BEGIN
-    ALTER TABLE [dbo].[Articles] ADD [summary] NVARCHAR(1000) NULL;
-END
+-- ========================================================================
+-- 4. BẬT LẠI KIỂM TRA KHÓA NGOẠI VÀ HOÀN TẤT
+-- ========================================================================
+EXEC sp_msforeachtable 'ALTER TABLE ? CHECK CONSTRAINT ALL';
 GO
 
-IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[Articles]') AND name = 'thumbnail_public_id')
-BEGIN
-    ALTER TABLE [dbo].[Articles] ADD [thumbnail_public_id] NVARCHAR(255) NULL;
-END
-GO
-
-IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[Articles]') AND name = 'status')
-BEGIN
-    ALTER TABLE [dbo].[Articles] ADD [status] NVARCHAR(20) NOT NULL DEFAULT 'ACTIVE';
-END
-GO
-
--- Cập nhật bảng Reviews
-ALTER TABLE Reviews ADD 
-    ImageUrl nvarchar(max) NULL, 
-    ImagePublicId nvarchar(255) NULL, 
-    IsApproved bit DEFAULT 1,
-    Status varchar(50) DEFAULT 'VISIBLE';
-
-GO
--- Thêm cột cho Role_Permissions
-ALTER TABLE [dbo].[Role_Permissions] ADD [created_at] DATETIME DEFAULT GETDATE();
-GO
-
--- Thêm cột cho Audit_Logs
-ALTER TABLE [dbo].[Audit_Logs] ADD [reason] NVARCHAR(1000) NULL;
-GO
-
--- 1. Tìm và xóa Default Constraint (đang set 'ACTIVE') vừa được thêm ở bước trước
-DECLARE @ConstraintName nvarchar(200);
-SELECT @ConstraintName = name 
-FROM sys.default_constraints 
-WHERE parent_object_id = OBJECT_ID('[dbo].[Users]') 
-  AND parent_column_id = (SELECT column_id FROM sys.columns WHERE name = 'status' AND object_id = OBJECT_ID('[dbo].[Users]'));
-
-IF @ConstraintName IS NOT NULL
-BEGIN
-    EXEC('ALTER TABLE [dbo].[Users] DROP CONSTRAINT ' + @ConstraintName);
-END
-GO
-
--- 3. Ép kiểu cột status trở lại thành nguyên bản là BIT
-ALTER TABLE [dbo].[Users] ALTER COLUMN [status] [bit] NULL;
-GO
-
--- 4. Thêm lại Default Constraint mặc định là 1 (Hoạt động)
-ALTER TABLE [dbo].[Users] ADD CONSTRAINT DF_Users_Status_Bit DEFAULT ((1)) FOR [status];
-GO
-
-UPDATE [dbo].[Users] SET [created_at] = GETDATE() WHERE [created_at] IS NULL;
-UPDATE [dbo].[Users] SET [updated_at] = GETDATE() WHERE [updated_at] IS NULL;
-GO
-
-INSERT INTO [dbo].[Role_Permissions] ([role_id], [permission_id])
-SELECT 1, id 
-FROM [dbo].[Permissions] 
-WHERE [name] IN (
-    'VIEW_SYSTEM_LOGS', 
-    'VIEW_NOTIFICATIONS', 
-    'VIEW_ROOMS', 
-    'UPDATE_ROOM_STATUS', 
-    'CHECK_IN_OUT', 
-    'MANAGE_AMENITIES', 
-    'MANAGE_MAINTENANCE'
-)
-AND NOT EXISTS (
-    SELECT 1 FROM [dbo].[Role_Permissions] rp 
-    WHERE rp.role_id = 1 AND rp.permission_id = [dbo].[Permissions].id
-);
-GO
-
-
--- Thêm khóa ngoại cho Room_Inventory sau khi bảng Rooms đã được tạo xong
-ALTER TABLE [dbo].[Room_Inventory] ADD CONSTRAINT [FK_RoomInventory_Rooms] FOREIGN KEY ([room_id]) REFERENCES [dbo].[Rooms]([id]);
-GO
-
--- Bổ sung cột cho bảng Room_Types
-IF COL_LENGTH('dbo.Room_Types', 'DeletedAt') IS NULL 
-    ALTER TABLE [dbo].[Room_Types] ADD [DeletedAt] DATETIME NULL;
-
-IF COL_LENGTH('dbo.Room_Types', 'ImageUrl') IS NULL 
-    ALTER TABLE [dbo].[Room_Types] ADD [ImageUrl] NVARCHAR(MAX) NULL;
-
--- Bổ sung cột cho bảng Amenities
-IF COL_LENGTH('dbo.Amenities', 'DeletedAt') IS NULL 
-    ALTER TABLE [dbo].[Amenities] ADD [DeletedAt] DATETIME NULL;
-GO
-
--- ==========================================
--- BỔ SUNG CỘT CHO BẢNG LOSS_AND_DAMAGES
--- ==========================================
-IF COL_LENGTH('dbo.Loss_And_Damages', 'room_id') IS NULL 
-    ALTER TABLE [dbo].[Loss_And_Damages] ADD [room_id] INT NULL;
-
-IF COL_LENGTH('dbo.Loss_And_Damages', 'evidence_image_url') IS NULL 
-    ALTER TABLE [dbo].[Loss_And_Damages] ADD [evidence_image_url] NVARCHAR(MAX) NULL;
-
-IF COL_LENGTH('dbo.Loss_And_Damages', 'evidence_public_id') IS NULL 
-    ALTER TABLE [dbo].[Loss_And_Damages] ADD [evidence_public_id] NVARCHAR(255) NULL;
-
-IF COL_LENGTH('dbo.Loss_And_Damages', 'reported_by_user_id') IS NULL 
-    ALTER TABLE [dbo].[Loss_And_Damages] ADD [reported_by_user_id] INT NULL;
-
-IF COL_LENGTH('dbo.Loss_And_Damages', 'status') IS NULL 
-    ALTER TABLE [dbo].[Loss_And_Damages] ADD [status] NVARCHAR(50) DEFAULT 'Pending';
-
-IF COL_LENGTH('dbo.Loss_And_Damages', 'updated_at') IS NULL 
-    ALTER TABLE [dbo].[Loss_And_Damages] ADD [updated_at] DATETIME NULL;
-
--- ==========================================
--- BỔ SUNG CỘT CHO BẢNG ROOMS
--- ==========================================
-IF COL_LENGTH('dbo.Rooms', 'DeletedAt') IS NULL 
-    ALTER TABLE [dbo].[Rooms] ADD [DeletedAt] DATETIME NULL;
-
-IF COL_LENGTH('dbo.Rooms', 'notes') IS NULL 
-    ALTER TABLE [dbo].[Rooms] ADD [notes] NVARCHAR(MAX) NULL;
-GO
-
--- Bổ sung cột xử lý ảnh Cloudinary và Phí check-in sớm cho bảng Room_Types
-IF COL_LENGTH('dbo.Room_Types', 'CloudinaryPublicId') IS NULL 
-    ALTER TABLE [dbo].[Room_Types] ADD [CloudinaryPublicId] NVARCHAR(255) NULL;
-
-IF COL_LENGTH('dbo.Room_Types', 'early_checkin_fee_percent') IS NULL 
-    ALTER TABLE [dbo].[Room_Types] ADD [early_checkin_fee_percent] DECIMAL(5,2) NOT NULL DEFAULT 0;
-GO
-
-EXEC sp_msforeachtable 'ALTER TABLE ? CHECK CONSTRAINT ALL'
+PRINT '=========================================================';
+PRINT '   KHỞI TẠO DATABASE HOTEL ERP THÀNH CÔNG RỰC RỠ! 🎉   ';
+PRINT '=========================================================';
