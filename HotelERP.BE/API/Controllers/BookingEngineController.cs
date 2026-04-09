@@ -4,6 +4,7 @@ using System.Security.Claims;
 using HotelERP.BE.API.Filters; // Đã sửa thư mục Attributes thành Filters cho chuẩn
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using HotelERP.BE.Constants; 
 
 namespace HotelERP.BE.API.Controllers;
 
@@ -24,6 +25,7 @@ public class BookingEngineController : ControllerBase
     // ==========================================
     
     [HttpPost("search")]
+    [Authorize(Policy = PermissionKeys.ManageBookings)]
     public async Task<IActionResult> Search([FromBody] SearchRoomRequest request) 
     {
         var result = await _bookingService.SearchAvailableRoomsAsync(request);
@@ -32,6 +34,7 @@ public class BookingEngineController : ControllerBase
 
     [HttpPost("hold")]
     [Authorize] // Phải đăng nhập mới được giữ phòng
+    [Authorize(Policy = PermissionKeys.ManageBookings)]
     public async Task<IActionResult> HoldRoom([FromBody] HoldRoomRequest request) 
     {
         try 
@@ -57,6 +60,7 @@ public class BookingEngineController : ControllerBase
     
     [Authorize]
     [HttpPost("multi-booking")]
+    [Authorize(Policy = PermissionKeys.ManageBookings)]
     public async Task<IActionResult> CreateMultiBooking([FromBody] MultiRoomBookingRequest request)
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -70,9 +74,8 @@ public class BookingEngineController : ControllerBase
         return Ok(new { success = true, message = "Đặt phòng thành công (Holding)", bookingId });
     }
 
-    [Authorize(Roles = "Admin")]
-    [HttpPut("admin/force-cancel/{id}")]
-    [AuditLogInterceptor("Admin can thiệp hủy giữ phòng", "Bookings")] 
+    [Authorize(Policy = PermissionKeys.ForceCancelBookings)] 
+    [AuditLogInterceptor("Admin/Manager can thiệp hủy giữ phòng", "Bookings")] 
     public async Task<IActionResult> ForceCancel(int id)
     {
         // Đã đồng bộ sử dụng _bookingService
@@ -82,8 +85,8 @@ public class BookingEngineController : ControllerBase
         return Ok(new { success = true, message = "Đã ép hủy và ghi nhận vào Audit Log." });
     }
 
-    [Authorize(Roles = "Receptionist,Admin")]
     [HttpGet("assignable-rooms/{typeId}")]
+    [Authorize(Policy = PermissionKeys.CheckInOut)]
     public async Task<IActionResult> GetRoomsForCheckIn(int typeId)
     {
         // Đã đồng bộ sử dụng _bookingService
