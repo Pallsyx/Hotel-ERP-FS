@@ -23,6 +23,7 @@ namespace HotelERP.BE.Constants
         public const string ManageBookings = "MANAGE_BOOKINGS";
         public const string ManageInvoices = "MANAGE_INVOICES";
         public const string CheckInOut = "CHECK_IN_OUT";
+        public const string ForceCancelBookings = "FORCE_CANCEL_BOOKINGS";
 
         // 5. Quản lý Dịch vụ & Kho
         public const string ManageServices = "MANAGE_SERVICES";

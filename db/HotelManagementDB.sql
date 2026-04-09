@@ -1478,3 +1478,42 @@ ALTER TABLE Users ADD CONSTRAINT DF_Users_UpdatedAt DEFAULT GETDATE() FOR update
 
 ALTER TABLE Roles ADD CONSTRAINT DF_Roles_CreatedAt DEFAULT GETDATE() FOR created_at;
 ALTER TABLE Roles ADD CONSTRAINT DF_Roles_UpdatedAt DEFAULT GETDATE() FOR updated_at;
+
+-- ========================================================================
+-- 6. BỔ SUNG QUYỀN ÉP HỦY BOOKING CHO ADMIN & MANAGER
+-- ========================================================================
+GO
+
+-- 1. Thêm quyền FORCE_CANCEL_BOOKINGS vào bảng Permissions (nếu chưa có)
+IF NOT EXISTS (SELECT 1 FROM [dbo].[Permissions] WHERE [name] = 'FORCE_CANCEL_BOOKINGS')
+BEGIN
+    INSERT INTO [dbo].[Permissions] ([name], [description], [group_name])
+    VALUES (
+        'FORCE_CANCEL_BOOKINGS', 
+        N'Ép hủy Đặt phòng (Chỉ dành cho cấp Quản lý)', 
+        N'Quản lý Đặt phòng & Tài chính'
+    );
+    PRINT N'Đã thêm quyền FORCE_CANCEL_BOOKINGS thành công!';
+END
+GO
+
+-- 2. Cấp quyền này cho Role Admin (role_id = 1) và Manager (role_id = 2)
+DECLARE @ForceCancelPermId INT = (SELECT [id] FROM [dbo].[Permissions] WHERE [name] = 'FORCE_CANCEL_BOOKINGS');
+
+IF @ForceCancelPermId IS NOT NULL
+BEGIN
+    -- Cấp cho Admin
+    IF NOT EXISTS (SELECT 1 FROM [dbo].[Role_Permissions] WHERE [role_id] = 1 AND [permission_id] = @ForceCancelPermId)
+    BEGIN
+        INSERT INTO [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (1, @ForceCancelPermId);
+    END
+
+    -- Cấp cho Manager
+    IF NOT EXISTS (SELECT 1 FROM [dbo].[Role_Permissions] WHERE [role_id] = 2 AND [permission_id] = @ForceCancelPermId)
+    BEGIN
+        INSERT INTO [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (2, @ForceCancelPermId);
+    END
+
+    PRINT N'Đã cấp quyền ép hủy cho Admin và Manager thành công!';
+END
+GO
