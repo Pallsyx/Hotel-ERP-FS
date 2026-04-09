@@ -205,6 +205,7 @@ builder.Services.AddScoped<IRoomTypeAmenityService, RoomTypeAmenityService>();
 builder.Services.AddSignalR();
 builder.Services.AddScoped<IRoomTypeAmenityService, RoomTypeAmenityService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IBookingManagementService, BookingManagementService>();
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(Program).Assembly));
 
 
