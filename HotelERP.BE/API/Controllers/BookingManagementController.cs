@@ -1,0 +1,89 @@
+using HotelERP.BE.Application.DTOs.BookingManagement;
+using HotelERP.BE.Application.Interfaces;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace HotelERP.BE.API.Controllers;
+
+[Route("api/booking-management")]
+[ApiController]
+[Authorize(Roles = "Admin,Manager,Receptionist")]
+public class BookingManagementController : ControllerBase
+{
+    private readonly IBookingManagementService _bookingService;
+
+    public BookingManagementController(IBookingManagementService bookingService)
+    {
+        _bookingService = bookingService;
+    }
+
+    // ==============================================================
+    // API 1: GET /api/booking-management
+    // Search + Filter bookings theo keyword, status, date range
+    // ==============================================================
+    /// <summary>
+    /// Tìm kiếm và lọc danh sách booking.
+    /// Hỗ trợ: keyword (tên, SĐT, email, mã booking), trạng thái, khoảng ngày check-in.
+    /// </summary>
+    [HttpGet]
+    public async Task<IActionResult> SearchBookings([FromQuery] BookingSearchRequest request)
+    {
+        var result = await _bookingService.SearchBookingsAsync(request);
+        return Ok(new { success = true, data = result });
+    }
+
+    // ==============================================================
+    // API 2: PUT /api/booking-management/{id}/status
+    // Cập nhật trạng thái booking theo quy trình hotel
+    // ==============================================================
+    /// <summary>
+    /// Cập nhật trạng thái booking.
+    /// Quy trình: Pending → Confirmed → Checked_in → Completed.
+    /// Có thể hủy (Cancelled) từ Pending hoặc Confirmed.
+    /// </summary>
+    [HttpPut("{id}/status")]
+    public async Task<IActionResult> UpdateStatus(int id, [FromBody] UpdateBookingStatusRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.NewStatus))
+        {
+            return BadRequest(new { success = false, message = "Trạng thái mới không được để trống." });
+        }
+
+        var (success, message) = await _bookingService.UpdateBookingStatusAsync(id, request.NewStatus);
+
+        if (!success)
+        {
+            return BadRequest(new { success = false, message });
+        }
+
+        return Ok(new { success = true, message });
+    }
+
+    // ==============================================================
+    // API 3: GET /api/booking-management/today-arrivals
+    // Danh sách "Khách đến hôm nay"
+    // ==============================================================
+    /// <summary>
+    /// Lấy danh sách khách đến hôm nay (CheckInDate = Today, Status = Confirmed).
+    /// </summary>
+    [HttpGet("today-arrivals")]
+    public async Task<IActionResult> GetTodayArrivals()
+    {
+        var result = await _bookingService.GetTodayArrivalsAsync();
+        return Ok(new { success = true, count = result.Count, data = result });
+    }
+
+    // ==============================================================
+    // API 4: GET /api/booking-management/in-house
+    // Danh sách "Khách đang lưu trú"
+    // ==============================================================
+    /// <summary>
+    /// Lấy danh sách khách đang lưu trú (Status = Checked_in).
+    /// </summary>
+    [HttpGet("in-house")]
+    public async Task<IActionResult> GetInHouseGuests()
+    {
+        var result = await _bookingService.GetInHouseGuestsAsync();
+        return Ok(new { success = true, count = result.Count, data = result });
+    }
+}
