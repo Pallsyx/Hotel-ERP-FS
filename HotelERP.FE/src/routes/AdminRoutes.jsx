@@ -8,6 +8,8 @@ import RoomInventory from '../pages/RoomInventory/RoomInventory';
 import HousekeepingMobile from '../pages/Housekeeping/HousekeepingMobile';
 import InventoryChecklist from '../pages/Housekeeping/InventoryChecklist';
 import Login from '../pages/Auth/Login';
+import Register from '../pages/Auth/Register'; // 
+import ForgotPassword from '../pages/Auth/ForgotPassword'; // 
 import MainLayout from '../layouts/MainLayout';
 import { useAuthStore } from '../store/authStore';
 import UserManagement from '../pages/Users/UserManagement';
@@ -37,6 +39,8 @@ const AdminRoutes = () => {
     <Routes>
       {/* ROUTES KHÔNG CẦN ĐĂNG NHẬP */}
       <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} /> 
+      <Route path="/forgot-password" element={<ForgotPassword />} /> 
       <Route path="/booking/search" element={<Placeholder title="Tìm kiếm & Chọn phòng trống" />} />
       <Route path="/booking/checkout" element={<Placeholder title="Thanh toán & Nhập Voucher" />} />
 
