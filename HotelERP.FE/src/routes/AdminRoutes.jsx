@@ -14,6 +14,7 @@ import UserManagement from '../pages/Users/UserManagement';
 import RoleManagement from '../pages/Users/RoleManagement';
 import LossAndDamages from '../pages/LossAndDamages.jsx';
 import UserProfile from '../pages/Profile/UserProfile';
+import InvoiceManagement from '../pages/Invoices/InvoiceManagement';
 
 // COMPONENT GIỮ CHỖ (Placeholder)
 const Placeholder = ({ title }) => (
@@ -65,6 +66,7 @@ const AdminRoutes = () => {
         {/* MODULE 2 */}
         <Route path="reception-calendar" element={<Placeholder title="Lịch Lễ Tân (Gantt Chart)" />} />
         <Route path="bookings" element={<Placeholder title="Quản lý Đơn Đặt Phòng (Check-in/Out)" />} />
+        <Route path="invoices" element={<InvoiceManagement />} />
         
         {/* HOUSEKEEPING CHECKLIST ROUTE */}
         <Route path="housekeeping/room/:id" element={<InventoryChecklist />} />
