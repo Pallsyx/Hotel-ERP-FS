@@ -8,12 +8,15 @@ import RoomInventory from '../pages/RoomInventory/RoomInventory';
 import HousekeepingMobile from '../pages/Housekeeping/HousekeepingMobile';
 import InventoryChecklist from '../pages/Housekeeping/InventoryChecklist';
 import Login from '../pages/Auth/Login';
+import Register from '../pages/Auth/Register'; // 
+import ForgotPassword from '../pages/Auth/ForgotPassword'; // 
 import MainLayout from '../layouts/MainLayout';
 import { useAuthStore } from '../store/authStore';
 import UserManagement from '../pages/Users/UserManagement';
 import RoleManagement from '../pages/Users/RoleManagement';
 import LossAndDamages from '../pages/LossAndDamages.jsx';
 import UserProfile from '../pages/Profile/UserProfile';
+import BookingSearchAndCreate from '../pages/Booking/BookingSearchAndCreate';
 
 // COMPONENT GIỮ CHỖ (Placeholder)
 const Placeholder = ({ title }) => (
@@ -34,6 +37,8 @@ const AdminRoutes = () => {
     <Routes>
       {/* ROUTES KHÔNG CẦN ĐĂNG NHẬP */}
       <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} /> 
+      <Route path="/forgot-password" element={<ForgotPassword />} /> 
       <Route path="/booking/search" element={<Placeholder title="Tìm kiếm & Chọn phòng trống" />} />
       <Route path="/booking/checkout" element={<Placeholder title="Thanh toán & Nhập Voucher" />} />
 
@@ -64,7 +69,7 @@ const AdminRoutes = () => {
 
         {/* MODULE 2 */}
         <Route path="reception-calendar" element={<Placeholder title="Lịch Lễ Tân (Gantt Chart)" />} />
-        <Route path="bookings" element={<Placeholder title="Quản lý Đơn Đặt Phòng (Check-in/Out)" />} />
+        <Route path="bookings" element={<BookingSearchAndCreate />} />
         
         {/* HOUSEKEEPING CHECKLIST ROUTE */}
         <Route path="housekeeping/room/:id" element={<InventoryChecklist />} />
