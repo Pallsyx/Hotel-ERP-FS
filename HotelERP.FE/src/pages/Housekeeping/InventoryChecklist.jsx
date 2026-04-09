@@ -26,6 +26,8 @@ const InventoryChecklist = () => {
   // Track xem người dùng đã bấm "Hoàn tất" chưa để tránh reset sai
   const isCompletedRef = useRef(false);
 
+  const [reportedItemIds, setReportedItemIds] = useState([]);
+
   useEffect(() => {
     if (!roomId) return;
     fetchInventory();
@@ -148,6 +150,11 @@ const InventoryChecklist = () => {
       });
 
       message.success("Đã gửi biên bản báo hỏng thành công!");
+      
+      if (selectedItem?.id) {
+        setReportedItemIds(prev => [...prev, selectedItem.id]);
+      }
+
       setIsModalOpen(false);
       form.resetFields();
     } catch (error) {
@@ -209,13 +216,15 @@ const InventoryChecklist = () => {
 
       <Spin spinning={loading}>
         <div style={{ paddingBottom: '40px' }}>
-          {filteredItems.map(item => (
-            <Card
-              key={item.id}
-              size="small"
-              style={{
-                marginBottom: '12px',
-                borderRadius: '8px',
+          {filteredItems.map(item => {
+            const isReported = reportedItemIds.includes(item.id);
+            return (
+            <Card 
+              key={item.id} 
+              size="small" 
+              style={{ 
+                marginBottom: '12px', 
+                borderRadius: '8px', 
                 boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
                 border: '1px solid #e8e8e8'
               }}
@@ -225,24 +234,25 @@ const InventoryChecklist = () => {
                 <Text strong style={{ fontSize: '14px', color: '#1f1f1f' }}>{item.itemName}</Text>
                 <Text style={{ color: '#1890ff', fontWeight: 'bold', fontSize: '13px' }}>SL: {item.quantity}</Text>
               </div>
-              <Button
-                danger
-                block
-                icon={<WarningOutlined />}
-                style={{
-                  backgroundColor: '#a8071a',
-                  borderColor: '#a8071a',
-                  color: '#fff',
+              <Button 
+                danger={!isReported}
+                block 
+                icon={isReported ? <CheckCircleOutlined /> : <WarningOutlined />}
+                style={{ 
+                  backgroundColor: isReported ? '#f5f5f5' : '#a8071a', 
+                  borderColor: isReported ? '#d9d9d9' : '#a8071a', 
+                  color: isReported ? '#aaa' : '#fff', 
                   fontWeight: '600',
                   borderRadius: '6px',
                   height: '36px'
                 }}
+                disabled={isReported}
                 onClick={() => openDamageModal(item)}
               >
-                Báo hỏng / Mất
+                {isReported ? "Đã báo cáo" : "Báo hỏng / Mất"}
               </Button>
             </Card>
-          ))}
+          )})}
           {filteredItems.length === 0 && !loading && (
             <Empty description="Không tìm thấy vật tư" style={{ marginTop: '30px' }} />
           )}
