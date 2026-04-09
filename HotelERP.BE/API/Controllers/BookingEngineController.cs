@@ -76,10 +76,12 @@ public class BookingEngineController : ControllerBase
 
     [Authorize(Policy = PermissionKeys.ForceCancelBookings)] 
     [AuditLogInterceptor("Admin/Manager can thiệp hủy giữ phòng", "Bookings")] 
-    public async Task<IActionResult> ForceCancel(int id)
+    [HttpPut("force-cancel/{bookingId}")] 
+// ...PHẢI KHỚP với chữ bookingId ở đây
+    public async Task<IActionResult> ForceCancel(int bookingId)
     {
         // Đã đồng bộ sử dụng _bookingService
-        var result = await _bookingService.AdminForceCancelBookingAsync(id);
+        var result = await _bookingService.AdminForceCancelBookingAsync(bookingId);
         if (!result) return NotFound(new { message = "Không tìm thấy booking hoặc đã bị hủy trước đó." });
 
         return Ok(new { success = true, message = "Đã ép hủy và ghi nhận vào Audit Log." });

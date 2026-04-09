@@ -55,6 +55,38 @@ public class LossAndDamagesController : ControllerBase
         return Ok(new { stats, data });
     }
 
+    // --- LỆNH XÓA MỚI THÊM VÀO ĐÂY ---
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> DeleteDamage(int id)
+    {
+        // 1. Tìm bản ghi dựa trên ID
+        var damage = await _context.LossAndDamages.FindAsync(id);
+
+        if (damage == null)
+        {
+            return NotFound(new { message = "Không tìm thấy bản ghi thất thoát này." });
+        }
+
+        try
+        {
+            // 2. Xóa bản ghi (Lưu ý: Chỉ xóa dòng trong bảng LossAndDamages, 
+            // không ảnh hưởng đến bảng Equipment hay Room)
+            _context.LossAndDamages.Remove(damage);
+            
+            // 3. Lưu thay đổi xuống Database
+            await _context.SaveChangesAsync();
+
+            // 4. (Tùy chọn) Gửi tín hiệu SignalR để các máy khác cũng tự động mất dòng này
+            await _hubContext.Clients.All.SendAsync("DeletedDamage", id);
+
+            return Ok(new { message = "Xóa thành công!", id });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = "Lỗi khi xóa: " + ex.Message });
+        }
+    }
+
     public class CreateDamageRequest
     {
         public int RoomId { get; set; }
