@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Layout, Menu, Table, Button, DatePicker,
-  Space, Card, Row, Col, Typography, message
+  Space, Card, Row, Col, Typography, message, Image
 } from 'antd';
 import {
   AppstoreOutlined, SearchOutlined, ReloadOutlined,
@@ -32,23 +32,43 @@ export default function LossAndDamage() {
   const [loading, setLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date().toLocaleTimeString('vi-VN', { hour12: false }));
 
-  // Gọi API lấy dữ liệu thực tế
+  // Hàm lấy dữ liệu thực tế từ BE
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Bỏ comment dòng dưới khi BE đã có API
-      // const response = await axios.get(API_URL);
-      // setData(response.data);
-
-      setLastUpdated(new Date().toLocaleTimeString('vi-VN', { hour12: false }));
-      message.success('Đã làm mới dữ liệu!');
+      const response = await axios.get(API_URL);
+      if (response.data && response.data.data) {
+        setData(response.data.data);
+      } else if (Array.isArray(response.data)) {
+        setData(response.data);
+      }
     } catch (error) {
-      console.error("Lỗi khi tải dữ liệu thất thoát:", error);
-      message.error('Lỗi kết nối đến Backend. Đang hiển thị giao diện mẫu.');
+      console.error("Lỗi lấy dữ liệu:", error);
+      message.error("Không kết nối được server để lấy dữ liệu. Đang hiển thị dữ liệu cũ.");
     } finally {
       setLoading(false);
     }
   };
+
+  // --- DÁN HÀM XỬ LÝ XÓA VÀO ĐÂY ---
+  const handleDelete = async (id) => {
+    setLoading(true);
+    try {
+      // 1. Gọi API xóa thực tế xuống Backend (Đúng địa chỉ https://localhost:7100/api/LossAndDamages/id)
+      await axios.delete(`${API_URL}/${id}`);
+      
+      // 2. Nếu BE báo xóa OK, cập nhật lại giao diện ngay lập tức
+      setData(prevData => prevData.filter(item => item.id !== id));
+      
+      message.success(`Đã xóa sạch dữ liệu và hình ảnh của ID: ${id}`);
+    } catch (error) {
+      console.error("Lỗi khi xóa:", error);
+      message.error("Không thể xóa dữ liệu từ Server. Vui lòng kiểm tra lại Backend!");
+    } finally {
+      setLoading(false);
+    }
+  };
+  // --------------------------------
 
   useEffect(() => {
     fetchData();
@@ -81,8 +101,26 @@ export default function LossAndDamage() {
       title: 'Bằng chứng',
       dataIndex: 'evidenceImageUrl',
       key: 'evidence',
-      render: (img) => img ? <img src={img} alt="Bằng chứng" className="w-10 h-10 object-cover" /> : <span className="text-gray-400 text-sm">Không ảnh</span>
+      width: 100, // Cố định luôn cái cột
+      align: 'center',
+      render: (img) => img ? (
+        <Image 
+          width={60}
+          height={60}
+          src={img}
+          style={{ 
+            objectFit: 'cover', 
+            borderRadius: '6px',
+            border: '1px solid #d9d9d9'
+          }}
+          preview={{ mask: 'Xem' }}
+          alt="Bằng chứng"
+        />
+      ) : (
+        <Text type="secondary" italic className="text-sm">Không ảnh</Text>
+      )
     },
+    
     { title: 'Số phòng', dataIndex: 'roomNumber', key: 'roomNumber', className: 'font-medium' },
     {
       title: 'Vật tư',
@@ -110,8 +148,18 @@ export default function LossAndDamage() {
       align: 'center',
       render: (_, record) => (
         <Space size="middle">
-          <Button type="text" icon={<EditOutlined className="text-gray-500 hover:text-blue-500" />} />
-          <Button type="text" icon={<DeleteOutlined className="text-gray-500 hover:text-red-500" />} />
+          <Button type="text" icon={<EditOutlined />} />
+          <Button 
+            type="text" 
+            danger 
+            icon={<DeleteOutlined />} 
+            onClick={() => {
+              // Khi bấm nút, nó sẽ chạy cái hàm handleDelete bạn vừa dán ở trên
+              if (window.confirm(`Bạn có chắc muốn xóa vĩnh viễn sự cố ID: ${record.id}?`)) {
+                handleDelete(record.id);
+              }
+            }}
+          />
         </Space>
       )
     }
@@ -143,7 +191,6 @@ export default function LossAndDamage() {
         </Header>
 
         <Content className="p-6">
-          {/* KHU VỰC THỐNG KÊ (ĐÃ BỔ SUNG YÊU CẦU CỦA BẠN) */}
           <Row gutter={24} className="mb-6">
             <Col span={8}>
               <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
@@ -183,7 +230,6 @@ export default function LossAndDamage() {
             </Col>
           </Row>
 
-          {/* KHU VỰC BẢNG DỮ LIỆU */}
           <Card bordered={false} className="shadow-sm">
             <div className="flex justify-between items-center mb-6">
               <Space className="w-full flex">
