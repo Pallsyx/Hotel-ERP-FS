@@ -309,6 +309,17 @@ const InvoiceDashboard = () => {
       />
     </div>
   );
+         className="invoice-table"
+            />
+
+            <DraftInvoiceModal
+                bookingId={selectedBookingId}
+                visible={modalVisible}
+                onClose={() => setModalVisible(false)}
+            />
+        </div>
+    );
+>>>>>>> 5c554c5983ddc44bf36dd11916f0d0293d07abbb
 };
 
 export default InvoiceDashboard;

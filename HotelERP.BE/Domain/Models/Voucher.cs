@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -14,13 +14,14 @@ public partial class Voucher
 
     public decimal DiscountValue { get; set; }
 
-    public decimal MinBookingValue { get; set; }
+    // Giữ nguyên có dấu ? để map với DB cho an toàn
+    public decimal? MinBookingValue { get; set; }
 
     [NotMapped]
-    public decimal MinBookingAmount
-    {
-        get => MinBookingValue;
-        set => MinBookingValue = value;
+    public decimal MinBookingAmount 
+    { 
+        get => MinBookingValue ?? 0; 
+        set => MinBookingValue = value; 
     }
 
     public DateTime? ValidFrom { get; set; }

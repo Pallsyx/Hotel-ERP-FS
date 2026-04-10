@@ -401,7 +401,7 @@ public class VoucherService : IVoucherService
             Code = voucher.Code,
             DiscountType = voucher.DiscountType,
             DiscountValue = voucher.DiscountValue,
-            MinBookingAmount = voucher.MinBookingValue,
+            MinBookingAmount = voucher.MinBookingAmount,
             ValidFrom = voucher.ValidFrom,
             ValidTo = voucher.ValidTo,
             UsageLimit = voucher.UsageLimit,

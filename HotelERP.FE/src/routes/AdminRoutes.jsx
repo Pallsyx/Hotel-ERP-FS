@@ -59,6 +59,7 @@ const AdminRoutes = () => {
         <Route path='housekeeping' element={<HousekeepingMobile />} />
         <Route path='damage-reports' element={<Placeholder title='Báo cáo Hư hỏng & Đền bù' />} />
         <Route path='loss-and-damages' element={<LossAndDamages />} />
+        <Route path='invoices' element={<InvoiceDashboard />} />
 
         <Route path='article-categories' element={<Placeholder title='Danh mục Bài viết' />} />
         <Route path='posts' element={<Placeholder title='Quản lý Bài viết (Blog)' />} />

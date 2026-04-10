@@ -37,7 +37,7 @@ public class EquipmentsController(HotelDbContext context) : ControllerBase
                 e.Category,
                 e.Unit,
                 e.TotalQuantity,
-                e.TotalQuantity - e.InUseQuantity - e.DamagedQuantity - e.LiquidatedQuantity,
+                Math.Max(0, e.TotalQuantity - e.InUseQuantity - e.DamagedQuantity - e.LiquidatedQuantity),
                 e.InUseQuantity,
                 e.DamagedQuantity,
                 e.DefaultPriceIfLost

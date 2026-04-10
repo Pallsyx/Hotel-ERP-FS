@@ -117,9 +117,8 @@ public class RoomService : IRoomService
     if (room == null || room.DeletedAt != null)
         throw new InvalidOperationException("Phòng không tồn tại.");
 
-    // NGHIÊP VỤ: Chỉ cho phép báo hỏng khi phòng đang có khách (Occupied)
-    if (room.Status.ToUpper() != "OCCUPIED")
-        throw new InvalidOperationException($"Không thể báo hỏng cho phòng đang ở trạng thái '{room.Status}'. Tính năng này chỉ dành cho phòng đang có khách lưu trú.");
+    // NGHIỆP VỤ: Cho phép báo hỏng bất kể trạng thái phòng (để nhân viên dọn phòng báo hỏng sau khi khách checkout)
+    // Bỏ check "OCCUPIED" cũ ở đây
 
     var damage = new LossAndDamage
     {
@@ -153,19 +152,11 @@ public class RoomService : IRoomService
             // Trừ đi vật tư trong kho của phòng đó
             roomInventory.Quantity -= request.Quantity;
 
-            // Cập nhật lại kho chung (Equipment) - Cập nhật tất cả các Equipment cùng tên (Active) vì RoomInventory có thể map sang ID cũ
+            // Cập nhật lại kho chung (Equipment) qua navigation property để đảm bảo chính xác ID
             if (roomInventory.Equipment != null)
             {
-                var equipName = roomInventory.Equipment.Name;
-                var activeEquipmentsToSync = await _context.Equipments
-                    .Where(e => e.Name == equipName && e.IsActive)
-                    .ToListAsync();
-                
-                foreach (var eq in activeEquipmentsToSync)
-                {
-                    eq.DamagedQuantity += request.Quantity;
-                    eq.InUseQuantity -= request.Quantity;
-                }
+                roomInventory.Equipment.DamagedQuantity = Math.Max(0, roomInventory.Equipment.DamagedQuantity + request.Quantity);
+                roomInventory.Equipment.InUseQuantity = Math.Max(0, roomInventory.Equipment.InUseQuantity - request.Quantity);
             }
         }
     }

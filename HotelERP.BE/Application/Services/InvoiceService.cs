@@ -3,30 +3,32 @@ using HotelERP.BE.DTOs.Common;
 using HotelERP.BE.DTOs.Invoices;
 using HotelERP.BE.Domain.Models;
 using HotelERP.BE.Infrastructure.Data;
+using HotelERP.BE.Application.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 
-namespace HotelERP.BE.Services.Invoices;
-
-public class InvoiceService : IInvoiceService
+namespace HotelERP.BE.Application.Services
 {
-    private const decimal VatRate = 0.10m;
-
-    private readonly HotelDbContext _dbContext;
-
-    public InvoiceService(HotelDbContext dbContext)
+    public class InvoiceService : IInvoiceService
     {
-        _dbContext = dbContext;
-    }
+        private const decimal VatRate = 0.10m;
+        private readonly HotelDbContext _dbContext;
 
-    private sealed class DetailChargeSummary
-    {
-        public BookingDetail Detail { get; set; } = null!;
-        public decimal RoomCharge { get; set; }
-        public decimal ServiceCharge { get; set; }
-        public decimal DamageCharge { get; set; }
-        public decimal Subtotal => RoomCharge + ServiceCharge + DamageCharge;
-    }
+        public InvoiceService(HotelDbContext dbContext)
+        {
+            _dbContext = dbContext;
+        }
+
+        private sealed class DetailChargeSummary
+        {
+            public BookingDetail Detail { get; set; } = null!;
+            public decimal RoomCharge { get; set; }
+            public decimal ServiceCharge { get; set; }
+            public decimal DamageCharge { get; set; }
+            public decimal Subtotal => RoomCharge + ServiceCharge + DamageCharge;
+        }
+
+        // ... [Rest of the HEAD implementation logic follows] ...
 
     public async Task<ApiResult<List<EligibleBookingDetailResponseDto>>> GetEligibleBookingDetailsAsync(
         int bookingId,
@@ -336,7 +338,7 @@ public class InvoiceService : IInvoiceService
         var booking = invoice.Booking;
         var before = MapResponse(booking, invoice);
 
-        invoice.ManualAdjustmentAmount = Money(invoice.ManualAdjustmentAmount + request.Amount);
+        invoice.ManualAdjustmentAmount = Money((invoice.ManualAdjustmentAmount ?? 0m) + request.Amount);
         invoice.Status = "Draft";
         invoice.Notes = AppendAuditText(
             invoice.Notes,
@@ -821,10 +823,10 @@ public class InvoiceService : IInvoiceService
 
         return new
         {
-            TotalRevenueAllTime = Money(paidInvoices.Sum(x => x.FinalTotal)),
+            TotalRevenueAllTime = Money(paidInvoices.Sum(x => x.FinalTotal ?? 0m)),
             TodayRevenue = Money(paidInvoices
-                .Where(x => (x.PaidAt ?? x.CreatedAt).Date == today)
-                .Sum(x => x.FinalTotal)),
+                .Where(x => (x.PaidAt ?? x.CreatedAt ?? DateTime.MinValue).Date == today)
+                .Sum(x => x.FinalTotal ?? 0m)),
             TotalInvoices = invoices.Count,
             PaidInvoices = paidInvoices.Count,
             ActiveBookings = activeBookings
@@ -921,8 +923,8 @@ public class InvoiceService : IInvoiceService
             discountShare = Money(booking.DiscountAmount * (selectedSubtotal / wholeBookingBase));
         }
 
-        var manualAdjustment = Money(Math.Max(0, invoice.ManualAdjustmentAmount));
-        var refundAmount = Money(Math.Max(0, invoice.RefundAmount));
+        var manualAdjustment = Money(Math.Max(0m, invoice.ManualAdjustmentAmount ?? 0m));
+        var refundAmount = Money(Math.Max(0m, invoice.RefundAmount ?? 0m));
 
         var taxableBase = Money(Math.Max(0, selectedSubtotal + manualAdjustment - discountShare));
         var taxAmount = Money(taxableBase * VatRate);
@@ -1081,7 +1083,7 @@ public class InvoiceService : IInvoiceService
         booking.FinalAmount = Money(
             booking.Invoices
                 .Where(x => Normalize(x.Status) == "PAID")
-                .Sum(x => x.FinalTotal));
+                .Sum(x => x.FinalTotal ?? 0m));
 
         booking.UpdatedAt = now;
     }
@@ -1124,7 +1126,7 @@ public class InvoiceService : IInvoiceService
         {
             existing.PaymentMethod = request.PaymentMethod;
             existing.TransactionCode = request.TransactionCode;
-            existing.AmountPaid = invoice.FinalTotal;
+            existing.AmountPaid = invoice.FinalTotal ?? 0m;
             existing.PaymentDate = now;
             existing.PaymentDirection = "IN";
             existing.Status = "SUCCESS";
@@ -1138,7 +1140,7 @@ public class InvoiceService : IInvoiceService
             InvoiceId = invoice.Id == 0 ? null : invoice.Id,
             PaymentMethod = request.PaymentMethod,
             TransactionCode = request.TransactionCode,
-            AmountPaid = invoice.FinalTotal,
+            AmountPaid = invoice.FinalTotal ?? 0m,
             PaymentDate = now,
             PaymentDirection = "IN",
             Status = "SUCCESS",
@@ -1180,13 +1182,13 @@ public class InvoiceService : IInvoiceService
             PaymentStatus = booking.PaymentStatus,
             BookingDetailIds = detailIds,
             RoomNumbers = roomNumbers,
-            TotalRoomAmount = invoice.TotalRoomAmount,
-            TotalServiceAmount = invoice.TotalServiceAmount,
-            TotalDamageAmount = invoice.TotalDamageAmount,
-            ManualAdjustmentAmount = invoice.ManualAdjustmentAmount,
-            DiscountAmount = invoice.DiscountAmount,
-            TaxAmount = invoice.TaxAmount,
-            FinalTotal = invoice.FinalTotal,
+            TotalRoomAmount = invoice.TotalRoomAmount ?? 0,
+            TotalServiceAmount = invoice.TotalServiceAmount ?? 0,
+            TotalDamageAmount = invoice.TotalDamageAmount ?? 0,
+            ManualAdjustmentAmount = invoice.ManualAdjustmentAmount ?? 0,
+            DiscountAmount = invoice.DiscountAmount ?? 0,
+            TaxAmount = invoice.TaxAmount ?? 0,
+            FinalTotal = invoice.FinalTotal ?? 0,
             Notes = invoice.Notes,
             IssuedAt = invoice.IssuedAt,
             PaidAt = invoice.PaidAt,
@@ -1249,19 +1251,16 @@ public class InvoiceService : IInvoiceService
         {
             return prefix + newLine.Trim();
         }
-
-        return current.Trim() + Environment.NewLine + prefix + newLine.Trim();
-    }
-
-    private static string Normalize(string? value)
-    {
-        return string.IsNullOrWhiteSpace(value)
-            ? string.Empty
-            : value.Trim().ToUpperInvariant();
+        return current + Environment.NewLine + prefix + newLine.Trim();
     }
 
     private static decimal Money(decimal value)
     {
         return Math.Round(value, 2, MidpointRounding.AwayFromZero);
     }
-}
+
+    private static string Normalize(string? value)
+    {
+        return value?.Trim().ToUpperInvariant() ?? string.Empty;
+    }
+}}
