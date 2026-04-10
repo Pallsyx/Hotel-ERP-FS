@@ -1,14 +1,35 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, Table, DatePicker, Input, Button, Space, Typography, Tooltip, message, Popconfirm } from 'antd';
 import { SearchOutlined, EyeOutlined, LoginOutlined, CopyOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
+import bookingManagementApi from '../../api/bookingManagementApi';
 
 const { Title } = Typography;
 
 const Arrivals = () => {
   const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [selectedDate, setSelectedDate] = useState(dayjs());
+
+  useEffect(() => {
+    fetchArrivals();
+  }, []);
+
+  const fetchArrivals = async () => {
+    setLoading(true);
+    try {
+      const response = await bookingManagementApi.getTodayArrivals();
+      if (response && response.success) {
+        setData(response.data);
+      }
+    } catch (error) {
+      console.error('Lỗi khi tải danh sách khách đến:', error);
+      message.error('Không thể tải dữ liệu khách đến.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleCopy = (text) => {
     if (!text) return;
@@ -16,10 +37,38 @@ const Arrivals = () => {
     message.success('Đã copy mã booking');
   };
 
-  const handleCheckIn = (record) => {
-    message.success('Nhận phòng thành công! Trạng thái đã chuyển sang Đang ở (In-House).');
-    // TODO: Call API to check-in
+  const handleCheckIn = async (record) => {
+    const detailId = record.details?.[0]?.id;
+    if (!detailId) {
+      message.error('Không tìm thấy thông tin phòng!');
+      return;
+    }
+    
+    try {
+      const res = await bookingManagementApi.updateDetailStatus(detailId, 'Checked_in');
+      if (res && res.success) {
+        message.success(`Nhận phòng thành công cho phòng ${record.details[0].roomNumber}!`);
+        fetchArrivals(); // Refresh list
+      }
+    } catch (error) {
+      console.error('Lỗi check-in:', error);
+      message.error(error.response?.data?.message || 'Có lỗi xảy ra khi Check-in.');
+    }
   };
+
+  // Filter data based on search text and selected date (if we want client-side search, otherwise API should handle it)
+  const filteredData = data.filter((item) => {
+    const detail = item.details?.[0];
+    const matchSearch =
+      item.guestName?.toLowerCase().includes(searchText.toLowerCase()) ||
+      item.bookingCode?.toLowerCase().includes(searchText.toLowerCase()) ||
+      detail?.roomNumber?.toLowerCase().includes(searchText.toLowerCase());
+    
+    // For date filter, today arrivals are already filtered by API today, but if user picks another date:
+    const matchDate = selectedDate ? dayjs(detail?.checkInDate).isSame(selectedDate, 'day') : true;
+
+    return matchSearch && matchDate;
+  });
 
   const columns = [
     {
@@ -42,24 +91,30 @@ const Arrivals = () => {
     },
     {
       title: 'Khách hàng',
-      dataIndex: 'customerName',
       key: 'customerName',
+      render: (_, record) => record.guestName,
     },
     {
       title: 'Hạng phòng',
-      dataIndex: 'roomType',
       key: 'roomType',
+      render: (_, record) => record.details?.[0]?.roomTypeName,
     },
     {
       title: 'Phòng thực tế',
-      dataIndex: 'roomName',
       key: 'roomName',
-      render: (text) => <Typography.Text strong style={{ color: '#1890ff' }}>{text}</Typography.Text>,
+      render: (_, record) => (
+        <Typography.Text strong style={{ color: '#1890ff' }}>
+          {record.details?.[0]?.roomNumber || 'Chưa xếp phòng'}
+        </Typography.Text>
+      ),
     },
     {
       title: 'Dự kiến Check-in',
-      dataIndex: 'expectedCheckIn',
       key: 'expectedCheckIn',
+      render: (_, record) => {
+        const date = record.details?.[0]?.checkInDate;
+        return date ? dayjs(date).format('DD/MM/YYYY HH:mm') : '';
+      },
     },
     {
       title: 'Thao tác',
@@ -70,7 +125,7 @@ const Arrivals = () => {
             <Button icon={<EyeOutlined />} size="small" />
           </Tooltip>
           <Popconfirm
-            title={`Xác nhận khách đã vào phòng ${record.roomName}?`}
+            title={`Xác nhận khách đã vào phòng ${record.details?.[0]?.roomNumber}?`}
             onConfirm={() => handleCheckIn(record)}
             okText="Check-in"
             cancelText="Hủy"
@@ -97,7 +152,7 @@ const Arrivals = () => {
           style={{ width: 200 }} 
         />
         <Input
-          placeholder="Tìm theo Tên khách, Mã Booking..."
+          placeholder="Tìm theo Số phòng, Tên khách, Mã..."
           prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
           value={searchText}
           onChange={(e) => setSearchText(e.target.value)}
@@ -107,7 +162,8 @@ const Arrivals = () => {
 
       <Table
         columns={columns}
-        dataSource={data}
+        dataSource={filteredData}
+        loading={loading}
         rowKey="id"
         pagination={{ pageSize: 10 }}
         locale={{ emptyText: 'Không có dữ liệu' }}
@@ -117,3 +173,4 @@ const Arrivals = () => {
 };
 
 export default Arrivals;
+

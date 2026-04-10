@@ -1,12 +1,34 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, Table, Input, Button, Space, Typography, Tooltip, message } from 'antd';
 import { SearchOutlined, EyeOutlined, CopyOutlined } from '@ant-design/icons';
+import dayjs from 'dayjs';
+import bookingManagementApi from '../../api/bookingManagementApi';
 
 const { Title } = Typography;
 
 const InHouse = () => {
   const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [searchText, setSearchText] = useState('');
+
+  useEffect(() => {
+    fetchInHouse();
+  }, []);
+
+  const fetchInHouse = async () => {
+    setLoading(true);
+    try {
+      const response = await bookingManagementApi.getInHouseGuests();
+      if (response && response.success) {
+        setData(response.data);
+      }
+    } catch (error) {
+      console.error('Lỗi khi tải danh sách khách đang lưu trú:', error);
+      message.error('Không thể tải dữ liệu khách đang lưu trú.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleCopy = (text) => {
     if (!text) return;
@@ -14,17 +36,29 @@ const InHouse = () => {
     message.success('Đã copy mã booking');
   };
 
+  const filteredData = data.filter((item) => {
+    const detail = item.details?.[0];
+    return (
+      item.guestName?.toLowerCase().includes(searchText.toLowerCase()) ||
+      item.bookingCode?.toLowerCase().includes(searchText.toLowerCase()) ||
+      detail?.roomNumber?.toLowerCase().includes(searchText.toLowerCase())
+    );
+  });
+
   const columns = [
     {
       title: 'Phòng',
-      dataIndex: 'roomName',
       key: 'roomName',
-      render: (text) => <Typography.Text strong style={{ color: '#1890ff' }}>{text}</Typography.Text>,
+      render: (_, record) => (
+        <Typography.Text strong style={{ color: '#1890ff' }}>
+          {record.details?.[0]?.roomNumber}
+        </Typography.Text>
+      ),
     },
     {
       title: 'Khách hàng',
-      dataIndex: 'customerName',
       key: 'customerName',
+      render: (_, record) => record.guestName,
     },
     {
       title: 'Mã Booking',
@@ -46,18 +80,24 @@ const InHouse = () => {
     },
     {
       title: 'Hạng phòng',
-      dataIndex: 'roomType',
       key: 'roomType',
+      render: (_, record) => record.details?.[0]?.roomTypeName,
     },
     {
       title: 'Giờ Check-in thực tế',
-      dataIndex: 'actualCheckIn',
       key: 'actualCheckIn',
+      render: (_, record) => {
+        const date = record.details?.[0]?.actualCheckInAt;
+        return date ? dayjs(date).format('DD/MM/YYYY HH:mm') : '';
+      },
     },
     {
       title: 'Dự kiến Check-out',
-      dataIndex: 'expectedCheckOut',
       key: 'expectedCheckOut',
+      render: (_, record) => {
+        const date = record.details?.[0]?.checkOutDate;
+        return date ? dayjs(date).format('DD/MM/YYYY HH:mm') : '';
+      },
     },
     {
       title: 'Thao tác',
@@ -90,7 +130,8 @@ const InHouse = () => {
 
       <Table
         columns={columns}
-        dataSource={data}
+        dataSource={filteredData}
+        loading={loading}
         rowKey="id"
         pagination={{ pageSize: 10 }}
         locale={{ emptyText: 'Không có dữ liệu' }}
@@ -100,3 +141,4 @@ const InHouse = () => {
 };
 
 export default InHouse;
+
