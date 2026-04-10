@@ -1,10 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Button, Space, Tag, message } from 'antd';
-import {
-  ThunderboltOutlined,
-  PrinterOutlined,
-  CheckCircleOutlined,
-} from '@ant-design/icons';
+import { PrinterOutlined, ThunderboltOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import invoiceApi from '../../../api/invoiceApi';
 import QuickActionModal from './QuickActionModal';
 import FinalizeInvoiceModal from './FinalizeInvoiceModal';
@@ -19,6 +15,9 @@ const getValue = (obj, ...keys) => {
 const buildPrintableHtml = (payload) => {
   const bookingId = getValue(payload, 'bookingId', 'BookingId') || '';
   const bookingCode = getValue(payload, 'bookingCode', 'BookingCode') || '';
+  const customerName =
+    getValue(payload, 'customerName', 'CustomerName', 'guestName', 'GuestName') || 'Khách lẻ';
+
   const invoiceId = getValue(payload, 'invoiceId', 'InvoiceId') || '';
   const invoiceCode = getValue(payload, 'invoiceCode', 'InvoiceCode') || '';
   const finalTotal = getValue(payload, 'finalTotal', 'FinalTotal') || 0;
@@ -58,6 +57,7 @@ const buildPrintableHtml = (payload) => {
       <body>
         <h1>HÓA ĐƠN TẠM TÍNH</h1>
         <div class="meta">
+          <div><b>Tên khách hàng:</b> ${customerName}</div>
           <div><b>Invoice ID:</b> ${invoiceId}</div>
           <div><b>Booking ID:</b> ${bookingId}</div>
           <div><b>Mã booking:</b> ${bookingCode}</div>
@@ -101,19 +101,86 @@ const buildPrintableHtml = (payload) => {
   `;
 };
 
-const InvoiceActionButtons = ({ invoiceId, invoiceStatus, onChanged }) => {
+const InvoiceActionButtons = ({
+  bookingId,
+  bookingDetailId,
+  invoiceId,
+  invoiceStatus,
+  onChanged,
+  onInvoiceCreated,
+}) => {
   const [quickActionOpen, setQuickActionOpen] = useState(false);
   const [finalizeOpen, setFinalizeOpen] = useState(false);
   const [printing, setPrinting] = useState(false);
+  const [resolving, setResolving] = useState(false);
+  const [activeInvoiceId, setActiveInvoiceId] = useState(invoiceId || null);
 
-  const normalizedStatus = (invoiceStatus || '').toUpperCase();
+  useEffect(() => {
+    setActiveInvoiceId(invoiceId || null);
+  }, [invoiceId]);
+
+  const normalizedStatus = String(invoiceStatus || '').toUpperCase();
   const isPaid = normalizedStatus === 'PAID';
+
+  const ensureInvoiceId = async () => {
+    if (activeInvoiceId) return activeInvoiceId;
+
+    if (!bookingId) {
+      throw new Error('Không có Booking ID để tạo hóa đơn.');
+    }
+
+    setResolving(true);
+    try {
+      let bookingDetailIds = [];
+
+      if (bookingDetailId) {
+        bookingDetailIds = [bookingDetailId];
+      } else {
+        const eligibleRes = await invoiceApi.getEligibleBookingDetails(bookingId);
+        const eligibleRows = eligibleRes?.data?.data || eligibleRes?.data || [];
+
+        bookingDetailIds = Array.isArray(eligibleRows)
+          ? eligibleRows
+              .filter((x) => (x?.canCreateInvoice ?? x?.CanCreateInvoice) === true)
+              .map((x) => x?.bookingDetailId ?? x?.BookingDetailId)
+              .filter(Boolean)
+          : [];
+      }
+
+      if (!bookingDetailIds.length) {
+        throw new Error('Không có phòng nào đủ điều kiện để tạo hóa đơn.');
+      }
+
+      const createRes = await invoiceApi.createDraftInvoice({
+        bookingId,
+        bookingDetailIds,
+        note: 'Tạo invoice nháp theo từng phòng từ màn hình quản lý hóa đơn',
+      });
+
+      const created = createRes?.data?.data || createRes?.data || {};
+      const newInvoiceId = created?.invoiceId || created?.InvoiceId;
+
+      if (!newInvoiceId) {
+        throw new Error('Tạo invoice nháp không thành công.');
+      }
+
+      setActiveInvoiceId(newInvoiceId);
+      onInvoiceCreated?.(newInvoiceId);
+      await onChanged?.();
+
+      message.success('Đã tạo hóa đơn nháp để tiếp tục thao tác.');
+      return newInvoiceId;
+    } finally {
+      setResolving(false);
+    }
+  };
 
   const handlePrintDraft = async () => {
     try {
       setPrinting(true);
+      const actualInvoiceId = await ensureInvoiceId();
 
-      const res = await invoiceApi.getInvoiceDetail(invoiceId);
+      const res = await invoiceApi.getInvoiceDetail(actualInvoiceId);
       const payload = res?.data?.data || res?.data || {};
 
       const html = buildPrintableHtml(payload);
@@ -129,39 +196,49 @@ const InvoiceActionButtons = ({ invoiceId, invoiceStatus, onChanged }) => {
       printWindow.document.close();
     } catch (error) {
       console.error('Print draft error:', error);
-      message.error(error?.response?.data?.message || 'Không in được bản nháp.');
+      message.error(error?.response?.data?.message || error?.message || 'Không in được bản nháp.');
     } finally {
       setPrinting(false);
     }
   };
 
+  const handleOpenQuickAction = async () => {
+    try {
+      const actualInvoiceId = await ensureInvoiceId();
+      setActiveInvoiceId(actualInvoiceId);
+      setQuickActionOpen(true);
+    } catch (error) {
+      console.error('Open quick action error:', error);
+      message.error(error?.response?.data?.message || error?.message || 'Không mở được thao tác nhanh.');
+    }
+  };
+
+  const handleOpenFinalize = async () => {
+    try {
+      const actualInvoiceId = await ensureInvoiceId();
+      setActiveInvoiceId(actualInvoiceId);
+      setFinalizeOpen(true);
+    } catch (error) {
+      console.error('Open finalize error:', error);
+      message.error(error?.response?.data?.message || error?.message || 'Không mở được bảng thanh toán.');
+    }
+  };
+
+  const hasSource = !!(bookingId || activeInvoiceId);
+
   return (
     <>
       <Space wrap>
-        <Button
-          icon={<PrinterOutlined />}
-          onClick={handlePrintDraft}
-          loading={printing}
-          disabled={!invoiceId}
-        >
+        <Button icon={<PrinterOutlined />} onClick={handlePrintDraft} loading={printing || resolving} disabled={!hasSource}>
           In bản nháp
         </Button>
 
-        <Button
-          icon={<ThunderboltOutlined />}
-          onClick={() => setQuickActionOpen(true)}
-          disabled={!invoiceId || isPaid}
-        >
+        <Button icon={<ThunderboltOutlined />} onClick={handleOpenQuickAction} loading={resolving} disabled={!hasSource || isPaid}>
           Thao tác nhanh
         </Button>
 
-        <Button
-          type="primary"
-          icon={<CheckCircleOutlined />}
-          onClick={() => setFinalizeOpen(true)}
-          disabled={!invoiceId || isPaid}
-        >
-          Chốt & Xuất
+        <Button type="primary" icon={<CheckCircleOutlined />} onClick={handleOpenFinalize} loading={resolving} disabled={!hasSource || isPaid}>
+          Chốt hóa đơn
         </Button>
 
         {isPaid && <Tag color="green">Đã thanh toán</Tag>}
@@ -169,16 +246,22 @@ const InvoiceActionButtons = ({ invoiceId, invoiceStatus, onChanged }) => {
 
       <QuickActionModal
         open={quickActionOpen}
-        invoiceId={invoiceId}
+        invoiceId={activeInvoiceId}
         onCancel={() => setQuickActionOpen(false)}
-        onSuccess={onChanged}
+        onSuccess={async () => {
+          setQuickActionOpen(false);
+          await onChanged?.();
+        }}
       />
 
       <FinalizeInvoiceModal
         open={finalizeOpen}
-        invoiceId={invoiceId}
+        invoiceId={activeInvoiceId}
         onCancel={() => setFinalizeOpen(false)}
-        onSuccess={onChanged}
+        onSuccess={async () => {
+          setFinalizeOpen(false);
+          await onChanged?.();
+        }}
       />
     </>
   );

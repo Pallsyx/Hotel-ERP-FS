@@ -1288,11 +1288,9 @@ public partial class HotelDbContext : DbContext
                 .HasConstraintName("FK_Users_Roles");
         });
 
-        modelBuilder.Entity<Voucher>(entity =>
+                modelBuilder.Entity<Voucher>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("PK__Vouchers__3213E83FF1D19D35");
-
-            entity.HasIndex(e => new { e.Status, e.ValidFrom, e.ValidTo }, "IX_Vouchers_StatusDates");
 
             entity.HasIndex(e => e.Code, "UQ_Vouchers_Code").IsUnique();
 
@@ -1300,37 +1298,28 @@ public partial class HotelDbContext : DbContext
             entity.Property(e => e.Code)
                 .HasMaxLength(50)
                 .HasColumnName("code");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getdate())", "DF_Vouchers_CreatedAt")
-                .HasColumnType("datetime")
-                .HasColumnName("created_at");
             entity.Property(e => e.DiscountType)
                 .HasMaxLength(50)
                 .HasColumnName("discount_type");
             entity.Property(e => e.DiscountValue)
                 .HasColumnType("decimal(18, 2)")
                 .HasColumnName("discount_value");
-            entity.Property(e => e.MinBookingAmount)
-                .HasColumnType("decimal(18, 2)")
-                .HasColumnName("min_booking_amount");
             entity.Property(e => e.MinBookingValue)
                 .HasColumnType("decimal(18, 2)")
                 .HasColumnName("min_booking_value");
-            entity.Property(e => e.Status)
-                .HasMaxLength(20)
-                .HasDefaultValue("ACTIVE", "DF_Vouchers_Status")
-                .HasColumnName("status");
-            entity.Property(e => e.UpdatedAt)
-                .HasColumnType("datetime")
-                .HasColumnName("updated_at");
-            entity.Property(e => e.UsageLimit).HasColumnName("usage_limit");
-            entity.Property(e => e.UsedCount).HasColumnName("used_count");
             entity.Property(e => e.ValidFrom)
                 .HasColumnType("datetime")
                 .HasColumnName("valid_from");
             entity.Property(e => e.ValidTo)
                 .HasColumnType("datetime")
                 .HasColumnName("valid_to");
+            entity.Property(e => e.UsageLimit).HasColumnName("usage_limit");
+
+            entity.Ignore(e => e.MinBookingAmount);
+            entity.Ignore(e => e.UsedCount);
+            entity.Ignore(e => e.Status);
+            entity.Ignore(e => e.CreatedAt);
+            entity.Ignore(e => e.UpdatedAt);
         });
         modelBuilder.Entity<RefreshToken>(entity =>
         {

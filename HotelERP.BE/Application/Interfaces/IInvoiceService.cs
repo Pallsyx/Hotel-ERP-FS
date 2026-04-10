@@ -29,4 +29,22 @@ public interface IInvoiceService
         FinalizeInvoiceRequestDto request,
         int? performedByUserId,
         CancellationToken cancellationToken = default);
+
+    Task<List<InvoiceListDto>> GetAllInvoicesAsync(
+        string? searchTerm,
+        DateTime? fromDate,
+        DateTime? toDate,
+        string? status,
+        CancellationToken cancellationToken = default);
+
+    Task<DraftInvoiceDto> GetDraftInvoiceAsync(
+        int bookingId,
+        CancellationToken cancellationToken = default);
+
+    Task<bool> ConfirmPaymentAsync(
+        CreateInvoiceDto dto,
+        CancellationToken cancellationToken = default);
+
+    Task<object> GetInvoiceSummaryAsync(
+        CancellationToken cancellationToken = default);
 }

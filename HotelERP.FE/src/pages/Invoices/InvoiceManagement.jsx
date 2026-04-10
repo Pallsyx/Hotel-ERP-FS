@@ -290,13 +290,11 @@ const InvoiceManagement = () => {
   return (
     <div style={{ padding: '0 24px 24px', minHeight: '80vh', background: '#f5f5f5' }}>
       <Title level={4} style={{ marginBottom: 12 }}>
-        Quản lý hóa đơn • Hướng B
+        Quản lý hóa đơn 
       </Title>
 
       <Paragraph style={{ marginBottom: 20 }}>
-        Ở hướng này, hóa đơn không còn bám theo booking tổng nữa.
-        Người dùng sẽ chọn đúng các phòng đã checkout để tạo draft invoice,
-        sau đó thao tác thêm phụ phí và finalize theo <b>invoiceId</b>.
+       
       </Paragraph>
 
       <Card bordered={false} style={{ borderRadius: 8, marginBottom: 20 }}>

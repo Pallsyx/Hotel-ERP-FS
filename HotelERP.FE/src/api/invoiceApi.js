@@ -15,6 +15,19 @@ const invoiceApi = {
 
   finalizeInvoice: (invoiceId, payload) =>
     axiosClient.post(`/invoices/${invoiceId}/finalize`, payload),
+
+  getAllInvoices: (params) =>
+    axiosClient.get('/invoices', { params }),
+
+  getDraftInvoice: (bookingId) =>
+    axiosClient.get(`/invoices/draft/${bookingId}`),
+
+  confirmPayment: (data) =>
+    axiosClient.post('/invoices/confirm', data),
+
+  getSummary: () =>
+    axiosClient.get('/invoices/summary'),
 };
 
+export { invoiceApi };
 export default invoiceApi;
