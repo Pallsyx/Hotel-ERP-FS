@@ -3,12 +3,15 @@ using HotelERP.BE.Application.Interfaces;
 using HotelERP.BE.Domain.Constants;
 using HotelERP.BE.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.SignalR;
+using HotelERP.BE.DTOs.Hubs;
 
 namespace HotelERP.BE.Application.Services;
 
 public class BookingManagementService : IBookingManagementService
 {
     private readonly HotelDbContext _context;
+    private readonly IHubContext<RoomHub>? _hubContext;
     private static readonly Dictionary<string, List<string>> _allowedTransitions = new()
     {
         { BookingStatus.Pending,    new List<string> { BookingStatus.Confirmed, BookingStatus.Cancelled } },
@@ -17,9 +20,10 @@ public class BookingManagementService : IBookingManagementService
         { BookingStatus.Holding,    new List<string> { BookingStatus.Confirmed, BookingStatus.Cancelled } },
     };
 
-    public BookingManagementService(HotelDbContext context)
+    public BookingManagementService(HotelDbContext context, IHubContext<RoomHub> hubContext)
     {
         _context = context;
+        _hubContext = hubContext;
     }
 
     // ==============================================================
@@ -139,14 +143,12 @@ public class BookingManagementService : IBookingManagementService
         {
             foreach (var detail in booking.BookingDetails)
             {
-                // Chỉ giải phóng những phòng đang ở hoặc đang đợi thanh toán
                 if (detail.Status == BookingStatus.CheckedIn || (newStatus == BookingStatus.Completed && detail.Status == BookingStatus.CheckedOut))
                 {
                     detail.Status = newStatus;
                     if (newStatus == BookingStatus.CheckedOut) detail.ActualCheckOutAt = DateTime.UtcNow;
                     detail.UpdatedAt = DateTime.UtcNow;
 
-                    // GIẢI PHÓNG PHÒNG NGAY LẬP TỨC
                     if (detail.Room != null)
                     {
                         detail.Room.Status = RoomPhysicalStatus.Available;
@@ -161,16 +163,26 @@ public class BookingManagementService : IBookingManagementService
             foreach (var detail in booking.BookingDetails)
             {
                 if (detail.Room != null && detail.Room.Status != RoomPhysicalStatus.Available)
-                {
                     detail.Room.Status = RoomPhysicalStatus.Available;
-                }
-                
+
                 detail.Status = BookingStatus.Cancelled;
                 detail.UpdatedAt = DateTime.UtcNow;
             }
         }
 
         await _context.SaveChangesAsync();
+
+        // Bắn SignalR realtime → cập nhật cột Kinh doanh trên trang Quản lý Quỹ phòng
+        if (_hubContext != null)
+        {
+            foreach (var detail in booking.BookingDetails)
+            {
+                if (detail.Room != null)
+                    await _hubContext.Clients.All.SendAsync("ReceiveRoomStatusUpdate",
+                        detail.Room.Id, detail.Room.Status, detail.Room.CleaningStatus);
+            }
+        }
+
         return (true, $"Đã chuyển trạng thái booking #{bookingId} từ '{oldStatus}' sang '{newStatus}' thành công.");
     }
 
@@ -254,6 +266,14 @@ public class BookingManagementService : IBookingManagementService
         }
 
         await _context.SaveChangesAsync();
+
+        // Bắn SignalR realtime cho trang Quản lý Quỹ phòng
+        if (_hubContext != null && detail.Room != null)
+        {
+            await _hubContext.Clients.All.SendAsync("ReceiveRoomStatusUpdate",
+                detail.Room.Id, detail.Room.Status, detail.Room.CleaningStatus);
+        }
+
         return (true, $"Đã cập nhật trạng thái phòng lẻ #{detailId} sang '{newStatus}' thành công.");
     }
 

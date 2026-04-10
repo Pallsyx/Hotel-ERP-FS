@@ -29,6 +29,9 @@ export default function App() {
   const [amenitiesList, setAmenitiesList] = useState([]); // State mới lưu tiện ích từ API
   const [loading, setLoading] = useState(false);
   const [filterFloor, setFilterFloor] = useState(null);
+  const [filterRoomNumber, setFilterRoomNumber] = useState('');
+  const [filterStatus, setFilterStatus] = useState(null);
+  const [filterCleaningStatus, setFilterCleaningStatus] = useState(null);
   const [isAmenitiesModalVisible, setIsAmenitiesModalVisible] = useState(false);
   const [isInventoryModalVisible, setIsInventoryModalVisible] = useState(false);
   const [isCreateMultipleVisible, setIsCreateMultipleVisible] = useState(false);
@@ -336,17 +339,23 @@ export default function App() {
     ];
 
     const floorOptions = [...new Set(rooms.map(r => r.floor).filter(f => f != null))].sort((a, b) => Number(a) - Number(b));
-    const filteredRooms = filterFloor != null ? rooms.filter(r => Number(r.floor) === Number(filterFloor)) : rooms;
+    const filteredRooms = rooms.filter(r => {
+      const matchFloor = filterFloor != null ? Number(r.floor) === Number(filterFloor) : true;
+      const matchRoomNumber = filterRoomNumber ? String(r.roomNumber).includes(filterRoomNumber.trim()) : true;
+      const matchStatus = filterStatus ? (r.status || '').toUpperCase() === filterStatus : true;
+      const matchCleaning = filterCleaningStatus ? (r.cleaningStatus || '').toUpperCase() === filterCleaningStatus : true;
+      return matchFloor && matchRoomNumber && matchStatus && matchCleaning;
+    });
 
     return (
       <Card title="Quản lý Quỹ phòng" variant="borderless" className="m-4">
         <div className="flex justify-between mb-4">
-          <Space>
+          <Space wrap>
             {/* Lọc theo tầng */}
             <Select
               allowClear
               placeholder="Chọn Tầng"
-              style={{ width: 140 }}
+              style={{ width: 130 }}
               value={filterFloor}
               onChange={(val) => setFilterFloor(val != null ? Number(val) : null)}
             >
@@ -354,7 +363,42 @@ export default function App() {
                 <Option key={f} value={Number(f)}>Tầng {f}</Option>
               ))}
             </Select>
-            <Button icon={<SearchOutlined />}>Lọc dữ liệu</Button>
+
+            {/* Tìm theo số phòng */}
+            <Input
+              allowClear
+              placeholder="Tìm số phòng..."
+              prefix={<SearchOutlined />}
+              style={{ width: 150 }}
+              value={filterRoomNumber}
+              onChange={(e) => setFilterRoomNumber(e.target.value)}
+            />
+
+            {/* Lọc theo Kinh doanh */}
+            <Select
+              allowClear
+              placeholder="Kinh doanh"
+              style={{ width: 155 }}
+              value={filterStatus}
+              onChange={(val) => setFilterStatus(val || null)}
+            >
+              <Option value="AVAILABLE"><span className="text-green-600">Sẵn sàng</span></Option>
+              <Option value="OCCUPIED"><span className="text-blue-600">Đang có khách</span></Option>
+              <Option value="MAINTENANCE"><span className="text-red-600">Bảo trì</span></Option>
+            </Select>
+
+            {/* Lọc theo Trạng thái phòng */}
+            <Select
+              allowClear
+              placeholder="Trạng thái phòng"
+              style={{ width: 170 }}
+              value={filterCleaningStatus}
+              onChange={(val) => setFilterCleaningStatus(val || null)}
+            >
+              <Option value="CLEAN"><span className="text-green-600">Đã dọn</span></Option>
+              <Option value="DIRTY"><span className="text-orange-500">Chưa dọn</span></Option>
+              <Option value="INSPECTING"><span className="text-purple-600">Đang kiểm tra</span></Option>
+            </Select>
           </Space>
           <Space>
             <Button onClick={() => setIsCreateMultipleVisible(true)}>Tạo nhiều phòng</Button>

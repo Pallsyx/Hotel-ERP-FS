@@ -20,4 +20,6 @@ public interface IRoomService
     // Cập nhật trạng thái và bắn SignalR
     Task<bool> UpdateRoomStatusAsync(int roomId, string status, string cleaningStatus);
     
+    // Hangfire job: 9h sáng đổi CLEAN -> DIRTY cho phòng đang có khách (OCCUPIED)
+    Task MarkOccupiedRoomsDirtyAsync();
 }
