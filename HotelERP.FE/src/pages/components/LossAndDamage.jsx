@@ -32,8 +32,23 @@ export default function LossAndDamage() {
   const [loading, setLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date().toLocaleTimeString('vi-VN', { hour12: false }));
 
-  // Hàm lấy dữ liệu (đã có sẵn)
-  const fetchData = async () => { /* ... */ };
+  // Hàm lấy dữ liệu thực tế từ BE
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const response = await axios.get(API_URL);
+      if (response.data && response.data.data) {
+        setData(response.data.data);
+      } else if (Array.isArray(response.data)) {
+        setData(response.data);
+      }
+    } catch (error) {
+      console.error("Lỗi lấy dữ liệu:", error);
+      message.error("Không kết nối được server để lấy dữ liệu. Đang hiển thị dữ liệu cũ.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // --- DÁN HÀM XỬ LÝ XÓA VÀO ĐÂY ---
   const handleDelete = async (id) => {
@@ -89,21 +104,17 @@ export default function LossAndDamage() {
       width: 100, // Cố định luôn cái cột
       align: 'center',
       render: (img) => img ? (
-        /* VŨ KHÍ TỐI THƯỢNG: Dùng div làm background, KHÔNG bao giờ bị vỡ layout */
-        <div 
-          style={{
-            width: '60px',
-            minWidth: '60px', // Ép chết chiều rộng
-            height: '60px',
-            minHeight: '60px', // Ép chết chiều cao
-            backgroundImage: `url('${img}')`, // Nhét ảnh vào làm hình nền
-            backgroundSize: 'cover', // Tự động cắt cúp cho vừa ô vuông
-            backgroundPosition: 'center',
+        <Image 
+          width={60}
+          height={60}
+          src={img}
+          style={{ 
+            objectFit: 'cover', 
             borderRadius: '6px',
-            border: '1px solid #d9d9d9',
-            margin: '0 auto'
-          }} 
-          title="Có bằng chứng"
+            border: '1px solid #d9d9d9'
+          }}
+          preview={{ mask: 'Xem' }}
+          alt="Bằng chứng"
         />
       ) : (
         <Text type="secondary" italic className="text-sm">Không ảnh</Text>
