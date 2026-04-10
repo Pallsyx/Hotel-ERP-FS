@@ -45,6 +45,15 @@ public class UpdateBookingStatusRequest
     public string NewStatus { get; set; } = null!;
 }
 
+/// <summary>
+/// Body cho API đổi phòng
+/// PUT /api/booking-management/details/{id}/change-room
+/// </summary>
+public class ChangeRoomRequest
+{
+    public int NewRoomId { get; set; }
+}
+
 // ===================================================
 // RESPONSE DTOs
 // ===================================================
