@@ -30,6 +30,13 @@ namespace HotelERP.BE.API.Controllers
             return Ok(result);
         }
 
+        [HttpGet("{invoiceId:int}")]
+        public async Task<IActionResult> GetInvoice(int invoiceId, CancellationToken cancellationToken)
+        {
+            var result = await _invoiceService.GetInvoiceAsync(invoiceId, cancellationToken);
+            return StatusCode(result.StatusCode, result);
+        }
+
         [HttpGet("summary")]
         public async Task<IActionResult> GetSummary(CancellationToken cancellationToken)
         {

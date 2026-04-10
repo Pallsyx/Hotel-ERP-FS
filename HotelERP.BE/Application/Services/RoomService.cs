@@ -137,13 +137,10 @@ public class RoomService : IRoomService
                 .FirstOrDefaultAsync();
         }
 
-        if (!activeBookingDetailId.HasValue || activeBookingDetailId.Value <= 0)
-            throw new InvalidOperationException("Không tìm thấy booking detail đang lưu trú của phòng này để gắn phí đền bù vào hóa đơn.");
-
         var damage = new LossAndDamage
         {
             RoomId = request.RoomId,
-            BookingDetailId = activeBookingDetailId.Value,
+            BookingDetailId = activeBookingDetailId,
             RoomInventoryId = request.RoomInventoryId,
             ReportedByUserId = userId,
             Description = request.Description,

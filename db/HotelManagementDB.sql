@@ -2369,10 +2369,10 @@ GO
 
 INSERT [dbo].[Rooms] ([room_type_id], [room_number], [floor], [status], [cleaning_status], [extension_number]) VALUES
 -- TẦNG 1: 10 Phòng (ID 2: Phòng tiêu chuẩn 1 giường đôi)
-(2, N'101', 1, N'Available', N'Clean', N'8101'),
-(2, N'102', 1, N'Occupied', N'Clean', N'8102'),
-(2, N'103', 1, N'Available', N'Cleaning', N'8103'),
-(2, N'104', 1, N'Available', N'Clean', NULL),
+-- (2, N'101', 1, N'Available', N'Clean', N'8101'), -- Trùng ID cũ
+-- (2, N'102', 1, N'Occupied', N'Clean', N'8102'), -- Trùng ID cũ
+-- (2, N'103', 1, N'Available', N'Cleaning', N'8103'), -- Trùng ID cũ
+-- (2, N'104', 1, N'Available', N'Clean', NULL), -- Trùng ID cũ
 (2, N'105', 1, N'Occupied', N'Dirty', N'8105'),
 (2, N'106', 1, N'Maintenance', N'Dirty', N'8106'),
 (2, N'107', 1, N'Occupied', N'Clean', N'8107'),
@@ -2381,10 +2381,10 @@ INSERT [dbo].[Rooms] ([room_type_id], [room_number], [floor], [status], [cleanin
 (2, N'110', 1, N'Occupied', N'Dirty', N'8110'),
 
 -- TẦNG 2: 10 Phòng (Mix ID 2: Tiêu chuẩn & ID 3: Cao cấp)
-(2, N'201', 2, N'Available', N'Clean', N'8201'),
-(2, N'202', 2, N'Available', N'Clean', N'8202'),
-(2, N'203', 2, N'Available', N'Cleaning', N'8203'),
-(2, N'204', 2, N'Occupied', N'Clean', N'8204'),
+-- (2, N'201', 2, N'Available', N'Clean', N'8201'), -- Trùng ID cũ
+-- (2, N'202', 2, N'Available', N'Clean', N'8202'), -- Trùng ID cũ
+-- (2, N'203', 2, N'Available', N'Cleaning', N'8203'), -- Trùng ID cũ
+-- (2, N'204', 2, N'Occupied', N'Clean', N'8204'), -- Trùng ID cũ
 (2, N'205', 2, N'Occupied', N'Dirty', NULL),
 (3, N'206', 2, N'Available', N'Clean', N'8206'),
 (3, N'207', 2, N'Available', N'Clean', N'8207'),
@@ -2393,8 +2393,8 @@ INSERT [dbo].[Rooms] ([room_type_id], [room_number], [floor], [status], [cleanin
 (3, N'210', 2, N'Available', N'Clean', NULL),
 
 -- TẦNG 3: 10 Phòng (Mix ID 3: Cao cấp & ID 4: Deluxe)
-(3, N'301', 3, N'Available', N'Clean', N'8301'),
-(3, N'302', 3, N'Occupied', N'Dirty', N'8302'),
+-- (3, N'301', 3, N'Available', N'Clean', N'8301'), -- Trùng ID cũ
+-- (3, N'302', 3, N'Occupied', N'Dirty', N'8302'), -- Trùng ID cũ
 (3, N'303', 3, N'Available', N'Clean', N'8303'),
 (3, N'304', 3, N'Available', N'Cleaning', NULL),
 (3, N'305', 3, N'Available', N'Clean', N'8305'),
@@ -2405,8 +2405,8 @@ INSERT [dbo].[Rooms] ([room_type_id], [room_number], [floor], [status], [cleanin
 (4, N'310', 3, N'Maintenance', N'Dirty', NULL),
 
 -- TẦNG 4: 10 Phòng (Mix ID 4: Deluxe & ID 6: Suite gia đình)
-(4, N'401', 4, N'Occupied', N'Clean', N'8401'),
-(4, N'402', 4, N'Available', N'Clean', N'8402'),
+-- (4, N'401', 4, N'Occupied', N'Clean', N'8401'), -- Trùng ID cũ
+-- (4, N'402', 4, N'Available', N'Clean', N'8402'), -- Trùng ID cũ
 (4, N'403', 4, N'Available', N'Clean', NULL),
 (4, N'404', 4, N'Available', N'Cleaning', N'8404'),
 (4, N'405', 4, N'Available', N'Clean', N'8405'),
@@ -2417,7 +2417,7 @@ INSERT [dbo].[Rooms] ([room_type_id], [room_number], [floor], [status], [cleanin
 (6, N'410', 4, N'Available', N'Clean', N'8410'),
 
 -- TẦNG 5: 10 Phòng (Mix ID 6: Suite gia đình & ID 9: Tổng thống)
-(6, N'501', 5, N'Available', N'Clean', N'8501'),
+-- (6, N'501', 5, N'Available', N'Clean', N'8501'), -- Trùng ID cũ
 (6, N'502', 5, N'Occupied', N'Clean', N'8502'),
 (6, N'503', 5, N'Occupied', N'Clean', N'8503'),
 (6, N'504', 5, N'Occupied', N'Dirty', NULL),
