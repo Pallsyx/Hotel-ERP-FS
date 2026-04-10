@@ -1476,107 +1476,710 @@ UPDATE Roles SET updated_at = GETDATE() WHERE updated_at IS NULL;
 ALTER TABLE Users ADD CONSTRAINT DF_Users_CreatedAt DEFAULT GETDATE() FOR created_at;
 ALTER TABLE Users ADD CONSTRAINT DF_Users_UpdatedAt DEFAULT GETDATE() FOR updated_at;
 
--- Thêm cột cho Audit_Logs
-ALTER TABLE [dbo].[Audit_Logs] ADD [reason] NVARCHAR(1000) NULL;
+ALTER TABLE Roles ADD CONSTRAINT DF_Roles_CreatedAt DEFAULT GETDATE() FOR created_at;
+ALTER TABLE Roles ADD CONSTRAINT DF_Roles_UpdatedAt DEFAULT GETDATE() FOR updated_at;
+
+-- ========================================================================
+-- 6. BỔ SUNG QUYỀN ÉP HỦY BOOKING CHO ADMIN & MANAGER
+-- ========================================================================
 GO
 
--- 1. Tìm và xóa Default Constraint (đang set 'ACTIVE') vừa được thêm ở bước trước
-DECLARE @ConstraintName nvarchar(200);
-SELECT @ConstraintName = name 
-FROM sys.default_constraints 
-WHERE parent_object_id = OBJECT_ID('[dbo].[Users]') 
-  AND parent_column_id = (SELECT column_id FROM sys.columns WHERE name = 'status' AND object_id = OBJECT_ID('[dbo].[Users]'));
-
-IF @ConstraintName IS NOT NULL
+-- 1. Thêm quyền FORCE_CANCEL_BOOKINGS vào bảng Permissions (nếu chưa có)
+IF NOT EXISTS (SELECT 1 FROM [dbo].[Permissions] WHERE [name] = 'FORCE_CANCEL_BOOKINGS')
 BEGIN
-    EXEC('ALTER TABLE [dbo].[Users] DROP CONSTRAINT ' + @ConstraintName);
+    INSERT INTO [dbo].[Permissions] ([name], [description], [group_name])
+    VALUES (
+        'FORCE_CANCEL_BOOKINGS', 
+        N'Ép hủy Đặt phòng (Chỉ dành cho cấp Quản lý)', 
+        N'Quản lý Đặt phòng & Tài chính'
+    );
+    PRINT N'Đã thêm quyền FORCE_CANCEL_BOOKINGS thành công!';
 END
 GO
 
--- 3. Ép kiểu cột status trở lại thành nguyên bản là BIT
-ALTER TABLE [dbo].[Users] ALTER COLUMN [status] [bit] NULL;
+-- 2. Cấp quyền này cho Role Admin (role_id = 1) và Manager (role_id = 2)
+DECLARE @ForceCancelPermId INT = (SELECT [id] FROM [dbo].[Permissions] WHERE [name] = 'FORCE_CANCEL_BOOKINGS');
+
+IF @ForceCancelPermId IS NOT NULL
+BEGIN
+    -- Cấp cho Admin
+    IF NOT EXISTS (SELECT 1 FROM [dbo].[Role_Permissions] WHERE [role_id] = 1 AND [permission_id] = @ForceCancelPermId)
+    BEGIN
+        INSERT INTO [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (1, @ForceCancelPermId);
+    END
+
+    -- Cấp cho Manager
+    IF NOT EXISTS (SELECT 1 FROM [dbo].[Role_Permissions] WHERE [role_id] = 2 AND [permission_id] = @ForceCancelPermId)
+    BEGIN
+        INSERT INTO [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES (2, @ForceCancelPermId);
+    END
+
+    PRINT N'Đã cấp quyền ép hủy cho Admin và Manager thành công!';
+END
 GO
 
--- 4. Thêm lại Default Constraint mặc định là 1 (Hoạt động)
-ALTER TABLE [dbo].[Users] ADD CONSTRAINT DF_Users_Status_Bit DEFAULT ((1)) FOR [status];
+/* ========================================================================
+   GÓI PATCH BỔ SUNG (GỘP CODE CỦA DU & LONG) 
+   - Đảm bảo an toàn (không lỗi khi chạy nhiều lần)
+   - Khớp 100% với file Model C# (Dùng DATETIME2, GETUTCDATE, NVARCHAR 100)
+   - Kèm Trigger tự động tính toán Invoice
+   ======================================================================== */
+
+/* =========================================================
+   1. PATCH Booking_Details
+   ========================================================= */
+IF COL_LENGTH('dbo.Booking_Details', 'identity_document_public_id') IS NULL
+BEGIN
+    ALTER TABLE dbo.Booking_Details
+    ADD identity_document_public_id NVARCHAR(255) NULL;
+END
 GO
 
-UPDATE [dbo].[Users] SET [created_at] = GETDATE() WHERE [created_at] IS NULL;
-UPDATE [dbo].[Users] SET [updated_at] = GETDATE() WHERE [updated_at] IS NULL;
+/* =========================================================
+   2. PATCH Order_Services
+   ========================================================= */
+IF COL_LENGTH('dbo.Order_Services', 'order_code') IS NULL
+BEGIN
+    ALTER TABLE dbo.Order_Services
+    ADD order_code NVARCHAR(50) NULL;
+END
 GO
 
-INSERT INTO [dbo].[Role_Permissions] ([role_id], [permission_id])
-SELECT 1, id 
-FROM [dbo].[Permissions] 
-WHERE [name] IN (
-    'VIEW_SYSTEM_LOGS', 
-    'VIEW_NOTIFICATIONS', 
-    'VIEW_ROOMS', 
-    'UPDATE_ROOM_STATUS', 
-    'CHECK_IN_OUT', 
-    'MANAGE_AMENITIES', 
-    'MANAGE_MAINTENANCE'
+IF COL_LENGTH('dbo.Order_Services', 'notes') IS NULL
+BEGIN
+    ALTER TABLE dbo.Order_Services
+    ADD notes NVARCHAR(1000) NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.Order_Services', 'created_at') IS NULL
+BEGIN
+    ALTER TABLE dbo.Order_Services
+    ADD created_at DATETIME2 NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.Order_Services', 'updated_at') IS NULL
+BEGIN
+    ALTER TABLE dbo.Order_Services
+    ADD updated_at DATETIME2 NULL;
+END
+GO
+
+UPDATE dbo.Order_Services
+SET
+    order_code = ISNULL(order_code, CONCAT('OS-', RIGHT('000000' + CAST(id AS VARCHAR(6)), 6))),
+    created_at = ISNULL(created_at, GETUTCDATE())
+WHERE order_code IS NULL
+   OR created_at IS NULL;
+GO
+
+BEGIN TRY
+    ALTER TABLE dbo.Order_Services
+    ALTER COLUMN order_code NVARCHAR(50) NOT NULL;
+END TRY
+BEGIN CATCH
+    -- Column already NOT NULL or error during alteration
+END CATCH
+GO
+
+BEGIN TRY
+    ALTER TABLE dbo.Order_Services
+    ALTER COLUMN created_at DATETIME2 NOT NULL;
+END TRY
+BEGIN CATCH
+    -- Column already NOT NULL or error during alteration
+END CATCH
+GO
+
+/* =========================================================
+   3. PATCH Order_Service_Details
+   ========================================================= */
+IF COL_LENGTH('dbo.Order_Service_Details', 'line_total') IS NULL
+BEGIN
+    ALTER TABLE dbo.Order_Service_Details
+    ADD line_total DECIMAL(18,2) NOT NULL CONSTRAINT DF_OrderServiceDetails_LineTotal DEFAULT 0;
+END
+GO
+
+IF COL_LENGTH('dbo.Order_Service_Details', 'notes') IS NULL
+BEGIN
+    ALTER TABLE dbo.Order_Service_Details
+    ADD notes NVARCHAR(500) NULL;
+END
+GO
+
+UPDATE dbo.Order_Service_Details
+SET line_total = CASE
+                    WHEN ISNULL(line_total, 0) > 0 THEN line_total
+                    ELSE ISNULL(quantity, 0) * ISNULL(unit_price, 0)
+                 END;
+GO
+
+/* =========================================================
+   4. PATCH Invoices (ĐÃ GỘP CHUẨN MODEL CỦA DU)
+   ========================================================= */
+IF COL_LENGTH('dbo.Invoices', 'invoice_code') IS NULL
+BEGIN
+    ALTER TABLE dbo.Invoices
+    ADD invoice_code NVARCHAR(100) NULL; -- Kích thước theo yêu cầu của Du
+END
+GO
+
+IF COL_LENGTH('dbo.Invoices', 'total_damage_amount') IS NULL
+BEGIN
+    ALTER TABLE dbo.Invoices
+    ADD total_damage_amount DECIMAL(18,2) NOT NULL CONSTRAINT DF_Invoices_TotalDamageAmount DEFAULT 0;
+END
+GO
+
+IF COL_LENGTH('dbo.Invoices', 'manual_adjustment_amount') IS NULL
+BEGIN
+    ALTER TABLE dbo.Invoices
+    ADD manual_adjustment_amount DECIMAL(18,2) NOT NULL CONSTRAINT DF_Invoices_ManualAdjustmentAmount DEFAULT 0;
+END
+GO
+
+IF COL_LENGTH('dbo.Invoices', 'refund_amount') IS NULL
+BEGIN
+    ALTER TABLE dbo.Invoices
+    ADD refund_amount DECIMAL(18,2) NOT NULL CONSTRAINT DF_Invoices_RefundAmount DEFAULT 0;
+END
+GO
+
+IF COL_LENGTH('dbo.Invoices', 'notes') IS NULL
+BEGIN
+    ALTER TABLE dbo.Invoices
+    ADD notes NVARCHAR(1000) NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.Invoices', 'issued_at') IS NULL
+BEGIN
+    ALTER TABLE dbo.Invoices
+    ADD issued_at DATETIME2 NULL; -- Kiểu DATETIME2 của Du
+END
+GO
+
+IF COL_LENGTH('dbo.Invoices', 'paid_at') IS NULL
+BEGIN
+    ALTER TABLE dbo.Invoices
+    ADD paid_at DATETIME2 NULL; -- Kiểu DATETIME2 của Du
+END
+GO
+
+IF COL_LENGTH('dbo.Invoices', 'created_at') IS NULL
+BEGIN
+    ALTER TABLE dbo.Invoices
+    ADD created_at DATETIME2 CONSTRAINT DF_Invoices_CreatedAt DEFAULT GETUTCDATE(); -- Của Du
+END
+GO
+
+IF COL_LENGTH('dbo.Invoices', 'updated_at') IS NULL
+BEGIN
+    ALTER TABLE dbo.Invoices
+    ADD updated_at DATETIME2 NULL; -- Kiểu DATETIME2 của Du
+END
+GO
+
+UPDATE inv
+SET
+    invoice_code = ISNULL(inv.invoice_code, CONCAT('INV-', UPPER(ISNULL(b.booking_code, CONCAT('BOOKING-', inv.booking_id))))),
+    total_room_amount = ISNULL(inv.total_room_amount, 0),
+    total_service_amount = ISNULL(inv.total_service_amount, 0),
+    total_damage_amount = ISNULL(inv.total_damage_amount, 0),
+    discount_amount = ISNULL(inv.discount_amount, 0),
+    manual_adjustment_amount = ISNULL(inv.manual_adjustment_amount, 0),
+    tax_amount = ISNULL(inv.tax_amount, 0),
+    final_total = ISNULL(inv.final_total, 0),
+    refund_amount = ISNULL(inv.refund_amount, 0),
+    status = CASE
+                WHEN inv.status IS NULL OR LTRIM(RTRIM(inv.status)) = '' THEN 'Draft'
+                WHEN UPPER(LTRIM(RTRIM(inv.status))) = 'UNPAID' THEN 'Draft'
+                ELSE inv.status
+             END,
+    created_at = ISNULL(inv.created_at, GETUTCDATE())
+FROM dbo.Invoices inv
+LEFT JOIN dbo.Bookings b ON b.id = inv.booking_id;
+GO
+
+BEGIN TRY
+    ALTER TABLE dbo.Invoices
+    ALTER COLUMN invoice_code NVARCHAR(100) NOT NULL;
+END TRY
+BEGIN CATCH
+    -- Column already NOT NULL or error during alteration
+END CATCH
+GO
+
+BEGIN TRY
+    ALTER TABLE dbo.Invoices
+    ALTER COLUMN status NVARCHAR(50) NOT NULL;
+END TRY
+BEGIN CATCH
+    -- Column already NOT NULL or error during alteration
+END CATCH
+GO
+
+BEGIN TRY
+    ALTER TABLE dbo.Invoices
+    ALTER COLUMN created_at DATETIME2 NOT NULL;
+END TRY
+BEGIN CATCH
+    -- Column already NOT NULL or error during alteration
+END CATCH
+GO
+
+/* =========================================================
+   5. PATCH Payments
+   ========================================================= */
+IF COL_LENGTH('dbo.Payments', 'payment_direction') IS NULL
+BEGIN
+    ALTER TABLE dbo.Payments
+    ADD payment_direction NVARCHAR(10) NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.Payments', 'gateway_name') IS NULL
+BEGIN
+    ALTER TABLE dbo.Payments
+    ADD gateway_name NVARCHAR(100) NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.Payments', 'provider_response') IS NULL
+BEGIN
+    ALTER TABLE dbo.Payments
+    ADD provider_response NVARCHAR(MAX) NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.Payments', 'status') IS NULL
+BEGIN
+    ALTER TABLE dbo.Payments
+    ADD status NVARCHAR(50) NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.Payments', 'created_at') IS NULL
+BEGIN
+    ALTER TABLE dbo.Payments
+    ADD created_at DATETIME2 NULL;
+END
+GO
+
+UPDATE dbo.Payments
+SET
+    payment_direction = ISNULL(payment_direction, 'IN'),
+    status = ISNULL(status, 'SUCCESS'),
+    created_at = ISNULL(created_at, GETUTCDATE()),
+    payment_date = ISNULL(payment_date, GETUTCDATE())
+WHERE payment_direction IS NULL
+   OR status IS NULL
+   OR created_at IS NULL
+   OR payment_date IS NULL;
+GO
+
+BEGIN TRY
+    ALTER TABLE dbo.Payments
+    ALTER COLUMN payment_direction NVARCHAR(10) NOT NULL;
+END TRY
+BEGIN CATCH
+    -- Column already NOT NULL or error during alteration
+END CATCH
+GO
+
+BEGIN TRY
+    ALTER TABLE dbo.Payments
+    ALTER COLUMN status NVARCHAR(50) NOT NULL;
+END TRY
+BEGIN CATCH
+    -- Column already NOT NULL or error during alteration
+END CATCH
+GO
+
+BEGIN TRY
+    ALTER TABLE dbo.Payments
+    ALTER COLUMN created_at DATETIME2 NOT NULL;
+END TRY
+BEGIN CATCH
+    -- Column already NOT NULL or error during alteration
+END CATCH
+GO
+
+/* =========================================================
+   6. OPTIONAL INDEX
+   ========================================================= */
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE object_id = OBJECT_ID('dbo.Invoices')
+      AND name = 'IX_Invoices_InvoiceCode'
 )
-AND NOT EXISTS (
-    SELECT 1 FROM [dbo].[Role_Permissions] rp 
-    WHERE rp.role_id = 1 AND rp.permission_id = [dbo].[Permissions].id
-);
+BEGIN
+    CREATE INDEX IX_Invoices_InvoiceCode
+    ON dbo.Invoices(invoice_code);
+END
 GO
 
-
--- Thêm khóa ngoại cho Room_Inventory sau khi bảng Rooms đã được tạo xong
-ALTER TABLE [dbo].[Room_Inventory] ADD CONSTRAINT [FK_RoomInventory_Rooms] FOREIGN KEY ([room_id]) REFERENCES [dbo].[Rooms]([id]);
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE object_id = OBJECT_ID('dbo.Order_Services')
+      AND name = 'IX_OrderServices_OrderCode'
+)
+BEGIN
+    CREATE INDEX IX_OrderServices_OrderCode
+    ON dbo.Order_Services(order_code);
+END
 GO
 
--- Bổ sung cột cho bảng Room_Types
-IF COL_LENGTH('dbo.Room_Types', 'DeletedAt') IS NULL 
-    ALTER TABLE [dbo].[Room_Types] ADD [DeletedAt] DATETIME NULL;
-
-IF COL_LENGTH('dbo.Room_Types', 'ImageUrl') IS NULL 
-    ALTER TABLE [dbo].[Room_Types] ADD [ImageUrl] NVARCHAR(MAX) NULL;
-
--- Bổ sung cột cho bảng Amenities
-IF COL_LENGTH('dbo.Amenities', 'DeletedAt') IS NULL 
-    ALTER TABLE [dbo].[Amenities] ADD [DeletedAt] DATETIME NULL;
+/* =========================================================
+   7. RECALC TOÀN BỘ INVOICE CHƯA PAID
+   ========================================================= */
+;WITH RoomTotals AS
+(
+    SELECT
+        bd.booking_id,
+        SUM(
+            CASE
+                WHEN ISNULL(bd.line_total, 0) > 0 THEN ISNULL(bd.line_total, 0)
+                ELSE
+                    (ISNULL(bd.price_per_night, 0) *
+                     CASE
+                         WHEN ISNULL(bd.nights, 0) > 0 THEN bd.nights
+                         WHEN DATEDIFF(DAY, bd.check_in_date, bd.check_out_date) > 0 THEN DATEDIFF(DAY, bd.check_in_date, bd.check_out_date)
+                         ELSE 1
+                     END)
+                    + ISNULL(bd.early_check_in_fee, 0)
+                    + ISNULL(bd.late_check_out_fee, 0)
+            END
+        ) AS total_room_amount
+    FROM dbo.Booking_Details bd
+    GROUP BY bd.booking_id
+),
+OrderServiceDetailAgg AS
+(
+    SELECT
+        osd.order_service_id,
+        SUM(
+            CASE
+                WHEN ISNULL(osd.line_total, 0) > 0 THEN ISNULL(osd.line_total, 0)
+                ELSE ISNULL(osd.quantity, 0) * ISNULL(osd.unit_price, 0)
+            END
+        ) AS detail_total
+    FROM dbo.Order_Service_Details osd
+    GROUP BY osd.order_service_id
+),
+OrderServiceAmount AS
+(
+    SELECT
+        bd.booking_id,
+        os.id AS order_service_id,
+        CASE
+            WHEN os.id IS NULL THEN 0
+            WHEN UPPER(LTRIM(RTRIM(ISNULL(os.status, 'PENDING')))) = 'CANCELLED' THEN 0
+            WHEN ISNULL(os.total_amount, 0) > 0 THEN ISNULL(os.total_amount, 0)
+            ELSE ISNULL(osda.detail_total, 0)
+        END AS order_total
+    FROM dbo.Booking_Details bd
+    LEFT JOIN dbo.Order_Services os
+        ON os.booking_detail_id = bd.id
+    LEFT JOIN OrderServiceDetailAgg osda
+        ON osda.order_service_id = os.id
+),
+ServiceTotals AS
+(
+    SELECT
+        booking_id,
+        SUM(order_total) AS total_service_amount
+    FROM OrderServiceAmount
+    GROUP BY booking_id
+),
+DamageTotals AS
+(
+    SELECT
+        bd.booking_id,
+        SUM(
+            CASE
+                WHEN ld.id IS NULL THEN 0
+                WHEN UPPER(LTRIM(RTRIM(ISNULL(ld.status, 'OPEN')))) IN ('WAIVED', 'CANCELLED', 'VOIDED') THEN 0
+                ELSE ISNULL(ld.penalty_amount, 0)
+            END
+        ) AS total_damage_amount
+    FROM dbo.Booking_Details bd
+    LEFT JOIN dbo.Loss_And_Damages ld ON ld.booking_detail_id = bd.id
+    GROUP BY bd.booking_id
+)
+UPDATE inv
+SET
+    inv.total_room_amount = ROUND(ISNULL(rt.total_room_amount, 0), 2),
+    inv.total_service_amount = ROUND(ISNULL(st.total_service_amount, 0), 2),
+    inv.total_damage_amount = ROUND(ISNULL(dt.total_damage_amount, 0), 2),
+    inv.discount_amount = ROUND(ISNULL(b.discount_amount, 0), 2),
+    inv.tax_amount = ROUND(
+        CASE
+            WHEN (
+                ISNULL(rt.total_room_amount, 0)
+                + ISNULL(st.total_service_amount, 0)
+                + ISNULL(dt.total_damage_amount, 0)
+                + ISNULL(inv.manual_adjustment_amount, 0)
+                - ISNULL(b.discount_amount, 0)
+            ) > 0
+            THEN (
+                ISNULL(rt.total_room_amount, 0)
+                + ISNULL(st.total_service_amount, 0)
+                + ISNULL(dt.total_damage_amount, 0)
+                + ISNULL(inv.manual_adjustment_amount, 0)
+                - ISNULL(b.discount_amount, 0)
+            ) * 0.10
+            ELSE 0
+        END
+    , 2),
+    inv.final_total = ROUND(
+        CASE
+            WHEN (
+                ISNULL(rt.total_room_amount, 0)
+                + ISNULL(st.total_service_amount, 0)
+                + ISNULL(dt.total_damage_amount, 0)
+                + ISNULL(inv.manual_adjustment_amount, 0)
+                - ISNULL(b.discount_amount, 0)
+            ) > 0
+            THEN (
+                ISNULL(rt.total_room_amount, 0)
+                + ISNULL(st.total_service_amount, 0)
+                + ISNULL(dt.total_damage_amount, 0)
+                + ISNULL(inv.manual_adjustment_amount, 0)
+                - ISNULL(b.discount_amount, 0)
+            )
+            + (
+                (
+                    ISNULL(rt.total_room_amount, 0)
+                    + ISNULL(st.total_service_amount, 0)
+                    + ISNULL(dt.total_damage_amount, 0)
+                    + ISNULL(inv.manual_adjustment_amount, 0)
+                    - ISNULL(b.discount_amount, 0)
+                ) * 0.10
+            )
+            - ISNULL(inv.refund_amount, 0)
+            ELSE 0
+        END
+    , 2),
+    inv.updated_at = GETUTCDATE(),
+    inv.status = CASE
+                    WHEN UPPER(LTRIM(RTRIM(ISNULL(inv.status, 'DRAFT')))) = 'UNPAID' THEN 'Draft'
+                    WHEN inv.status IS NULL OR LTRIM(RTRIM(inv.status)) = '' THEN 'Draft'
+                    ELSE inv.status
+                 END
+FROM dbo.Invoices inv
+LEFT JOIN dbo.Bookings b ON b.id = inv.booking_id
+LEFT JOIN RoomTotals rt ON rt.booking_id = inv.booking_id
+LEFT JOIN ServiceTotals st ON st.booking_id = inv.booking_id
+LEFT JOIN DamageTotals dt ON dt.booking_id = inv.booking_id
+WHERE UPPER(LTRIM(RTRIM(ISNULL(inv.status, 'DRAFT')))) <> 'PAID';
 GO
 
--- ==========================================
--- BỔ SUNG CỘT CHO BẢNG LOSS_AND_DAMAGES
--- ==========================================
-IF COL_LENGTH('dbo.Loss_And_Damages', 'room_id') IS NULL 
-    ALTER TABLE [dbo].[Loss_And_Damages] ADD [room_id] INT NULL;
+/* =========================================================
+   8. TRIGGER TỰ ĐỘNG TẠO / CẬP NHẬT INVOICE DRAFT KHI TRẢ PHÒNG
+   ========================================================= */
+CREATE OR ALTER TRIGGER dbo.trg_BookingDetails_AutoDraftInvoice_WhenCheckout
+ON dbo.Booking_Details
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
 
-IF COL_LENGTH('dbo.Loss_And_Damages', 'evidence_image_url') IS NULL 
-    ALTER TABLE [dbo].[Loss_And_Damages] ADD [evidence_image_url] NVARCHAR(MAX) NULL;
+    DECLARE @ChangedBookings TABLE ( booking_id INT PRIMARY KEY );
 
-IF COL_LENGTH('dbo.Loss_And_Damages', 'evidence_public_id') IS NULL 
-    ALTER TABLE [dbo].[Loss_And_Damages] ADD [evidence_public_id] NVARCHAR(255) NULL;
+    INSERT INTO @ChangedBookings (booking_id)
+    SELECT DISTINCT i.booking_id
+    FROM inserted i
+    LEFT JOIN deleted d ON d.id = i.id
+    WHERE i.booking_id IS NOT NULL
+      AND (
+          (i.actual_check_out_at IS NOT NULL AND ISNULL(d.actual_check_out_at, '19000101') <> i.actual_check_out_at)
+          OR
+          (
+              UPPER(LTRIM(RTRIM(ISNULL(i.status, '')))) IN ('CHECKED_OUT', 'COMPLETED')
+              AND UPPER(LTRIM(RTRIM(ISNULL(i.status, '')))) <> UPPER(LTRIM(RTRIM(ISNULL(d.status, ''))))
+          )
+      );
 
-IF COL_LENGTH('dbo.Loss_And_Damages', 'reported_by_user_id') IS NULL 
-    ALTER TABLE [dbo].[Loss_And_Damages] ADD [reported_by_user_id] INT NULL;
+    IF NOT EXISTS (SELECT 1 FROM @ChangedBookings) RETURN;
 
-IF COL_LENGTH('dbo.Loss_And_Damages', 'status') IS NULL 
-    ALTER TABLE [dbo].[Loss_And_Damages] ADD [status] NVARCHAR(50) DEFAULT 'Pending';
+    DECLARE @Calc TABLE
+    (
+        booking_id INT PRIMARY KEY,
+        booking_code NVARCHAR(50),
+        invoice_id INT NULL,
+        total_room_amount DECIMAL(18,2),
+        total_service_amount DECIMAL(18,2),
+        total_damage_amount DECIMAL(18,2),
+        discount_amount DECIMAL(18,2)
+    );
 
-IF COL_LENGTH('dbo.Loss_And_Damages', 'updated_at') IS NULL 
-    ALTER TABLE [dbo].[Loss_And_Damages] ADD [updated_at] DATETIME NULL;
+    INSERT INTO @Calc
+    (
+        booking_id, booking_code, invoice_id, total_room_amount,
+        total_service_amount, total_damage_amount, discount_amount
+    )
+    SELECT
+        b.id AS booking_id, b.booking_code, ei.invoice_id,
+        ISNULL(rt.total_room_amount, 0) AS total_room_amount,
+        ISNULL(st.total_service_amount, 0) AS total_service_amount,
+        ISNULL(dt.total_damage_amount, 0) AS total_damage_amount,
+        ISNULL(b.discount_amount, 0) AS discount_amount
+    FROM dbo.Bookings b
+    INNER JOIN @ChangedBookings cb ON cb.booking_id = b.id
+    LEFT JOIN (
+        SELECT bd.booking_id, SUM(
+            CASE WHEN ISNULL(bd.line_total, 0) > 0 THEN ISNULL(bd.line_total, 0)
+                 ELSE (ISNULL(bd.price_per_night, 0) * CASE WHEN ISNULL(bd.nights, 0) > 0 THEN bd.nights WHEN DATEDIFF(DAY, bd.check_in_date, bd.check_out_date) > 0 THEN DATEDIFF(DAY, bd.check_in_date, bd.check_out_date) ELSE 1 END) + ISNULL(bd.early_check_in_fee, 0) + ISNULL(bd.late_check_out_fee, 0)
+            END
+        ) AS total_room_amount
+        FROM dbo.Booking_Details bd INNER JOIN @ChangedBookings cb2 ON cb2.booking_id = bd.booking_id GROUP BY bd.booking_id
+    ) rt ON rt.booking_id = b.id
+    LEFT JOIN (
+        SELECT bd.booking_id, SUM(
+            CASE WHEN os.id IS NULL THEN 0 WHEN UPPER(LTRIM(RTRIM(ISNULL(os.status, 'PENDING')))) = 'CANCELLED' THEN 0 WHEN ISNULL(os.total_amount, 0) > 0 THEN ISNULL(os.total_amount, 0) ELSE ISNULL(osd_agg.detail_total, 0) END
+        ) AS total_service_amount
+        FROM dbo.Booking_Details bd INNER JOIN @ChangedBookings cb3 ON cb3.booking_id = bd.booking_id LEFT JOIN dbo.Order_Services os ON os.booking_detail_id = bd.id LEFT JOIN (
+            SELECT osd.order_service_id, SUM(CASE WHEN ISNULL(osd.line_total, 0) > 0 THEN ISNULL(osd.line_total, 0) ELSE ISNULL(osd.quantity, 0) * ISNULL(osd.unit_price, 0) END) AS detail_total
+            FROM dbo.Order_Service_Details osd GROUP BY osd.order_service_id
+        ) osd_agg ON osd_agg.order_service_id = os.id GROUP BY bd.booking_id
+    ) st ON st.booking_id = b.id
+    LEFT JOIN (
+        SELECT bd.booking_id, SUM(
+            CASE WHEN ld.id IS NULL THEN 0 WHEN UPPER(LTRIM(RTRIM(ISNULL(ld.status, 'OPEN')))) IN ('WAIVED', 'CANCELLED', 'VOIDED') THEN 0 ELSE ISNULL(ld.penalty_amount, 0) END
+        ) AS total_damage_amount
+        FROM dbo.Booking_Details bd INNER JOIN @ChangedBookings cb4 ON cb4.booking_id = bd.booking_id LEFT JOIN dbo.Loss_And_Damages ld ON ld.booking_detail_id = bd.id GROUP BY bd.booking_id
+    ) dt ON dt.booking_id = b.id
+    LEFT JOIN (SELECT booking_id, MAX(id) AS invoice_id FROM dbo.Invoices GROUP BY booking_id) ei ON ei.booking_id = b.id;
 
--- ==========================================
--- BỔ SUNG CỘT CHO BẢNG ROOMS
--- ==========================================
-IF COL_LENGTH('dbo.Rooms', 'DeletedAt') IS NULL 
-    ALTER TABLE [dbo].[Rooms] ADD [DeletedAt] DATETIME NULL;
+    UPDATE inv
+    SET
+        inv.invoice_code = ISNULL(inv.invoice_code, CONCAT('INV-', UPPER(c.booking_code))),
+        inv.total_room_amount = ROUND(c.total_room_amount, 2),
+        inv.total_service_amount = ROUND(c.total_service_amount, 2),
+        inv.total_damage_amount = ROUND(c.total_damage_amount, 2),
+        inv.discount_amount = ROUND(c.discount_amount, 2),
+        inv.tax_amount = ROUND(CASE WHEN (c.total_room_amount + c.total_service_amount + c.total_damage_amount + ISNULL(inv.manual_adjustment_amount, 0) - c.discount_amount) > 0 THEN (c.total_room_amount + c.total_service_amount + c.total_damage_amount + ISNULL(inv.manual_adjustment_amount, 0) - c.discount_amount) * 0.10 ELSE 0 END, 2),
+        inv.final_total = ROUND(CASE WHEN (c.total_room_amount + c.total_service_amount + c.total_damage_amount + ISNULL(inv.manual_adjustment_amount, 0) - c.discount_amount) > 0 THEN (c.total_room_amount + c.total_service_amount + c.total_damage_amount + ISNULL(inv.manual_adjustment_amount, 0) - c.discount_amount) + ((c.total_room_amount + c.total_service_amount + c.total_damage_amount + ISNULL(inv.manual_adjustment_amount, 0) - c.discount_amount) * 0.10) - ISNULL(inv.refund_amount, 0) ELSE 0 END, 2),
+        inv.updated_at = GETUTCDATE(),
+        inv.status = CASE WHEN UPPER(LTRIM(RTRIM(ISNULL(inv.status, 'DRAFT')))) = 'PAID' THEN inv.status ELSE 'Draft' END
+    FROM dbo.Invoices inv
+    INNER JOIN @Calc c ON c.invoice_id = inv.id;
 
-IF COL_LENGTH('dbo.Rooms', 'notes') IS NULL 
-    ALTER TABLE [dbo].[Rooms] ADD [notes] NVARCHAR(MAX) NULL;
+    INSERT INTO dbo.Invoices
+    (
+        booking_id, invoice_code, total_room_amount, total_service_amount,
+        total_damage_amount, discount_amount, manual_adjustment_amount, tax_amount,
+        final_total, refund_amount, status, notes, created_at, updated_at
+    )
+    SELECT
+        c.booking_id, CONCAT('INV-', UPPER(c.booking_code)), ROUND(c.total_room_amount, 2), ROUND(c.total_service_amount, 2),
+        ROUND(c.total_damage_amount, 2), ROUND(c.discount_amount, 2), 0,
+        ROUND(CASE WHEN (c.total_room_amount + c.total_service_amount + c.total_damage_amount - c.discount_amount) > 0 THEN (c.total_room_amount + c.total_service_amount + c.total_damage_amount - c.discount_amount) * 0.10 ELSE 0 END, 2),
+        ROUND(CASE WHEN (c.total_room_amount + c.total_service_amount + c.total_damage_amount - c.discount_amount) > 0 THEN (c.total_room_amount + c.total_service_amount + c.total_damage_amount - c.discount_amount) + ((c.total_room_amount + c.total_service_amount + c.total_damage_amount - c.discount_amount) * 0.10) ELSE 0 END, 2),
+        0, 'Draft', N'Tự động tạo khi trả phòng', GETUTCDATE(), GETUTCDATE()
+    FROM @Calc c
+    WHERE c.invoice_id IS NULL;
+END
 GO
 
--- Bổ sung cột xử lý ảnh Cloudinary và Phí check-in sớm cho bảng Room_Types
-IF COL_LENGTH('dbo.Room_Types', 'CloudinaryPublicId') IS NULL 
-    ALTER TABLE [dbo].[Room_Types] ADD [CloudinaryPublicId] NVARCHAR(255) NULL;
+-- ==============================================================================
+-- ES: CẬP NHẬT CẤU TRÚC BẢNG (CODE CỦA DU ĐÃ FIX LỖI TRÙNG LẶP)
+-- ==============================================================================
 
-IF COL_LENGTH('dbo.Room_Types', 'early_checkin_fee_percent') IS NULL 
-    ALTER TABLE [dbo].[Room_Types] ADD [early_checkin_fee_percent] DECIMAL(5,2) NOT NULL DEFAULT 0;
+-- Thêm các cột thiếu cho bảng Vouchers
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Vouchers') AND name = 'created_at')
+ALTER TABLE Vouchers ADD created_at DATETIME NULL;
+
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Vouchers') AND name = 'status')
+ALTER TABLE Vouchers ADD status NVARCHAR(50) NULL;
+
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Vouchers') AND name = 'updated_at')
+ALTER TABLE Vouchers ADD updated_at DATETIME NULL;
+
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Vouchers') AND name = 'used_count')
+ALTER TABLE Vouchers ADD used_count INT NULL;
 GO
 
-EXEC sp_msforeachtable 'ALTER TABLE ? CHECK CONSTRAINT ALL'
+-- Thêm các cột thiếu cho bảng Users
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Users') AND name = 'identity_document_public_id')
+ALTER TABLE Users ADD identity_document_public_id NVARCHAR(MAX) NULL;
+
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Users') AND name = 'created_at')
+ALTER TABLE Users ADD created_at DATETIME NULL;
+
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Users') AND name = 'updated_at')
+ALTER TABLE Users ADD updated_at DATETIME NULL;
+GO
+
+-- ==============================================================================
+-- THÊM 50 DỮ LIỆU PHÒNG (CHUẨN CẤU TRÚC SQL CỦA BẠN)
+-- Trạng thái phòng: Available, Occupied, Maintenance
+-- Trạng thái dọn dẹp: Clean, Dirty, Cleaning
+-- ==============================================================================
+
+INSERT [dbo].[Rooms] ([room_type_id], [room_number], [floor], [status], [cleaning_status], [extension_number]) VALUES
+-- TẦNG 1: 10 Phòng (ID 2: Phòng tiêu chuẩn 1 giường đôi)
+(2, N'101', 1, N'Available', N'Clean', N'8101'),
+(2, N'102', 1, N'Occupied', N'Clean', N'8102'),
+(2, N'103', 1, N'Available', N'Cleaning', N'8103'),
+(2, N'104', 1, N'Available', N'Clean', NULL),
+(2, N'105', 1, N'Occupied', N'Dirty', N'8105'),
+(2, N'106', 1, N'Maintenance', N'Dirty', N'8106'),
+(2, N'107', 1, N'Occupied', N'Clean', N'8107'),
+(2, N'108', 1, N'Available', N'Clean', N'8108'),
+(2, N'109', 1, N'Available', N'Cleaning', NULL),
+(2, N'110', 1, N'Occupied', N'Dirty', N'8110'),
+
+-- TẦNG 2: 10 Phòng (Mix ID 2: Tiêu chuẩn & ID 3: Cao cấp)
+(2, N'201', 2, N'Available', N'Clean', N'8201'),
+(2, N'202', 2, N'Available', N'Clean', N'8202'),
+(2, N'203', 2, N'Available', N'Cleaning', N'8203'),
+(2, N'204', 2, N'Occupied', N'Clean', N'8204'),
+(2, N'205', 2, N'Occupied', N'Dirty', NULL),
+(3, N'206', 2, N'Available', N'Clean', N'8206'),
+(3, N'207', 2, N'Available', N'Clean', N'8207'),
+(3, N'208', 2, N'Maintenance', N'Dirty', N'8208'),
+(3, N'209', 2, N'Occupied', N'Clean', N'8209'),
+(3, N'210', 2, N'Available', N'Clean', NULL),
+
+-- TẦNG 3: 10 Phòng (Mix ID 3: Cao cấp & ID 4: Deluxe)
+(3, N'301', 3, N'Available', N'Clean', N'8301'),
+(3, N'302', 3, N'Occupied', N'Dirty', N'8302'),
+(3, N'303', 3, N'Available', N'Clean', N'8303'),
+(3, N'304', 3, N'Available', N'Cleaning', NULL),
+(3, N'305', 3, N'Available', N'Clean', N'8305'),
+(4, N'306', 3, N'Occupied', N'Clean', N'8306'),
+(4, N'307', 3, N'Available', N'Clean', N'8307'),
+(4, N'308', 3, N'Available', N'Clean', N'8308'),
+(4, N'309', 3, N'Available', N'Cleaning', N'8309'),
+(4, N'310', 3, N'Maintenance', N'Dirty', NULL),
+
+-- TẦNG 4: 10 Phòng (Mix ID 4: Deluxe & ID 6: Suite gia đình)
+(4, N'401', 4, N'Occupied', N'Clean', N'8401'),
+(4, N'402', 4, N'Available', N'Clean', N'8402'),
+(4, N'403', 4, N'Available', N'Clean', NULL),
+(4, N'404', 4, N'Available', N'Cleaning', N'8404'),
+(4, N'405', 4, N'Available', N'Clean', N'8405'),
+(6, N'406', 4, N'Occupied', N'Dirty', N'8406'),
+(6, N'407', 4, N'Available', N'Clean', N'8407'),
+(6, N'408', 4, N'Available', N'Clean', N'8408'),
+(6, N'409', 4, N'Occupied', N'Clean', NULL),
+(6, N'410', 4, N'Available', N'Clean', N'8410'),
+
+-- TẦNG 5: 10 Phòng (Mix ID 6: Suite gia đình & ID 9: Tổng thống)
+(6, N'501', 5, N'Available', N'Clean', N'8501'),
+(6, N'502', 5, N'Occupied', N'Clean', N'8502'),
+(6, N'503', 5, N'Occupied', N'Clean', N'8503'),
+(6, N'504', 5, N'Occupied', N'Dirty', NULL),
+(6, N'505', 5, N'Available', N'Clean', N'8505'),
+(9, N'506', 5, N'Available', N'Cleaning', N'8506'),
+(9, N'507', 5, N'Available', N'Clean', N'8507'),
+(9, N'508', 5, N'Maintenance', N'Dirty', N'8508'),
+(9, N'509', 5, N'Available', N'Clean', NULL),
+(9, N'510', 5, N'Available', N'Clean', N'8510');
+GO
