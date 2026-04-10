@@ -2086,3 +2086,100 @@ BEGIN
     WHERE c.invoice_id IS NULL;
 END
 GO
+
+-- ==============================================================================
+-- ES: CẬP NHẬT CẤU TRÚC BẢNG (CODE CỦA DU ĐÃ FIX LỖI TRÙNG LẶP)
+-- ==============================================================================
+
+-- Thêm các cột thiếu cho bảng Vouchers
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Vouchers') AND name = 'created_at')
+ALTER TABLE Vouchers ADD created_at DATETIME NULL;
+
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Vouchers') AND name = 'status')
+ALTER TABLE Vouchers ADD status NVARCHAR(50) NULL;
+
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Vouchers') AND name = 'updated_at')
+ALTER TABLE Vouchers ADD updated_at DATETIME NULL;
+
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Vouchers') AND name = 'used_count')
+ALTER TABLE Vouchers ADD used_count INT NULL;
+GO
+
+-- Thêm các cột thiếu cho bảng Users
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Users') AND name = 'identity_document_public_id')
+ALTER TABLE Users ADD identity_document_public_id NVARCHAR(MAX) NULL;
+
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Users') AND name = 'created_at')
+ALTER TABLE Users ADD created_at DATETIME NULL;
+
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Users') AND name = 'updated_at')
+ALTER TABLE Users ADD updated_at DATETIME NULL;
+GO
+
+-- ==============================================================================
+-- THÊM 50 DỮ LIỆU PHÒNG (CHUẨN CẤU TRÚC SQL CỦA BẠN)
+-- Trạng thái phòng: Available, Occupied, Maintenance
+-- Trạng thái dọn dẹp: Clean, Dirty, Cleaning
+-- ==============================================================================
+
+INSERT [dbo].[Rooms] ([room_type_id], [room_number], [floor], [status], [cleaning_status], [extension_number]) VALUES
+-- TẦNG 1: 10 Phòng (ID 2: Phòng tiêu chuẩn 1 giường đôi)
+(2, N'101', 1, N'Available', N'Clean', N'8101'),
+(2, N'102', 1, N'Occupied', N'Clean', N'8102'),
+(2, N'103', 1, N'Available', N'Cleaning', N'8103'),
+(2, N'104', 1, N'Available', N'Clean', NULL),
+(2, N'105', 1, N'Occupied', N'Dirty', N'8105'),
+(2, N'106', 1, N'Maintenance', N'Dirty', N'8106'),
+(2, N'107', 1, N'Occupied', N'Clean', N'8107'),
+(2, N'108', 1, N'Available', N'Clean', N'8108'),
+(2, N'109', 1, N'Available', N'Cleaning', NULL),
+(2, N'110', 1, N'Occupied', N'Dirty', N'8110'),
+
+-- TẦNG 2: 10 Phòng (Mix ID 2: Tiêu chuẩn & ID 3: Cao cấp)
+(2, N'201', 2, N'Available', N'Clean', N'8201'),
+(2, N'202', 2, N'Available', N'Clean', N'8202'),
+(2, N'203', 2, N'Available', N'Cleaning', N'8203'),
+(2, N'204', 2, N'Occupied', N'Clean', N'8204'),
+(2, N'205', 2, N'Occupied', N'Dirty', NULL),
+(3, N'206', 2, N'Available', N'Clean', N'8206'),
+(3, N'207', 2, N'Available', N'Clean', N'8207'),
+(3, N'208', 2, N'Maintenance', N'Dirty', N'8208'),
+(3, N'209', 2, N'Occupied', N'Clean', N'8209'),
+(3, N'210', 2, N'Available', N'Clean', NULL),
+
+-- TẦNG 3: 10 Phòng (Mix ID 3: Cao cấp & ID 4: Deluxe)
+(3, N'301', 3, N'Available', N'Clean', N'8301'),
+(3, N'302', 3, N'Occupied', N'Dirty', N'8302'),
+(3, N'303', 3, N'Available', N'Clean', N'8303'),
+(3, N'304', 3, N'Available', N'Cleaning', NULL),
+(3, N'305', 3, N'Available', N'Clean', N'8305'),
+(4, N'306', 3, N'Occupied', N'Clean', N'8306'),
+(4, N'307', 3, N'Available', N'Clean', N'8307'),
+(4, N'308', 3, N'Available', N'Clean', N'8308'),
+(4, N'309', 3, N'Available', N'Cleaning', N'8309'),
+(4, N'310', 3, N'Maintenance', N'Dirty', NULL),
+
+-- TẦNG 4: 10 Phòng (Mix ID 4: Deluxe & ID 6: Suite gia đình)
+(4, N'401', 4, N'Occupied', N'Clean', N'8401'),
+(4, N'402', 4, N'Available', N'Clean', N'8402'),
+(4, N'403', 4, N'Available', N'Clean', NULL),
+(4, N'404', 4, N'Available', N'Cleaning', N'8404'),
+(4, N'405', 4, N'Available', N'Clean', N'8405'),
+(6, N'406', 4, N'Occupied', N'Dirty', N'8406'),
+(6, N'407', 4, N'Available', N'Clean', N'8407'),
+(6, N'408', 4, N'Available', N'Clean', N'8408'),
+(6, N'409', 4, N'Occupied', N'Clean', NULL),
+(6, N'410', 4, N'Available', N'Clean', N'8410'),
+
+-- TẦNG 5: 10 Phòng (Mix ID 6: Suite gia đình & ID 9: Tổng thống)
+(6, N'501', 5, N'Available', N'Clean', N'8501'),
+(6, N'502', 5, N'Occupied', N'Clean', N'8502'),
+(6, N'503', 5, N'Occupied', N'Clean', N'8503'),
+(6, N'504', 5, N'Occupied', N'Dirty', NULL),
+(6, N'505', 5, N'Available', N'Clean', N'8505'),
+(9, N'506', 5, N'Available', N'Cleaning', N'8506'),
+(9, N'507', 5, N'Available', N'Clean', N'8507'),
+(9, N'508', 5, N'Maintenance', N'Dirty', N'8508'),
+(9, N'509', 5, N'Available', N'Clean', NULL),
+(9, N'510', 5, N'Available', N'Clean', N'8510');
+GO
