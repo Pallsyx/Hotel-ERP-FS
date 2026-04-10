@@ -124,6 +124,37 @@ export default function LossAndDamages() {
     setIsEditModalVisible(true);
   };
 
+  const handleDeleteImage = () => {
+    if (uploadFile) {
+      setUploadFile(null);
+      setPreviewUrl(editingRecord.evidenceImageUrl || null);
+      message.success('Đã hủy ảnh chọn mới');
+      return;
+    }
+
+    if (!editingRecord.evidenceImageUrl) return;
+
+    Modal.confirm({
+      title: 'Xác nhận xóa ảnh',
+      content: 'Bạn có chắc chắn muốn xóa ảnh bằng chứng này không?',
+      okText: 'Xóa',
+      cancelText: 'Hủy',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          await axios.delete(`https://localhost:7100/api/LossAndDamages/${editingRecord.id}/image`);
+          setPreviewUrl(null);
+          setEditingRecord(prev => ({...prev, evidenceImageUrl: null}));
+          message.success('Xóa ảnh thành công!');
+          fetchData();
+        } catch (error) {
+          console.error(error);
+          message.error('Lỗi khi xóa ảnh trên Server!');
+        }
+      }
+    });
+  };
+
   const handleUpdate = async () => {
     try {
       const values = await form.validateFields();
@@ -405,9 +436,18 @@ export default function LossAndDamages() {
                   <Button icon={<UploadOutlined />}>Chọn ảnh mới</Button>
                 </Upload>
                 {previewUrl && (
-                   <div className="mt-3 p-3 bg-gray-50 border rounded text-center">
+                   <div className="mt-3 p-3 bg-gray-50 border rounded text-center" style={{ position: 'relative' }}>
                      <Text type="secondary" className="block mb-2 text-xs">Ảnh hiển tại</Text>
                      <Image width={80} height={80} src={previewUrl} style={{objectFit: 'cover', borderRadius: '4px'}}/>
+                     <Button 
+                       type="primary" 
+                       danger 
+                       icon={<DeleteOutlined />} 
+                       size="small" 
+                       style={{ position: 'absolute', top: 8, right: 8 }}
+                       onClick={handleDeleteImage}
+                       title="Xóa ảnh"
+                     />
                    </div>
                 )}
               </Form.Item>

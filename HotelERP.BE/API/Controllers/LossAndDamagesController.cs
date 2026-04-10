@@ -197,6 +197,36 @@ public class LossAndDamagesController : ControllerBase
         }
     }
 
+    [HttpDelete("{id}/image")]
+    public async Task<IActionResult> DeleteDamageImage(int id, [FromServices] IPhotoService photoService)
+    {
+        var damage = await _context.LossAndDamages.FindAsync(id);
+        if (damage == null) return NotFound(new { message = "Không tìm thấy bản ghi đền bù." });
+
+        if (string.IsNullOrEmpty(damage.EvidencePublicId))
+        {
+            return BadRequest(new { message = "Không có ảnh để xóa." });
+        }
+
+        try
+        {
+            await photoService.DeletePhotoAsync(damage.EvidencePublicId);
+
+            damage.EvidenceImageUrl = null;
+            damage.EvidencePublicId = null;
+            damage.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+            await _hubContext.Clients.All.SendAsync("DamageUpdated", id);
+
+            return Ok(new { message = "Xóa ảnh thành công." });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = "Lỗi khi xóa ảnh: " + ex.Message });
+        }
+    }
+
     [HttpPost]
     public async Task<IActionResult> CreateNewDamage([FromBody] CreateDamageRequest req)
     {
