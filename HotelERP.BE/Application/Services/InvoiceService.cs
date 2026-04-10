@@ -3,30 +3,32 @@ using HotelERP.BE.DTOs.Common;
 using HotelERP.BE.DTOs.Invoices;
 using HotelERP.BE.Domain.Models;
 using HotelERP.BE.Infrastructure.Data;
+using HotelERP.BE.Application.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 
-namespace HotelERP.BE.Services.Invoices;
-
-public class InvoiceService : IInvoiceService
+namespace HotelERP.BE.Application.Services
 {
-    private const decimal VatRate = 0.10m;
-
-    private readonly HotelDbContext _dbContext;
-
-    public InvoiceService(HotelDbContext dbContext)
+    public class InvoiceService : IInvoiceService
     {
-        _dbContext = dbContext;
-    }
+        private const decimal VatRate = 0.10m;
+        private readonly HotelDbContext _dbContext;
 
-    private sealed class DetailChargeSummary
-    {
-        public BookingDetail Detail { get; set; } = null!;
-        public decimal RoomCharge { get; set; }
-        public decimal ServiceCharge { get; set; }
-        public decimal DamageCharge { get; set; }
-        public decimal Subtotal => RoomCharge + ServiceCharge + DamageCharge;
-    }
+        public InvoiceService(HotelDbContext dbContext)
+        {
+            _dbContext = dbContext;
+        }
+
+        private sealed class DetailChargeSummary
+        {
+            public BookingDetail Detail { get; set; } = null!;
+            public decimal RoomCharge { get; set; }
+            public decimal ServiceCharge { get; set; }
+            public decimal DamageCharge { get; set; }
+            public decimal Subtotal => RoomCharge + ServiceCharge + DamageCharge;
+        }
+
+        // ... [Rest of the HEAD implementation logic follows] ...
 
     public async Task<ApiResult<List<EligibleBookingDetailResponseDto>>> GetEligibleBookingDetailsAsync(
         int bookingId,
@@ -1248,20 +1250,18 @@ public class InvoiceService : IInvoiceService
         if (string.IsNullOrWhiteSpace(current))
         {
             return prefix + newLine.Trim();
+          private static decimal Money(decimal value)
+        {
+            return Math.Round(value, 2, MidpointRounding.AwayFromZero);
         }
-
-        return current.Trim() + Environment.NewLine + prefix + newLine.Trim();
     }
-
-    private static string Normalize(string? value)
-    {
-        return string.IsNullOrWhiteSpace(value)
-            ? string.Empty
-            : value.Trim().ToUpperInvariant();
-    }
-
-    private static decimal Money(decimal value)
-    {
-        return Math.Round(value, 2, MidpointRounding.AwayFromZero);
+}
+nalTotal ?? 0),
+                TodayRevenue = invoices.Where(i => i.CreatedAt >= today).Sum(i => i.FinalTotal ?? 0),
+                TotalInvoices = invoices.Count,
+                ActiveBookings = await _context.Bookings.CountAsync(b => b.Status == "Confirmed" || b.Status == "CheckedIn")
+            };
+        }
+>>>>>>> 5c554c5983ddc44bf36dd11916f0d0293d07abbb
     }
 }
