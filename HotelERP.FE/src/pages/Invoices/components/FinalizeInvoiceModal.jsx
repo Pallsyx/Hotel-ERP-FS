@@ -123,6 +123,10 @@ const FinalizeInvoiceModal = ({ open, invoiceId, onCancel, onSuccess }) => {
   const manualAdjustmentAmount = getValue(invoiceDetail, 'manualAdjustmentAmount', 'ManualAdjustmentAmount') || 0;
   const discountAmount = getValue(invoiceDetail, 'discountAmount', 'DiscountAmount') || 0;
   const taxAmount = getValue(invoiceDetail, 'taxAmount', 'TaxAmount') || 0;
+  const grossTotal =
+    getValue(invoiceDetail, 'grossTotal', 'GrossTotal') ??
+    (getValue(invoiceDetail, 'finalTotal', 'FinalTotal') || 0);
+  const depositAmount = getValue(invoiceDetail, 'depositAmount', 'DepositAmount') || 0;
   const finalTotal = getValue(invoiceDetail, 'finalTotal', 'FinalTotal') || 0;
 
   return (
@@ -226,6 +230,20 @@ const FinalizeInvoiceModal = ({ open, invoiceId, onCancel, onSuccess }) => {
                 <Col span={12} style={{ textAlign: 'right' }}>
                   <Text strong>{money(taxAmount)}</Text>
                 </Col>
+
+                <Col span={12}>
+                  <Text strong>Tổng tiền hóa đơn</Text>
+                </Col>
+                <Col span={12} style={{ textAlign: 'right' }}>
+                  <Text strong>{money(grossTotal)}</Text>
+                </Col>
+
+                <Col span={12}>
+                  <Text strong type="warning">Tiền cọc đã thu</Text>
+                </Col>
+                <Col span={12} style={{ textAlign: 'right' }}>
+                  <Text strong type="warning">-{money(depositAmount)}</Text>
+                </Col>
               </Row>
 
               <Divider />
@@ -233,7 +251,7 @@ const FinalizeInvoiceModal = ({ open, invoiceId, onCancel, onSuccess }) => {
               <Row justify="space-between" align="middle">
                 <Col>
                   <Title level={4} style={{ margin: 0 }}>
-                    Tổng thanh toán
+                    Số tiền cần thanh toán
                   </Title>
                 </Col>
                 <Col>

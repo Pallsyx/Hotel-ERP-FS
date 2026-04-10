@@ -22,6 +22,8 @@ public class InvoiceActionResponseDto
     public decimal ManualAdjustmentAmount { get; set; }
     public decimal DiscountAmount { get; set; }
     public decimal TaxAmount { get; set; }
+    public decimal GrossTotal { get; set; }
+    public decimal DepositAmount { get; set; }
     public decimal FinalTotal { get; set; }
 
     public string? Notes { get; set; }

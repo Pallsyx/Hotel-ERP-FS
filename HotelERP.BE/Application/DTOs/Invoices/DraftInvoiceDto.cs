@@ -10,5 +10,7 @@ public class DraftInvoiceDto
     public decimal TotalDamageAmount { get; set; }
     public decimal SubTotal { get; set; }
     public decimal DiscountAmount { get; set; }
+    public decimal GrossTotal { get; set; }
+    public decimal DepositAmount { get; set; }
     public decimal FinalTotal { get; set; }
 }

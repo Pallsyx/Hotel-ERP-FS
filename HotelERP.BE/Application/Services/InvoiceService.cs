@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using HotelERP.BE.DTOs.Common;
 using HotelERP.BE.DTOs.Invoices;
 using HotelERP.BE.Domain.Models;
@@ -12,6 +13,8 @@ namespace HotelERP.BE.Application.Services
     public class InvoiceService : IInvoiceService
     {
         private const decimal VatRate = 0.10m;
+        private const string DamageOverrideTokenPrefix = "[[DAMAGE_OVERRIDE:";
+
         private readonly HotelDbContext _dbContext;
 
         public InvoiceService(HotelDbContext dbContext)
@@ -28,10 +31,8 @@ namespace HotelERP.BE.Application.Services
             public decimal Subtotal => RoomCharge + ServiceCharge + DamageCharge;
         }
 
-        // ... [Rest of the HEAD implementation logic follows] ...
-
-    public async Task<ApiResult<List<EligibleBookingDetailResponseDto>>> GetEligibleBookingDetailsAsync(
-        int bookingId,
+        public async Task<ApiResult<List<EligibleBookingDetailResponseDto>>> GetEligibleBookingDetailsAsync(
+            int bookingId,
         CancellationToken cancellationToken = default)
     {
         var booking = await LoadBookingGraphAsync(bookingId, cancellationToken);
@@ -283,6 +284,13 @@ namespace HotelERP.BE.Application.Services
                 $"Không tìm thấy invoice id = {invoiceId}.");
         }
 
+        if (!IsClosedInvoice(invoice.Status))
+        {
+            RecalculateInvoice(invoice.Booking, invoice);
+            invoice.UpdatedAt = DateTime.UtcNow;
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+
         return ApiResult<InvoiceActionResponseDto>.Ok(
             MapResponse(invoice.Booking, invoice),
             "Lấy chi tiết hóa đơn thành công.",
@@ -368,6 +376,87 @@ namespace HotelERP.BE.Application.Services
             after,
             "Thêm phụ phí thành công.",
             "ADD_EXTRA_FEE_SUCCESS");
+    }
+
+    public async Task<ApiResult<InvoiceActionResponseDto>> SetDamageChargeAsync(
+        int invoiceId,
+        UpdateDamageChargeRequestDto request,
+        int? performedByUserId,
+        CancellationToken cancellationToken = default)
+    {
+        if (request.Amount < 0)
+        {
+            return ApiResult<InvoiceActionResponseDto>.Fail(
+                StatusCodes.Status400BadRequest,
+                "INVALID_DAMAGE_AMOUNT",
+                "Phí đền bù phải lớn hơn hoặc bằng 0.");
+        }
+
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        var invoice = await LoadInvoiceGraphAsync(invoiceId, cancellationToken);
+        if (invoice is null || invoice.Booking is null)
+        {
+            return ApiResult<InvoiceActionResponseDto>.Fail(
+                StatusCodes.Status404NotFound,
+                "INVOICE_NOT_FOUND",
+                $"Không tìm thấy invoice id = {invoiceId}.");
+        }
+
+        if (invoice.InvoiceBookingDetails.Count == 0)
+        {
+            return ApiResult<InvoiceActionResponseDto>.Fail(
+                StatusCodes.Status409Conflict,
+                "INVOICE_HAS_NO_BOOKING_DETAILS",
+                "Invoice này chưa gắn với booking detail nào.");
+        }
+
+        if (IsClosedInvoice(invoice.Status))
+        {
+            return ApiResult<InvoiceActionResponseDto>.Fail(
+                StatusCodes.Status409Conflict,
+                "INVOICE_ALREADY_CLOSED",
+                $"Không thể cập nhật phí đền bù vì hóa đơn đang ở trạng thái {invoice.Status}.",
+                new
+                {
+                    invoiceId,
+                    invoiceStatus = invoice.Status
+                });
+        }
+
+        var booking = invoice.Booking;
+        var before = MapResponse(booking, invoice);
+
+        invoice.Notes = UpsertDamageOverrideAmount(invoice.Notes, Money(request.Amount));
+        invoice.Notes = AppendAuditText(
+            invoice.Notes,
+            $"Cập nhật phí đền bù: {Money(request.Amount):N0} VND" +
+            (string.IsNullOrWhiteSpace(request.Reason) ? string.Empty : $" | Lý do: {request.Reason}"));
+        invoice.Status = "Draft";
+        invoice.UpdatedAt = DateTime.UtcNow;
+
+        RecalculateInvoice(booking, invoice);
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        var after = MapResponse(booking, invoice);
+
+        AddAuditLog(
+            performedByUserId,
+            "UPDATE_DAMAGE_CHARGE_INVOICE",
+            "Invoices",
+            invoice.Id,
+            before,
+            after,
+            request.Reason);
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        return ApiResult<InvoiceActionResponseDto>.Ok(
+            after,
+            "Cập nhật phí đền bù thành công.",
+            "UPDATE_DAMAGE_CHARGE_SUCCESS");
     }
 
     public async Task<ApiResult<InvoiceActionResponseDto>> FinalizeAsync(
@@ -504,6 +593,8 @@ namespace HotelERP.BE.Application.Services
         string? status,
         CancellationToken cancellationToken = default)
     {
+        await RefreshOpenInvoicesAsync(cancellationToken);
+
         var results = new List<InvoiceListDto>();
 
         var invoiceQuery = _dbContext.Invoices
@@ -587,10 +678,16 @@ namespace HotelERP.BE.Application.Services
             var bookingQuery = _dbContext.Bookings
                 .AsNoTracking()
                 .Include(x => x.User)
+                .Include(x => x.Voucher)
                 .Include(x => x.BookingDetails)
                     .ThenInclude(x => x.Room)
                 .Include(x => x.BookingDetails)
                     .ThenInclude(x => x.InvoiceBookingDetails)
+                .Include(x => x.BookingDetails)
+                    .ThenInclude(x => x.OrderServices)
+                        .ThenInclude(x => x.OrderServiceDetails)
+                .Include(x => x.BookingDetails)
+                    .ThenInclude(x => x.LossAndDamages)
                 .Include(x => x.Invoices)
                 .AsQueryable();
 
@@ -631,16 +728,28 @@ namespace HotelERP.BE.Application.Services
                                    ?? booking.User?.FullName
                                    ?? "Khách lẻ";
 
-                var eligibleDetails = booking.BookingDetails
-                    .Where(bd =>
-                        Normalize(bd.Status) == "CHECKEDOUT" &&
-                        Normalize(bd.SettlementStatus) != "PAID" &&
-                        !(bd.InvoiceBookingDetails?.Any() ?? false))
+                var wholeBookingSubtotal = Money(booking.BookingDetails.Select(BuildDetailChargeSummary).Sum(x => x.Subtotal));
+                var wholeBookingRoomTotal = Money(booking.BookingDetails.Sum(CalculateRoomLineAmount));
+                var bookingDiscountAmount = CalculateBookingDiscountAmount(booking, wholeBookingSubtotal);
+
+                var previewableDetails = booking.BookingDetails
+                    .Where(ShouldShowInvoicePreviewRow)
                     .OrderBy(bd => bd.Id)
                     .ToList();
 
-                foreach (var detail in eligibleDetails)
+                foreach (var detail in previewableDetails)
                 {
+                    var summary = BuildDetailChargeSummary(detail);
+                    var detailSubtotal = Money(summary.Subtotal);
+                    var discountShare = wholeBookingSubtotal > 0
+                        ? Money(bookingDiscountAmount * (detailSubtotal / wholeBookingSubtotal))
+                        : 0m;
+                    var grossTotal = Money(Math.Max(0, detailSubtotal - discountShare));
+                    var depositShare = wholeBookingRoomTotal > 0
+                        ? Money(booking.DepositAmount * (summary.RoomCharge / wholeBookingRoomTotal))
+                        : Money(Math.Max(0, booking.DepositAmount));
+                    var amountDue = Money(Math.Max(0, grossTotal - depositShare));
+
                     results.Add(new InvoiceListDto
                     {
                         RowId = $"draft-{booking.Id}-{detail.Id}",
@@ -648,13 +757,13 @@ namespace HotelERP.BE.Application.Services
                         InvoiceId = null,
                         BookingId = booking.Id,
                         BookingDetailId = detail.Id,
-                        InvoiceCode = "(Dự thảo)",
+                        InvoiceCode = IsCheckedOut(detail) ? "(Dự thảo)" : "(Tạm tính)",
                         CustomerName = customerName,
                         BookingCode = booking.BookingCode,
                         RoomNumber = detail.Room?.RoomNumber ?? "-",
-                        FinalTotal = detail.LineTotal,
+                        FinalTotal = amountDue,
                         Status = "UNPAID",
-                        CreatedAt = booking.CreatedAt,
+                        CreatedAt = detail.ActualCheckInAt ?? detail.CreatedAt,
                         IsDraftPreview = true
                     });
                 }
@@ -696,20 +805,10 @@ namespace HotelERP.BE.Application.Services
         var totalDamage = Money(summaries.Sum(x => x.DamageCharge));
         var subTotal = Money(summaries.Sum(x => x.Subtotal));
 
-        var discountAmount = Money(booking.DiscountAmount);
-        if (discountAmount <= 0 && booking.Voucher is not null)
-        {
-            var voucherMin = booking.Voucher.MinBookingValue > 0
-                ? booking.Voucher.MinBookingValue
-                : booking.Voucher.MinBookingAmount;
+        var discountAmount = CalculateBookingDiscountAmount(booking, subTotal);
 
-            if (subTotal >= voucherMin)
-            {
-                discountAmount = Normalize(booking.Voucher.DiscountType) == "PERCENT"
-                    ? Money(subTotal * (booking.Voucher.DiscountValue / 100m))
-                    : Money(booking.Voucher.DiscountValue);
-            }
-        }
+        var grossTotal = Money(Math.Max(0, subTotal - discountAmount));
+        var depositAmount = Money(Math.Max(0, booking.DepositAmount));
 
         return new DraftInvoiceDto
         {
@@ -723,7 +822,9 @@ namespace HotelERP.BE.Application.Services
             TotalDamageAmount = totalDamage,
             SubTotal = subTotal,
             DiscountAmount = discountAmount,
-            FinalTotal = Money(Math.Max(0, subTotal - discountAmount))
+            GrossTotal = grossTotal,
+            DepositAmount = depositAmount,
+            FinalTotal = Money(Math.Max(0, grossTotal - depositAmount))
         };
     }
 
@@ -837,6 +938,7 @@ namespace HotelERP.BE.Application.Services
     {
         return await _dbContext.Bookings
             .Include(x => x.User)
+            .Include(x => x.Voucher)
             .Include(x => x.BookingDetails)
                 .ThenInclude(x => x.Room)
             .Include(x => x.BookingDetails)
@@ -867,6 +969,8 @@ namespace HotelERP.BE.Application.Services
                     .ThenInclude(x => x.Room)
             .Include(x => x.Booking)
                 .ThenInclude(x => x!.User)
+            .Include(x => x.Booking)
+                .ThenInclude(x => x!.Voucher)
             .Include(x => x.Booking)
                 .ThenInclude(x => x!.BookingDetails)
                     .ThenInclude(x => x.Room)
@@ -900,6 +1004,81 @@ namespace HotelERP.BE.Application.Services
             .FirstOrDefaultAsync(x => x.Id == invoiceId, cancellationToken);
     }
 
+    private async Task RefreshOpenInvoicesAsync(CancellationToken cancellationToken)
+    {
+        var invoiceStatuses = await _dbContext.Invoices
+            .Select(x => new { x.Id, x.Status })
+            .ToListAsync(cancellationToken);
+
+        var openInvoiceIds = invoiceStatuses
+            .Where(x => !IsClosedInvoice(x.Status))
+            .Select(x => x.Id)
+            .ToList();
+
+        if (openInvoiceIds.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var openInvoiceId in openInvoiceIds)
+        {
+            var invoice = await LoadInvoiceGraphAsync(openInvoiceId, cancellationToken);
+            if (invoice is null || invoice.Booking is null)
+            {
+                continue;
+            }
+
+            RecalculateInvoice(invoice.Booking, invoice);
+            invoice.UpdatedAt = DateTime.UtcNow;
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private static bool IsInHouseDetail(BookingDetail detail)
+    {
+        var normalizedStatus = Normalize(detail.Status);
+        return (detail.ActualCheckInAt.HasValue && !detail.ActualCheckOutAt.HasValue)
+               || normalizedStatus is "CHECKEDIN" or "CHECKED_IN" or "PARTIALLY_CHECKED_OUT";
+    }
+
+    private static bool ShouldShowInvoicePreviewRow(BookingDetail detail)
+    {
+        var hasOpenInvoice = detail.InvoiceBookingDetails?.Any(x => !IsClosedInvoice(x.Invoice?.Status)) ?? false;
+        var isUnpaid = Normalize(detail.SettlementStatus) != "PAID";
+
+        return isUnpaid
+               && !hasOpenInvoice
+               && (IsCheckedOut(detail) || IsInHouseDetail(detail));
+    }
+
+    private static decimal CalculateBookingDiscountAmount(Booking booking, decimal subtotal)
+    {
+        var discountAmount = Money(booking.DiscountAmount);
+        if (discountAmount > 0)
+        {
+            return discountAmount;
+        }
+
+        if (booking.Voucher is null || subtotal <= 0)
+        {
+            return 0;
+        }
+
+        var voucherMin = booking.Voucher.MinBookingValue > 0
+            ? booking.Voucher.MinBookingValue
+            : booking.Voucher.MinBookingAmount;
+
+        if (subtotal < voucherMin)
+        {
+            return 0;
+        }
+
+        return Normalize(booking.Voucher.DiscountType) == "PERCENT"
+            ? Money(subtotal * (booking.Voucher.DiscountValue / 100m))
+            : Money(booking.Voucher.DiscountValue);
+    }
+
     private void RecalculateInvoice(Booking booking, Invoice invoice)
     {
         var selectedDetails = GetSelectedDetails(booking, invoice);
@@ -909,8 +1088,11 @@ namespace HotelERP.BE.Application.Services
 
         var roomTotal = Money(summaries.Sum(x => x.RoomCharge));
         var serviceTotal = Money(summaries.Sum(x => x.ServiceCharge));
-        var damageTotal = Money(summaries.Sum(x => x.DamageCharge));
-        var selectedSubtotal = Money(summaries.Sum(x => x.Subtotal));
+        var actualDamageTotal = Money(summaries.Sum(x => x.DamageCharge));
+        var overrideDamageTotal = ExtractDamageOverrideAmount(invoice.Notes);
+        var effectiveDamageTotal = Money(Math.Max(0, overrideDamageTotal ?? actualDamageTotal));
+        var effectiveDamageLines = BuildEffectiveDamageLineAmounts(summaries, overrideDamageTotal);
+        var selectedSubtotal = Money(roomTotal + serviceTotal + effectiveDamageTotal);
 
         var wholeBookingBase = Money(
             booking.BookingDetails
@@ -928,22 +1110,23 @@ namespace HotelERP.BE.Application.Services
 
         var taxableBase = Money(Math.Max(0, selectedSubtotal + manualAdjustment - discountShare));
         var taxAmount = Money(taxableBase * VatRate);
-        var finalTotal = Money(Math.Max(0, taxableBase + taxAmount - refundAmount));
+        var grossTotal = Money(Math.Max(0, taxableBase + taxAmount - refundAmount));
 
         invoice.TotalRoomAmount = roomTotal;
         invoice.TotalServiceAmount = serviceTotal;
-        invoice.TotalDamageAmount = damageTotal;
+        invoice.TotalDamageAmount = effectiveDamageTotal;
         invoice.DiscountAmount = discountShare;
         invoice.ManualAdjustmentAmount = manualAdjustment;
         invoice.TaxAmount = taxAmount;
-        invoice.FinalTotal = finalTotal;
+        invoice.FinalTotal = grossTotal;
 
-        ApplyLineBreakdown(invoice, summaries, discountShare, manualAdjustment, taxAmount);
+        ApplyLineBreakdown(invoice, summaries, effectiveDamageLines, discountShare, manualAdjustment, taxAmount);
     }
 
     private void ApplyLineBreakdown(
         Invoice invoice,
         List<DetailChargeSummary> summaries,
+        IReadOnlyList<decimal> effectiveDamageLines,
         decimal discountShare,
         decimal manualAdjustment,
         decimal taxAmount)
@@ -953,11 +1136,13 @@ namespace HotelERP.BE.Application.Services
             return;
         }
 
-        var weights = summaries.Select(x => x.Subtotal).ToList();
+        var lineSubtotals = summaries
+            .Select((x, index) => Money(x.RoomCharge + x.ServiceCharge + effectiveDamageLines[index]))
+            .ToList();
 
-        var discountDistribution = DistributeAmount(discountShare, weights);
-        var extraFeeDistribution = DistributeAmount(manualAdjustment, weights);
-        var taxDistribution = DistributeAmount(taxAmount, weights);
+        var discountDistribution = DistributeAmount(discountShare, lineSubtotals);
+        var extraFeeDistribution = DistributeAmount(manualAdjustment, lineSubtotals);
+        var taxDistribution = DistributeAmount(taxAmount, lineSubtotals);
 
         for (var i = 0; i < summaries.Count; i++)
         {
@@ -966,12 +1151,12 @@ namespace HotelERP.BE.Application.Services
 
             line.RoomCharge = Money(summary.RoomCharge);
             line.ServiceCharge = Money(summary.ServiceCharge);
-            line.DamageCharge = Money(summary.DamageCharge);
+            line.DamageCharge = Money(effectiveDamageLines[i]);
             line.DiscountAmount = Money(discountDistribution[i]);
             line.ExtraFeeAmount = Money(extraFeeDistribution[i]);
             line.TaxAmount = Money(taxDistribution[i]);
             line.LineTotal = Money(
-                summary.Subtotal
+                lineSubtotals[i]
                 - line.DiscountAmount
                 + line.ExtraFeeAmount
                 + line.TaxAmount);
@@ -1126,7 +1311,7 @@ namespace HotelERP.BE.Application.Services
         {
             existing.PaymentMethod = request.PaymentMethod;
             existing.TransactionCode = request.TransactionCode;
-            existing.AmountPaid = invoice.FinalTotal ?? 0m;
+            existing.AmountPaid = CalculateAmountDue(invoice.Booking, invoice);
             existing.PaymentDate = now;
             existing.PaymentDirection = "IN";
             existing.Status = "SUCCESS";
@@ -1140,7 +1325,7 @@ namespace HotelERP.BE.Application.Services
             InvoiceId = invoice.Id == 0 ? null : invoice.Id,
             PaymentMethod = request.PaymentMethod,
             TransactionCode = request.TransactionCode,
-            AmountPaid = invoice.FinalTotal ?? 0m,
+            AmountPaid = CalculateAmountDue(invoice.Booking, invoice),
             PaymentDate = now,
             PaymentDirection = "IN",
             Status = "SUCCESS",
@@ -1168,6 +1353,10 @@ namespace HotelERP.BE.Application.Services
             .OrderBy(x => x)
             .ToList();
 
+        var depositAmount = CalculateDepositApplied(booking, invoice);
+        var grossTotal = Money(invoice.FinalTotal ?? 0m);
+        var amountDue = Money(Math.Max(0, grossTotal - depositAmount));
+
         return new InvoiceActionResponseDto
         {
             BookingId = booking.Id,
@@ -1176,20 +1365,22 @@ namespace HotelERP.BE.Application.Services
                            ?? booking.User?.FullName
                            ?? "Khách lẻ",
             InvoiceId = invoice.Id,
-            InvoiceCode = invoice.InvoiceCode,
-            InvoiceStatus = invoice.Status,
+            InvoiceCode = invoice.InvoiceCode ?? string.Empty,
+            InvoiceStatus = invoice.Status ?? string.Empty,
             BookingStatus = booking.Status,
             PaymentStatus = booking.PaymentStatus,
             BookingDetailIds = detailIds,
             RoomNumbers = roomNumbers,
-            TotalRoomAmount = invoice.TotalRoomAmount ?? 0,
-            TotalServiceAmount = invoice.TotalServiceAmount ?? 0,
-            TotalDamageAmount = invoice.TotalDamageAmount ?? 0,
-            ManualAdjustmentAmount = invoice.ManualAdjustmentAmount ?? 0,
-            DiscountAmount = invoice.DiscountAmount ?? 0,
-            TaxAmount = invoice.TaxAmount ?? 0,
-            FinalTotal = invoice.FinalTotal ?? 0,
-            Notes = invoice.Notes,
+            TotalRoomAmount = invoice.TotalRoomAmount ?? 0m,
+            TotalServiceAmount = invoice.TotalServiceAmount ?? 0m,
+            TotalDamageAmount = invoice.TotalDamageAmount ?? 0m,
+            ManualAdjustmentAmount = invoice.ManualAdjustmentAmount ?? 0m,
+            DiscountAmount = invoice.DiscountAmount ?? 0m,
+            TaxAmount = invoice.TaxAmount ?? 0m,
+            GrossTotal = grossTotal,
+            DepositAmount = depositAmount,
+            FinalTotal = amountDue,
+            Notes = SanitizeInvoiceNotes(invoice.Notes),
             IssuedAt = invoice.IssuedAt,
             PaidAt = invoice.PaidAt,
             UpdatedAt = invoice.UpdatedAt,
@@ -1197,6 +1388,106 @@ namespace HotelERP.BE.Application.Services
             PaymentMethod = latestPayment?.PaymentMethod,
             TransactionCode = latestPayment?.TransactionCode
         };
+    }
+
+    private decimal CalculateDepositApplied(Booking? booking, Invoice invoice)
+    {
+        if (booking is null || booking.DepositAmount <= 0)
+        {
+            return 0;
+        }
+
+        var selectedDetails = GetSelectedDetails(booking, invoice);
+        var selectedRoomTotal = Money(selectedDetails.Sum(CalculateRoomLineAmount));
+        var wholeBookingRoomTotal = Money(booking.BookingDetails.Sum(CalculateRoomLineAmount));
+
+        if (wholeBookingRoomTotal <= 0 || selectedRoomTotal <= 0)
+        {
+            return Money(Math.Max(0, booking.DepositAmount));
+        }
+
+        var applied = booking.DepositAmount * (selectedRoomTotal / wholeBookingRoomTotal);
+        return Money(Math.Min(Math.Max(0, booking.DepositAmount), applied));
+    }
+
+    private decimal CalculateAmountDue(Booking? booking, Invoice invoice)
+    {
+        var grossTotal = Money(invoice.FinalTotal ?? 0m);
+        var depositAmount = CalculateDepositApplied(booking, invoice);
+        return Money(Math.Max(0, grossTotal - depositAmount));
+    }
+
+    private static IReadOnlyList<decimal> BuildEffectiveDamageLineAmounts(
+        IReadOnlyList<DetailChargeSummary> summaries,
+        decimal? overrideDamageTotal)
+    {
+        if (summaries.Count == 0)
+        {
+            return Array.Empty<decimal>();
+        }
+
+        if (!overrideDamageTotal.HasValue)
+        {
+            return summaries
+                .Select(x => Money(Math.Max(0, x.DamageCharge)))
+                .ToList();
+        }
+
+        var overrideAmount = Money(Math.Max(0, overrideDamageTotal.Value));
+        var weights = summaries
+            .Select(x => x.DamageCharge > 0 ? x.DamageCharge : x.Subtotal > 0 ? x.Subtotal : 1m)
+            .ToList();
+
+        return DistributeAmount(overrideAmount, weights);
+    }
+
+    private static decimal? ExtractDamageOverrideAmount(string? notes)
+    {
+        if (string.IsNullOrWhiteSpace(notes))
+        {
+            return null;
+        }
+
+        var match = Regex.Match(notes, Regex.Escape(DamageOverrideTokenPrefix) + @"(?<amount>\d+(?:\.\d+)?)\]\]");
+        if (!match.Success)
+        {
+            return null;
+        }
+
+        if (!decimal.TryParse(match.Groups["amount"].Value, out var amount))
+        {
+            return null;
+        }
+
+        return Money(amount);
+    }
+
+    private static string UpsertDamageOverrideAmount(string? notes, decimal amount)
+    {
+        var token = $"{DamageOverrideTokenPrefix}{Money(Math.Max(0, amount)):0.##}]]";
+        var sanitized = SanitizeInvoiceNotes(notes);
+        return string.IsNullOrWhiteSpace(sanitized)
+            ? token
+            : token + Environment.NewLine + sanitized.Trim();
+    }
+
+    private static string? SanitizeInvoiceNotes(string? notes)
+    {
+        if (string.IsNullOrWhiteSpace(notes))
+        {
+            return notes;
+        }
+
+        var cleaned = Regex.Replace(
+            notes,
+            Regex.Escape(DamageOverrideTokenPrefix) + @"\d+(?:\.\d+)?\]\]\s*",
+            string.Empty,
+            RegexOptions.Multiline);
+
+        cleaned = Regex.Replace(cleaned, @"(\r?\n){3,}", Environment.NewLine + Environment.NewLine);
+        cleaned = cleaned.Trim();
+
+        return string.IsNullOrWhiteSpace(cleaned) ? null : cleaned;
     }
 
     private void AddAuditLog(
@@ -1247,20 +1538,31 @@ namespace HotelERP.BE.Application.Services
     private static string AppendAuditText(string? current, string newLine)
     {
         var prefix = $"[{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC] ";
-        if (string.IsNullOrWhiteSpace(current))
-        {
-            return prefix + newLine.Trim();
-        }
-        return current + Environment.NewLine + prefix + newLine.Trim();
+        var tokenMatch = Regex.Match(
+            current ?? string.Empty,
+            Regex.Escape(DamageOverrideTokenPrefix) + @"\d+(?:\.\d+)?\]\]");
+
+        var systemToken = tokenMatch.Success ? tokenMatch.Value : null;
+        var visibleNotes = SanitizeInvoiceNotes(current);
+        var appended = string.IsNullOrWhiteSpace(visibleNotes)
+            ? prefix + newLine.Trim()
+            : visibleNotes.Trim() + Environment.NewLine + prefix + newLine.Trim();
+
+        return string.IsNullOrWhiteSpace(systemToken)
+            ? appended
+            : systemToken + Environment.NewLine + appended;
+    }
+
+    private static string Normalize(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? string.Empty
+            : value.Trim().ToUpperInvariant();
     }
 
     private static decimal Money(decimal value)
     {
         return Math.Round(value, 2, MidpointRounding.AwayFromZero);
     }
-
-    private static string Normalize(string? value)
-    {
-        return value?.Trim().ToUpperInvariant() ?? string.Empty;
-    }
-}}
+}
+}

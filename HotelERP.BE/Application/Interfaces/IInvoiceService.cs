@@ -24,11 +24,17 @@ namespace HotelERP.BE.Application.Interfaces
             int? performedByUserId,
             CancellationToken cancellationToken = default);
 
-        Task<ApiResult<InvoiceActionResponseDto>> FinalizeAsync(
-            int invoiceId,
-            FinalizeInvoiceRequestDto request,
-            int? performedByUserId,
-            CancellationToken cancellationToken = default);
+    Task<ApiResult<InvoiceActionResponseDto>> SetDamageChargeAsync(
+        int invoiceId,
+        UpdateDamageChargeRequestDto request,
+        int? performedByUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<ApiResult<InvoiceActionResponseDto>> FinalizeAsync(
+        int invoiceId,
+        FinalizeInvoiceRequestDto request,
+        int? performedByUserId,
+        CancellationToken cancellationToken = default);
 
         Task<List<InvoiceListDto>> GetAllInvoicesAsync(
             string? searchTerm,

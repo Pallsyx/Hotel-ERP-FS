@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Modal,
   Spin,
@@ -10,6 +10,7 @@ import {
   Button,
   message,
   Space,
+  InputNumber,
 } from 'antd';
 import {
   HomeOutlined,
@@ -18,9 +19,7 @@ import {
   GiftOutlined,
   PlusCircleOutlined,
   PercentageOutlined,
-  UserOutlined,
-  IdcardOutlined,
-  HomeFilled,
+  SaveOutlined,
 } from '@ant-design/icons';
 import invoiceApi from '../../../api/invoiceApi';
 import InvoiceActionButtons from '../../Invoices/components/InvoiceActionButtons';
@@ -47,8 +46,10 @@ const DraftInvoiceModal = ({
   onChanged,
 }) => {
   const [loading, setLoading] = useState(false);
+  const [savingDamage, setSavingDamage] = useState(false);
   const [data, setData] = useState(null);
   const [activeInvoiceId, setActiveInvoiceId] = useState(invoiceId || null);
+  const [editedDamageAmount, setEditedDamageAmount] = useState(0);
 
   useEffect(() => {
     if (!visible) return;
@@ -60,6 +61,12 @@ const DraftInvoiceModal = ({
     loadData();
   }, [visible, bookingId, bookingDetailId, activeInvoiceId]);
 
+  const formatVND = (amount) =>
+    new Intl.NumberFormat('vi-VN', {
+      style: 'currency',
+      currency: 'VND',
+    }).format(amount || 0);
+
   const loadData = async () => {
     try {
       setLoading(true);
@@ -70,8 +77,13 @@ const DraftInvoiceModal = ({
         const res = await invoiceApi.getInvoiceDetail(activeInvoiceId);
         payload = res?.data?.data || res?.data || {};
       } else if (bookingId && bookingDetailId) {
-        const res = await invoiceApi.getEligibleBookingDetails(bookingId);
-        const rows = res?.data?.data || res?.data || [];
+        const [eligibleRes, draftRes] = await Promise.all([
+          invoiceApi.getEligibleBookingDetails(bookingId),
+          invoiceApi.getDraftInvoice(bookingId),
+        ]);
+
+        const rows = eligibleRes?.data?.data || eligibleRes?.data || [];
+        const bookingDraft = draftRes?.data?.data || draftRes?.data || {};
         const selected = Array.isArray(rows)
           ? rows.find((x) => (x?.bookingDetailId ?? x?.BookingDetailId) === bookingDetailId)
           : null;
@@ -86,20 +98,37 @@ const DraftInvoiceModal = ({
         const roomNumber = getValue(selected, 'roomNumber', 'RoomNumber') || initialRoomNumber || '-';
         const subTotal = roomCharge + serviceCharge + damageCharge;
 
+        const bookingSubTotal = getValue(bookingDraft, 'subTotal', 'SubTotal') || 0;
+        const bookingRoomTotal = getValue(bookingDraft, 'totalRoomAmount', 'TotalRoomAmount') || 0;
+        const bookingDiscount = getValue(bookingDraft, 'discountAmount', 'DiscountAmount') || 0;
+        const bookingDeposit = getValue(bookingDraft, 'depositAmount', 'DepositAmount') || 0;
+
+        const discountShare = bookingSubTotal > 0
+          ? (bookingDiscount * subTotal) / bookingSubTotal
+          : 0;
+
+        const depositShare = bookingRoomTotal > 0
+          ? (bookingDeposit * roomCharge) / bookingRoomTotal
+          : bookingDeposit;
+
+        const grossTotal = Math.max(0, subTotal - discountShare);
+
         payload = {
           bookingId,
-          bookingCode: initialBookingCode || '',
-          customerName: initialCustomerName || 'Khách lẻ',
+          bookingCode: initialBookingCode || getValue(bookingDraft, 'bookingCode', 'BookingCode') || '',
+          customerName: initialCustomerName || getValue(bookingDraft, 'customerName', 'CustomerName') || 'Khách lẻ',
           roomNumbers: [roomNumber],
           bookingDetailIds: [bookingDetailId],
           totalRoomAmount: roomCharge,
           totalServiceAmount: serviceCharge,
           totalDamageAmount: damageCharge,
           manualAdjustmentAmount: 0,
-          discountAmount: 0,
+          discountAmount: discountShare,
           taxAmount: 0,
           subTotal,
-          finalTotal: subTotal,
+          grossTotal,
+          depositAmount: depositShare,
+          finalTotal: Math.max(0, grossTotal - depositShare),
           invoiceStatus: 'DRAFT',
         };
       } else if (bookingId) {
@@ -108,6 +137,7 @@ const DraftInvoiceModal = ({
       }
 
       setData(payload);
+      setEditedDamageAmount(getValue(payload, 'totalDamageAmount', 'TotalDamageAmount') || 0);
     } catch (error) {
       console.error('Draft/Invoice API Error:', error);
       const errorMsg =
@@ -123,11 +153,29 @@ const DraftInvoiceModal = ({
     }
   };
 
-  const formatVND = (amount) =>
-    new Intl.NumberFormat('vi-VN', {
-      style: 'currency',
-      currency: 'VND',
-    }).format(amount || 0);
+  const handleSaveDamage = async () => {
+    if (!activeInvoiceId) {
+      message.warning('Cần tạo hóa đơn nháp trước khi cập nhật phí đền bù.');
+      return;
+    }
+
+    try {
+      setSavingDamage(true);
+      await invoiceApi.updateDamageCharge(activeInvoiceId, {
+        amount: Number(editedDamageAmount || 0),
+        reason: 'Cập nhật từ màn hình hóa đơn tạm tính',
+      });
+
+      message.success('Đã cập nhật phí đền bù hư hỏng.');
+      await loadData();
+      await onChanged?.();
+    } catch (error) {
+      console.error('Update damage charge error:', error);
+      message.error(error?.response?.data?.message || 'Không cập nhật được phí đền bù.');
+    } finally {
+      setSavingDamage(false);
+    }
+  };
 
   const totalRoomAmount = getValue(data, 'totalRoomAmount', 'TotalRoomAmount') || 0;
   const totalServiceAmount = getValue(data, 'totalServiceAmount', 'TotalServiceAmount') || 0;
@@ -135,14 +183,22 @@ const DraftInvoiceModal = ({
   const manualAdjustmentAmount = getValue(data, 'manualAdjustmentAmount', 'ManualAdjustmentAmount') || 0;
   const discountAmount = getValue(data, 'discountAmount', 'DiscountAmount') || 0;
   const taxAmount = getValue(data, 'taxAmount', 'TaxAmount') || 0;
+  const grossTotalFromApi = getValue(data, 'grossTotal', 'GrossTotal');
+  const depositAmount = getValue(data, 'depositAmount', 'DepositAmount') || 0;
   const finalTotal = getValue(data, 'finalTotal', 'FinalTotal') || 0;
 
   const subTotal =
     getValue(data, 'subTotal', 'SubTotal') ??
     (totalRoomAmount + totalServiceAmount + totalDamageAmount + manualAdjustmentAmount);
 
+  const grossTotal = useMemo(() => {
+    if (grossTotalFromApi !== undefined && grossTotalFromApi !== null) return grossTotalFromApi;
+    return Math.max(0, subTotal - discountAmount + taxAmount);
+  }, [grossTotalFromApi, subTotal, discountAmount, taxAmount]);
+
   const bookingCode = getValue(data, 'bookingCode', 'BookingCode') || initialBookingCode || '';
   const customerName = getValue(data, 'customerName', 'CustomerName') || initialCustomerName || 'Khách lẻ';
+  const resolvedBookingId = getValue(data, 'bookingId', 'BookingId') || bookingId;
   const roomNumbers = getValue(data, 'roomNumbers', 'RoomNumbers') || [];
   const currentRoomNumber = roomNumbers.length ? roomNumbers.join(', ') : (initialRoomNumber || '-');
 
@@ -159,7 +215,7 @@ const DraftInvoiceModal = ({
       destroyOnHidden
       footer={[
         <div
-          key="footer-wrap"
+          key='footer-wrap'
           style={{
             display: 'flex',
             justifyContent: 'space-between',
@@ -185,34 +241,34 @@ const DraftInvoiceModal = ({
             />
           </Space>
 
-          <Button key="close" onClick={onClose} size="large">
+          <Button key='close' onClick={onClose} size='large'>
             Đóng cửa sổ
           </Button>
         </div>,
       ]}
     >
-      <Spin spinning={loading} tip="Đang tải hóa đơn...">
+      <Spin spinning={loading} tip='Đang tải hóa đơn...'>
         {data ? (
           <div style={{ padding: '10px 0' }}>
-            <Descriptions bordered column={1} size="small" style={{ marginBottom: 20 }}>
-              <Descriptions.Item label="Tên khách hàng">
+            <Descriptions bordered column={1} size='small' style={{ marginBottom: 20 }}>
+              <Descriptions.Item label='Tên khách hàng'>
                 <Text strong>{customerName}</Text>
               </Descriptions.Item>
 
-              <Descriptions.Item label="Mã Booking">
+              <Descriptions.Item label='Mã Booking'>
                 <Text strong>{bookingCode}</Text>
               </Descriptions.Item>
 
-              <Descriptions.Item label="Booking ID">
-                <Text strong>{bookingId}</Text>
+              <Descriptions.Item label='Booking ID'>
+                <Text strong>{resolvedBookingId}</Text>
               </Descriptions.Item>
 
-              <Descriptions.Item label="Phòng">
-                <Text strong>{initialRoomNumber || '-'}</Text>
+              <Descriptions.Item label='Phòng'>
+                <Text strong>{currentRoomNumber}</Text>
               </Descriptions.Item>
 
               {activeInvoiceId ? (
-                <Descriptions.Item label="Invoice ID">
+                <Descriptions.Item label='Invoice ID'>
                   <Text strong>{activeInvoiceId}</Text>
                 </Descriptions.Item>
               ) : null}
@@ -222,7 +278,7 @@ const DraftInvoiceModal = ({
               <Title level={5}>
                 <HomeOutlined /> Tiền phòng
               </Title>
-              <Row justify="space-between">
+              <Row justify='space-between'>
                 <Col>
                   <Text>Tổng tiền các phòng đã đặt:</Text>
                 </Col>
@@ -235,7 +291,7 @@ const DraftInvoiceModal = ({
               <Title level={5}>
                 <AppstoreAddOutlined style={{ color: '#1890ff' }} /> Dịch vụ sử dụng
               </Title>
-              <Row justify="space-between">
+              <Row justify='space-between'>
                 <Col>
                   <Text>Tổng chi phí dịch vụ thêm:</Text>
                 </Col>
@@ -248,14 +304,39 @@ const DraftInvoiceModal = ({
               <Title level={5}>
                 <WarningOutlined style={{ color: '#f5222d' }} /> Phí đền bù hư hỏng
               </Title>
-              <Row justify="space-between">
+              <Row justify='space-between' align='middle' gutter={[12, 12]}>
                 <Col>
                   <Text>Tổng phí phạt/đền bù:</Text>
                 </Col>
                 <Col>
-                  <Text strong type="danger">{formatVND(totalDamageAmount)}</Text>
+                  <Space wrap>
+                    <InputNumber
+                      min={0}
+                      precision={0}
+                      value={editedDamageAmount}
+                      onChange={(value) => setEditedDamageAmount(value || 0)}
+                      style={{ width: 180 }}
+                      formatter={(value) => `${Number(value || 0).toLocaleString('vi-VN')} ₫`}
+                      parser={(value) => Number(String(value || '').replace(/[₫\s,.]/g, '').replace(/[^\d-]/g, '')) || 0}
+                      disabled={!activeInvoiceId || savingDamage}
+                    />
+                    <Button
+                      type='primary'
+                      icon={<SaveOutlined />}
+                      onClick={handleSaveDamage}
+                      loading={savingDamage}
+                      disabled={!activeInvoiceId}
+                    >
+                      Lưu
+                    </Button>
+                  </Space>
                 </Col>
               </Row>
+              {!activeInvoiceId && (
+                <Text type='secondary' style={{ display: 'block', marginTop: 8 }}>
+                  Tạo hóa đơn nháp trước để cập nhật phí đền bù trực tiếp.
+                </Text>
+              )}
 
               {manualAdjustmentAmount > 0 && (
                 <>
@@ -263,7 +344,7 @@ const DraftInvoiceModal = ({
                   <Title level={5}>
                     <PlusCircleOutlined style={{ color: '#722ed1' }} /> Phụ phí thêm
                   </Title>
-                  <Row justify="space-between">
+                  <Row justify='space-between'>
                     <Col>
                       <Text>Phụ phí / điều chỉnh thêm:</Text>
                     </Col>
@@ -276,7 +357,7 @@ const DraftInvoiceModal = ({
 
               <Divider style={{ margin: '12px 0' }} />
 
-              <Row justify="space-between" style={{ marginTop: 20 }}>
+              <Row justify='space-between' style={{ marginTop: 20 }}>
                 <Col>
                   <Title level={5}>Tạm Tính (Subtotal):</Title>
                 </Col>
@@ -286,20 +367,20 @@ const DraftInvoiceModal = ({
               </Row>
 
               {discountAmount > 0 && (
-                <Row justify="space-between" style={{ marginTop: 10 }}>
+                <Row justify='space-between' style={{ marginTop: 10 }}>
                   <Col>
-                    <Text type="success">
+                    <Text type='success'>
                       <GiftOutlined /> Voucher giảm giá:
                     </Text>
                   </Col>
                   <Col>
-                    <Text type="success">-{formatVND(discountAmount)}</Text>
+                    <Text type='success'>-{formatVND(discountAmount)}</Text>
                   </Col>
                 </Row>
               )}
 
               {taxAmount > 0 && (
-                <Row justify="space-between" style={{ marginTop: 10 }}>
+                <Row justify='space-between' style={{ marginTop: 10 }}>
                   <Col>
                     <Text><PercentageOutlined /> VAT:</Text>
                   </Col>
@@ -308,6 +389,24 @@ const DraftInvoiceModal = ({
                   </Col>
                 </Row>
               )}
+
+              <Row justify='space-between' style={{ marginTop: 10 }}>
+                <Col>
+                  <Text strong>Tổng tiền hóa đơn:</Text>
+                </Col>
+                <Col>
+                  <Text strong>{formatVND(grossTotal)}</Text>
+                </Col>
+              </Row>
+
+              <Row justify='space-between' style={{ marginTop: 10 }}>
+                <Col>
+                  <Text strong type='warning'>Tiền cọc đã thu:</Text>
+                </Col>
+                <Col>
+                  <Text strong type='warning'>-{formatVND(depositAmount)}</Text>
+                </Col>
+              </Row>
             </div>
 
             <div
@@ -319,7 +418,7 @@ const DraftInvoiceModal = ({
                 border: '1px solid #91d5ff',
               }}
             >
-              <Row justify="space-between" align="middle">
+              <Row justify='space-between' align='middle'>
                 <Col>
                   <Title level={4} style={{ margin: 0, color: '#0050b3' }}>
                     Tổng Cộng Cần Thanh Toán
@@ -336,7 +435,7 @@ const DraftInvoiceModal = ({
         ) : (
           !loading && (
             <div style={{ padding: 40, textAlign: 'center' }}>
-              <Text type="secondary">
+              <Text type='secondary'>
                 Không có dữ liệu hóa đơn. Vui lòng kiểm tra lại Booking ID.
               </Text>
             </div>
