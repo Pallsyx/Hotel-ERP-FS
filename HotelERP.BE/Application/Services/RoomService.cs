@@ -221,4 +221,37 @@ public async Task<List<Room>> GetAvailableRoomsForCheckInAsync(int roomTypeId)
 
             return true;
         }
+
+        // ================================================================
+        // HANGFIRE JOB: Chạy lúc 9h sáng giờ Việt Nam (UTC+7 = 02:00 UTC)
+        // Tất cả phòng OCCUPIED + CLEAN → chuyển sang DIRTY
+        // ================================================================
+        public async Task MarkOccupiedRoomsDirtyAsync()
+        {
+            var occupiedCleanRooms = await _context!.Rooms
+                .Where(r => r.Status == "OCCUPIED" && r.CleaningStatus == "CLEAN" && r.DeletedAt == null)
+                .ToListAsync();
+
+            if (!occupiedCleanRooms.Any()) return;
+
+            foreach (var room in occupiedCleanRooms)
+            {
+                room.CleaningStatus = "DIRTY";
+                room.UpdatedAt = DateTime.UtcNow;
+            }
+
+            await _context!.SaveChangesAsync();
+
+            // Bắn SignalR cho mỗi phòng đã đổi trạng thái
+            if (_hubContext != null)
+            {
+                foreach (var room in occupiedCleanRooms)
+                {
+                    await _hubContext.Clients.All.SendAsync(
+                        "ReceiveRoomStatusUpdate", room.Id, room.Status, "DIRTY");
+                }
+            }
+
+            Console.WriteLine($"[9AM Job] Đã đổi {occupiedCleanRooms.Count} phòng OCCUPIED+CLEAN → DIRTY lúc {DateTime.UtcNow:HH:mm} UTC");
+        }
 }
