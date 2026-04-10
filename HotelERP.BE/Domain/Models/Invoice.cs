@@ -41,5 +41,7 @@ public partial class Invoice
 
     public virtual Booking? Booking { get; set; }
 
+    public virtual ICollection<InvoiceBookingDetail> InvoiceBookingDetails { get; set; } = new List<InvoiceBookingDetail>();
+
     public virtual ICollection<Payment> Payments { get; set; } = new List<Payment>();
 }

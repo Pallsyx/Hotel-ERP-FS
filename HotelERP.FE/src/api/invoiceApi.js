@@ -1,13 +1,20 @@
 import axiosClient from './axiosClient';
 
 const invoiceApi = {
-  getDraftInvoice: (bookingId) => axiosClient.get(`/invoices/draft/${bookingId}`),
+  getEligibleBookingDetails: (bookingId) =>
+    axiosClient.get(`/invoices/bookings/${bookingId}/eligible-details`),
 
-  addExtraFee: (bookingId, payload) =>
-    axiosClient.post(`/invoices/${bookingId}/extra-fee`, payload),
+  createDraftInvoice: (payload) =>
+    axiosClient.post('/invoices/draft', payload),
 
-  finalizeInvoice: (bookingId, payload) =>
-    axiosClient.post(`/invoices/${bookingId}/finalize`, payload),
+  getInvoiceDetail: (invoiceId) =>
+    axiosClient.get(`/invoices/${invoiceId}`),
+
+  addExtraFee: (invoiceId, payload) =>
+    axiosClient.post(`/invoices/${invoiceId}/extra-fee`, payload),
+
+  finalizeInvoice: (invoiceId, payload) =>
+    axiosClient.post(`/invoices/${invoiceId}/finalize`, payload),
 };
 
 export default invoiceApi;

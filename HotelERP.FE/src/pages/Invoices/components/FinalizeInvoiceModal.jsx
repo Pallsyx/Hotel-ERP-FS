@@ -10,7 +10,7 @@ const paymentOptions = [
   { value: 'Credit Card', label: 'Thẻ tín dụng' },
 ];
 
-const FinalizeInvoiceModal = ({ open, bookingId, onCancel, onSuccess }) => {
+const FinalizeInvoiceModal = ({ open, invoiceId, onCancel, onSuccess }) => {
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = useState(false);
 
@@ -29,7 +29,7 @@ const FinalizeInvoiceModal = ({ open, bookingId, onCancel, onSuccess }) => {
       const values = await form.validateFields();
       setSubmitting(true);
 
-      const res = await invoiceApi.finalizeInvoice(bookingId, {
+      const res = await invoiceApi.finalizeInvoice(invoiceId, {
         paymentMethod: values.paymentMethod,
         transactionCode: values.transactionCode || '',
         note: values.note || '',
@@ -52,7 +52,7 @@ const FinalizeInvoiceModal = ({ open, bookingId, onCancel, onSuccess }) => {
 
   return (
     <Modal
-      title={`Chốt & Xuất hóa đơn • Booking #${bookingId}`}
+      title={`Chốt & Xuất hóa đơn • Invoice #${invoiceId}`}
       open={open}
       onCancel={onCancel}
       onOk={handleSubmit}

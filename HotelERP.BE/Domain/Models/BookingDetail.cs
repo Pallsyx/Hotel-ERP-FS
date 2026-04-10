@@ -33,6 +33,10 @@ public partial class BookingDetail
 
     public string Status { get; set; } = null!;
 
+    public string SettlementStatus { get; set; } = null!;
+
+    public DateTime? SettledAt { get; set; }
+
     public string? IdentityDocumentUrl { get; set; }
 
     public string? IdentityDocumentPublicId { get; set; }
@@ -46,6 +50,8 @@ public partial class BookingDetail
     public DateTime? UpdatedAt { get; set; }
 
     public virtual Booking? Booking { get; set; }
+
+    public virtual ICollection<InvoiceBookingDetail> InvoiceBookingDetails { get; set; } = new List<InvoiceBookingDetail>();
 
     public virtual ICollection<LossAndDamage> LossAndDamages { get; set; } = new List<LossAndDamage>();
 

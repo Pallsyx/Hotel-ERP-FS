@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Modal, Form, Input, InputNumber, message } from 'antd';
 import invoiceApi from '../../../api/invoiceApi';
 
-const QuickActionModal = ({ open, bookingId, onCancel, onSuccess }) => {
+const QuickActionModal = ({ open, invoiceId, onCancel, onSuccess }) => {
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = useState(false);
 
@@ -17,7 +17,7 @@ const QuickActionModal = ({ open, bookingId, onCancel, onSuccess }) => {
       const values = await form.validateFields();
       setSubmitting(true);
 
-      const res = await invoiceApi.addExtraFee(bookingId, {
+      const res = await invoiceApi.addExtraFee(invoiceId, {
         amount: values.amount,
         reason: values.reason || '',
       });
@@ -39,7 +39,7 @@ const QuickActionModal = ({ open, bookingId, onCancel, onSuccess }) => {
 
   return (
     <Modal
-      title={`Thao tác nhanh • Booking #${bookingId}`}
+      title={`Thao tác nhanh • Invoice #${invoiceId}`}
       open={open}
       onCancel={onCancel}
       onOk={handleSubmit}
@@ -61,9 +61,7 @@ const QuickActionModal = ({ open, bookingId, onCancel, onSuccess }) => {
             min={1}
             className="w-full"
             style={{ width: '100%' }}
-            formatter={(value) =>
-              `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
-            }
+            formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, '.')}
             parser={(value) => value.replace(/\./g, '')}
             addonAfter="VND"
           />

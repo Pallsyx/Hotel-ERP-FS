@@ -41,6 +41,8 @@ public partial class HotelDbContext : DbContext
 
     public virtual DbSet<Invoice> Invoices { get; set; }
 
+    public virtual DbSet<InvoiceBookingDetail> InvoiceBookingDetails { get; set; }
+
     public virtual DbSet<LossAndDamage> LossAndDamages { get; set; }
 
     public virtual DbSet<Membership> Memberships { get; set; }
@@ -446,11 +448,16 @@ public partial class HotelDbContext : DbContext
     {
         entity.HasKey(e => e.Id).HasName("PK__Booking___3213E83FCD1B6048");
 
-        entity.ToTable("Booking_Details", tb =>
-        {
-            tb.HasTrigger("trg_BookingDetails_AutoDraftInvoice_WhenCheckout");
-            tb.UseSqlOutputClause(false);
-        });
+        entity.ToTable("Booking_Details");
+
+        entity.Property(e => e.SettlementStatus)
+       .HasMaxLength(50)
+       .HasDefaultValue("UNPAID", "DF_BookingDetails_SettlementStatus")
+       .HasColumnName("settlement_status");
+
+        entity.Property(e => e.SettledAt)
+            .HasColumnType("datetime")
+            .HasColumnName("settled_at");
 
         entity.HasIndex(e => new { e.RoomId, e.CheckInDate, e.CheckOutDate }, "IX_BookingDetails_RoomDateRange");
 
@@ -580,6 +587,55 @@ public partial class HotelDbContext : DbContext
                 .HasForeignKey(d => d.BookingId)
                 .HasConstraintName("FK_Invoices_Bookings");
         });
+
+        modelBuilder.Entity<InvoiceBookingDetail>(entity =>
+{
+    entity.HasKey(e => e.Id).HasName("PK__InvoiceBookingDetails__3213E83F");
+
+    entity.ToTable("Invoice_Booking_Details");
+
+    entity.HasIndex(e => new { e.InvoiceId, e.BookingDetailId }, "UQ_InvoiceBookingDetails_InvoiceDetail")
+        .IsUnique();
+
+    entity.HasIndex(e => e.BookingDetailId, "IX_InvoiceBookingDetails_BookingDetail");
+
+    entity.Property(e => e.Id).HasColumnName("id");
+    entity.Property(e => e.InvoiceId).HasColumnName("invoice_id");
+    entity.Property(e => e.BookingDetailId).HasColumnName("booking_detail_id");
+    entity.Property(e => e.RoomCharge)
+        .HasColumnType("decimal(18, 2)")
+        .HasColumnName("room_charge");
+    entity.Property(e => e.ServiceCharge)
+        .HasColumnType("decimal(18, 2)")
+        .HasColumnName("service_charge");
+    entity.Property(e => e.DamageCharge)
+        .HasColumnType("decimal(18, 2)")
+        .HasColumnName("damage_charge");
+    entity.Property(e => e.DiscountAmount)
+        .HasColumnType("decimal(18, 2)")
+        .HasColumnName("discount_amount");
+    entity.Property(e => e.ExtraFeeAmount)
+        .HasColumnType("decimal(18, 2)")
+        .HasColumnName("extra_fee_amount");
+    entity.Property(e => e.TaxAmount)
+        .HasColumnType("decimal(18, 2)")
+        .HasColumnName("tax_amount");
+    entity.Property(e => e.LineTotal)
+        .HasColumnType("decimal(18, 2)")
+        .HasColumnName("line_total");
+    entity.Property(e => e.CreatedAt)
+        .HasDefaultValueSql("(getdate())", "DF_InvoiceBookingDetails_CreatedAt")
+        .HasColumnType("datetime")
+        .HasColumnName("created_at");
+
+    entity.HasOne(d => d.Invoice).WithMany(p => p.InvoiceBookingDetails)
+        .HasForeignKey(d => d.InvoiceId)
+        .HasConstraintName("FK_InvoiceBookingDetails_Invoices");
+
+    entity.HasOne(d => d.BookingDetail).WithMany(p => p.InvoiceBookingDetails)
+        .HasForeignKey(d => d.BookingDetailId)
+        .HasConstraintName("FK_InvoiceBookingDetails_BookingDetails");
+});
 
         modelBuilder.Entity<LossAndDamage>(entity =>
         {

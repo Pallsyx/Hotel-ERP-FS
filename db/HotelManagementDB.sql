@@ -1483,9 +1483,7 @@ GO
 
 GO
 
-/* =========================================================
-   GÓI 2 - PATCH DB CHO INVOICE + TRIGGER TỰ ĐỘNG TRẢ PHÒNG
-   ========================================================= */
+/
 
 /* =========================================================
    1. PATCH Booking_Details
@@ -1955,270 +1953,357 @@ WHERE UPPER(LTRIM(RTRIM(ISNULL(inv.status, 'DRAFT')))) <> 'PAID';
 GO
 
 
+
+
 /* =========================================================
-   8. TRIGGER TỰ ĐỘNG TẠO / CẬP NHẬT INVOICE DRAFT KHI TRẢ PHÒNG
+   PATCH GÓI 2 
+   - Đồng bộ schema Invoices/Payments
+   - BỎ trigger tự sinh invoice
+   - Chuyển sang invoice theo booking_detail
    ========================================================= */
 
-CREATE OR ALTER TRIGGER dbo.trg_BookingDetails_AutoDraftInvoice_WhenCheckout
-ON dbo.Booking_Details
-AFTER UPDATE
-AS
+SET NOCOUNT ON;
+GO
+
+/* =========================================================
+   A. PATCH BẢNG INVOICES
+   ========================================================= */
+
+IF COL_LENGTH('dbo.Invoices', 'invoice_code') IS NULL
 BEGIN
-    SET NOCOUNT ON;
-
-    DECLARE @ChangedBookings TABLE
-    (
-        booking_id INT PRIMARY KEY
-    );
-
-    INSERT INTO @ChangedBookings (booking_id)
-    SELECT DISTINCT i.booking_id
-    FROM inserted i
-    LEFT JOIN deleted d ON d.id = i.id
-    WHERE i.booking_id IS NOT NULL
-      AND
-      (
-          (i.actual_check_out_at IS NOT NULL AND ISNULL(d.actual_check_out_at, '19000101') <> i.actual_check_out_at)
-          OR
-          (
-              UPPER(LTRIM(RTRIM(ISNULL(i.status, '')))) IN ('CHECKED_OUT', 'COMPLETED')
-              AND UPPER(LTRIM(RTRIM(ISNULL(i.status, '')))) <> UPPER(LTRIM(RTRIM(ISNULL(d.status, ''))))
-          )
-      );
-
-    IF NOT EXISTS (SELECT 1 FROM @ChangedBookings)
-        RETURN;
-
-    DECLARE @Calc TABLE
-    (
-        booking_id INT PRIMARY KEY,
-        booking_code NVARCHAR(50),
-        invoice_id INT NULL,
-        total_room_amount DECIMAL(18,2),
-        total_service_amount DECIMAL(18,2),
-        total_damage_amount DECIMAL(18,2),
-        discount_amount DECIMAL(18,2)
-    );
-
-    INSERT INTO @Calc
-    (
-        booking_id,
-        booking_code,
-        invoice_id,
-        total_room_amount,
-        total_service_amount,
-        total_damage_amount,
-        discount_amount
-    )
-    SELECT
-        b.id AS booking_id,
-        b.booking_code,
-        ei.invoice_id,
-        ISNULL(rt.total_room_amount, 0) AS total_room_amount,
-        ISNULL(st.total_service_amount, 0) AS total_service_amount,
-        ISNULL(dt.total_damage_amount, 0) AS total_damage_amount,
-        ISNULL(b.discount_amount, 0) AS discount_amount
-    FROM dbo.Bookings b
-    INNER JOIN @ChangedBookings cb
-        ON cb.booking_id = b.id
-    LEFT JOIN
-    (
-        SELECT
-            bd.booking_id,
-            SUM(
-                CASE
-                    WHEN ISNULL(bd.line_total, 0) > 0 THEN ISNULL(bd.line_total, 0)
-                    ELSE
-                        (ISNULL(bd.price_per_night, 0) *
-                         CASE
-                             WHEN ISNULL(bd.nights, 0) > 0 THEN bd.nights
-                             WHEN DATEDIFF(DAY, bd.check_in_date, bd.check_out_date) > 0 THEN DATEDIFF(DAY, bd.check_in_date, bd.check_out_date)
-                             ELSE 1
-                         END)
-                        + ISNULL(bd.early_check_in_fee, 0)
-                        + ISNULL(bd.late_check_out_fee, 0)
-                END
-            ) AS total_room_amount
-        FROM dbo.Booking_Details bd
-        INNER JOIN @ChangedBookings cb2
-            ON cb2.booking_id = bd.booking_id
-        GROUP BY bd.booking_id
-    ) rt
-        ON rt.booking_id = b.id
-    LEFT JOIN
-    (
-        SELECT
-            bd.booking_id,
-            SUM(
-                CASE
-                    WHEN os.id IS NULL THEN 0
-                    WHEN UPPER(LTRIM(RTRIM(ISNULL(os.status, 'PENDING')))) = 'CANCELLED' THEN 0
-                    WHEN ISNULL(os.total_amount, 0) > 0 THEN ISNULL(os.total_amount, 0)
-                    ELSE ISNULL(osd_agg.detail_total, 0)
-                END
-            ) AS total_service_amount
-        FROM dbo.Booking_Details bd
-        INNER JOIN @ChangedBookings cb3
-            ON cb3.booking_id = bd.booking_id
-        LEFT JOIN dbo.Order_Services os
-            ON os.booking_detail_id = bd.id
-        LEFT JOIN
-        (
-            SELECT
-                osd.order_service_id,
-                SUM(
-                    CASE
-                        WHEN ISNULL(osd.line_total, 0) > 0 THEN ISNULL(osd.line_total, 0)
-                        ELSE ISNULL(osd.quantity, 0) * ISNULL(osd.unit_price, 0)
-                    END
-                ) AS detail_total
-            FROM dbo.Order_Service_Details osd
-            GROUP BY osd.order_service_id
-        ) osd_agg
-            ON osd_agg.order_service_id = os.id
-        GROUP BY bd.booking_id
-    ) st
-        ON st.booking_id = b.id
-    LEFT JOIN
-    (
-        SELECT
-            bd.booking_id,
-            SUM(
-                CASE
-                    WHEN ld.id IS NULL THEN 0
-                    WHEN UPPER(LTRIM(RTRIM(ISNULL(ld.status, 'OPEN')))) IN ('WAIVED', 'CANCELLED', 'VOIDED') THEN 0
-                    ELSE ISNULL(ld.penalty_amount, 0)
-                END
-            ) AS total_damage_amount
-        FROM dbo.Booking_Details bd
-        INNER JOIN @ChangedBookings cb4
-            ON cb4.booking_id = bd.booking_id
-        LEFT JOIN dbo.Loss_And_Damages ld
-            ON ld.booking_detail_id = bd.id
-        GROUP BY bd.booking_id
-    ) dt
-        ON dt.booking_id = b.id
-    LEFT JOIN
-    (
-        SELECT
-            booking_id,
-            MAX(id) AS invoice_id
-        FROM dbo.Invoices
-        GROUP BY booking_id
-    ) ei
-        ON ei.booking_id = b.id;
-
-    UPDATE inv
-    SET
-        inv.invoice_code = ISNULL(inv.invoice_code, CONCAT('INV-', UPPER(c.booking_code))),
-        inv.total_room_amount = ROUND(c.total_room_amount, 2),
-        inv.total_service_amount = ROUND(c.total_service_amount, 2),
-        inv.total_damage_amount = ROUND(c.total_damage_amount, 2),
-        inv.discount_amount = ROUND(c.discount_amount, 2),
-        inv.tax_amount = ROUND(
-            CASE
-                WHEN (
-                    c.total_room_amount
-                    + c.total_service_amount
-                    + c.total_damage_amount
-                    + ISNULL(inv.manual_adjustment_amount, 0)
-                    - c.discount_amount
-                ) > 0
-                THEN (
-                    c.total_room_amount
-                    + c.total_service_amount
-                    + c.total_damage_amount
-                    + ISNULL(inv.manual_adjustment_amount, 0)
-                    - c.discount_amount
-                ) * 0.10
-                ELSE 0
-            END
-        , 2),
-        inv.final_total = ROUND(
-            CASE
-                WHEN (
-                    c.total_room_amount
-                    + c.total_service_amount
-                    + c.total_damage_amount
-                    + ISNULL(inv.manual_adjustment_amount, 0)
-                    - c.discount_amount
-                ) > 0
-                THEN (
-                    c.total_room_amount
-                    + c.total_service_amount
-                    + c.total_damage_amount
-                    + ISNULL(inv.manual_adjustment_amount, 0)
-                    - c.discount_amount
-                )
-                + (
-                    (
-                        c.total_room_amount
-                        + c.total_service_amount
-                        + c.total_damage_amount
-                        + ISNULL(inv.manual_adjustment_amount, 0)
-                        - c.discount_amount
-                    ) * 0.10
-                )
-                - ISNULL(inv.refund_amount, 0)
-                ELSE 0
-            END
-        , 2),
-        inv.updated_at = GETDATE(),
-        inv.status = CASE
-                        WHEN UPPER(LTRIM(RTRIM(ISNULL(inv.status, 'DRAFT')))) = 'PAID' THEN inv.status
-                        ELSE 'Draft'
-                     END
-    FROM dbo.Invoices inv
-    INNER JOIN @Calc c
-        ON c.invoice_id = inv.id;
-
-    INSERT INTO dbo.Invoices
-    (
-        booking_id,
-        invoice_code,
-        total_room_amount,
-        total_service_amount,
-        total_damage_amount,
-        discount_amount,
-        manual_adjustment_amount,
-        tax_amount,
-        final_total,
-        refund_amount,
-        status,
-        notes,
-        created_at,
-        updated_at
-    )
-    SELECT
-        c.booking_id,
-        CONCAT('INV-', UPPER(c.booking_code)),
-        ROUND(c.total_room_amount, 2),
-        ROUND(c.total_service_amount, 2),
-        ROUND(c.total_damage_amount, 2),
-        ROUND(c.discount_amount, 2),
-        0,
-        ROUND(
-            CASE
-                WHEN (c.total_room_amount + c.total_service_amount + c.total_damage_amount - c.discount_amount) > 0
-                THEN (c.total_room_amount + c.total_service_amount + c.total_damage_amount - c.discount_amount) * 0.10
-                ELSE 0
-            END
-        , 2),
-        ROUND(
-            CASE
-                WHEN (c.total_room_amount + c.total_service_amount + c.total_damage_amount - c.discount_amount) > 0
-                THEN (c.total_room_amount + c.total_service_amount + c.total_damage_amount - c.discount_amount)
-                     + ((c.total_room_amount + c.total_service_amount + c.total_damage_amount - c.discount_amount) * 0.10)
-                ELSE 0
-            END
-        , 2),
-        0,
-        'Draft',
-        N'Tự động tạo khi trả phòng',
-        GETDATE(),
-        GETDATE()
-    FROM @Calc c
-    WHERE c.invoice_id IS NULL;
+    ALTER TABLE dbo.Invoices ADD invoice_code NVARCHAR(50) NULL;
 END
+GO
+
+UPDATE dbo.Invoices
+SET invoice_code = CONCAT('INV-BK-', RIGHT('000000' + CAST(ISNULL(booking_id, id) AS VARCHAR(6)), 6), '-', RIGHT('000000' + CAST(id AS VARCHAR(6)), 6))
+WHERE invoice_code IS NULL;
+GO
+
+IF EXISTS (
+    SELECT 1
+    FROM sys.columns
+    WHERE object_id = OBJECT_ID('dbo.Invoices')
+      AND name = 'invoice_code'
+      AND is_nullable = 1
+)
+BEGIN
+    ALTER TABLE dbo.Invoices ALTER COLUMN invoice_code NVARCHAR(50) NOT NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.Invoices', 'total_damage_amount') IS NULL
+BEGIN
+    ALTER TABLE dbo.Invoices ADD total_damage_amount DECIMAL(18,2) NOT NULL CONSTRAINT DF_Invoices_TotalDamageAmount DEFAULT 0;
+END
+GO
+
+IF COL_LENGTH('dbo.Invoices', 'manual_adjustment_amount') IS NULL
+BEGIN
+    ALTER TABLE dbo.Invoices ADD manual_adjustment_amount DECIMAL(18,2) NOT NULL CONSTRAINT DF_Invoices_ManualAdjustmentAmount DEFAULT 0;
+END
+GO
+
+IF COL_LENGTH('dbo.Invoices', 'refund_amount') IS NULL
+BEGIN
+    ALTER TABLE dbo.Invoices ADD refund_amount DECIMAL(18,2) NOT NULL CONSTRAINT DF_Invoices_RefundAmount DEFAULT 0;
+END
+GO
+
+IF COL_LENGTH('dbo.Invoices', 'notes') IS NULL
+BEGIN
+    ALTER TABLE dbo.Invoices ADD notes NVARCHAR(1000) NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.Invoices', 'issued_at') IS NULL
+BEGIN
+    ALTER TABLE dbo.Invoices ADD issued_at DATETIME NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.Invoices', 'paid_at') IS NULL
+BEGIN
+    ALTER TABLE dbo.Invoices ADD paid_at DATETIME NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.Invoices', 'created_at') IS NULL
+BEGIN
+    ALTER TABLE dbo.Invoices ADD created_at DATETIME NOT NULL CONSTRAINT DF_Invoices_CreatedAt_Package2 DEFAULT GETDATE();
+END
+GO
+
+IF COL_LENGTH('dbo.Invoices', 'updated_at') IS NULL
+BEGIN
+    ALTER TABLE dbo.Invoices ADD updated_at DATETIME NULL;
+END
+GO
+
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = 'UQ_Invoices_Code'
+      AND object_id = OBJECT_ID('dbo.Invoices')
+)
+BEGIN
+    CREATE UNIQUE INDEX UQ_Invoices_Code ON dbo.Invoices(invoice_code);
+END
+GO
+
+/* =========================================================
+   B. PATCH BẢNG PAYMENTS
+   ========================================================= */
+
+IF COL_LENGTH('dbo.Payments', 'payment_direction') IS NULL
+BEGIN
+    ALTER TABLE dbo.Payments ADD payment_direction NVARCHAR(20) NOT NULL CONSTRAINT DF_Payments_PaymentDirection DEFAULT 'IN';
+END
+GO
+
+IF COL_LENGTH('dbo.Payments', 'gateway_name') IS NULL
+BEGIN
+    ALTER TABLE dbo.Payments ADD gateway_name NVARCHAR(100) NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.Payments', 'provider_response') IS NULL
+BEGIN
+    ALTER TABLE dbo.Payments ADD provider_response NVARCHAR(MAX) NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.Payments', 'status') IS NULL
+BEGIN
+    ALTER TABLE dbo.Payments ADD status NVARCHAR(50) NOT NULL CONSTRAINT DF_Payments_Status DEFAULT 'SUCCESS';
+END
+GO
+
+IF COL_LENGTH('dbo.Payments', 'created_at') IS NULL
+BEGIN
+    ALTER TABLE dbo.Payments ADD created_at DATETIME NOT NULL CONSTRAINT DF_Payments_CreatedAt DEFAULT GETDATE();
+END
+GO
+
+/* =========================================================
+   C. CHUẨN HÓA DATA CŨ
+   ========================================================= */
+
+UPDATE dbo.Invoices
+SET total_room_amount = ISNULL(total_room_amount, 0),
+    total_service_amount = ISNULL(total_service_amount, 0),
+    total_damage_amount = ISNULL(total_damage_amount, 0),
+    manual_adjustment_amount = ISNULL(manual_adjustment_amount, 0),
+    discount_amount = ISNULL(discount_amount, 0),
+    tax_amount = ISNULL(tax_amount, 0),
+    final_total = ISNULL(final_total, 0),
+    refund_amount = ISNULL(refund_amount, 0),
+    created_at = ISNULL(created_at, GETDATE())
+WHERE 1 = 1;
+GO
+
+UPDATE dbo.Payments
+SET payment_direction = ISNULL(payment_direction, 'IN'),
+    status = ISNULL(status, 'SUCCESS'),
+    created_at = ISNULL(created_at, GETDATE())
+WHERE 1 = 1;
+GO
+
+/* =========================================================
+   D. HƯỚNG B: KHÔNG DÙNG TRIGGER TỰ TẠO HÓA ĐƠN
+   ========================================================= */
+
+DROP TRIGGER IF EXISTS dbo.trg_BookingDetails_AutoDraftInvoice_WhenCheckout;
+GO
+
+/* =========================================================
+   E. THÊM TRẠNG THÁI THANH TOÁN Ở MỨC BOOKING_DETAIL
+   ========================================================= */
+
+IF COL_LENGTH('dbo.Booking_Details', 'settlement_status') IS NULL
+BEGIN
+    ALTER TABLE dbo.Booking_Details
+    ADD settlement_status NVARCHAR(50) NOT NULL
+        CONSTRAINT DF_BookingDetails_SettlementStatus DEFAULT 'UNPAID';
+END
+GO
+
+IF COL_LENGTH('dbo.Booking_Details', 'settled_at') IS NULL
+BEGIN
+    ALTER TABLE dbo.Booking_Details
+    ADD settled_at DATETIME NULL;
+END
+GO
+
+/* =========================================================
+   F. BẢNG LIÊN KẾT INVOICE <-> BOOKING_DETAIL
+   ========================================================= */
+
+IF OBJECT_ID(N'dbo.Invoice_Booking_Details', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Invoice_Booking_Details
+    (
+        id INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        invoice_id INT NOT NULL,
+        booking_detail_id INT NOT NULL,
+
+        room_charge DECIMAL(18,2) NOT NULL CONSTRAINT DF_InvoiceBookingDetails_RoomCharge DEFAULT 0,
+        service_charge DECIMAL(18,2) NOT NULL CONSTRAINT DF_InvoiceBookingDetails_ServiceCharge DEFAULT 0,
+        damage_charge DECIMAL(18,2) NOT NULL CONSTRAINT DF_InvoiceBookingDetails_DamageCharge DEFAULT 0,
+        discount_amount DECIMAL(18,2) NOT NULL CONSTRAINT DF_InvoiceBookingDetails_DiscountAmount DEFAULT 0,
+        extra_fee_amount DECIMAL(18,2) NOT NULL CONSTRAINT DF_InvoiceBookingDetails_ExtraFeeAmount DEFAULT 0,
+        tax_amount DECIMAL(18,2) NOT NULL CONSTRAINT DF_InvoiceBookingDetails_TaxAmount DEFAULT 0,
+        line_total DECIMAL(18,2) NOT NULL CONSTRAINT DF_InvoiceBookingDetails_LineTotal DEFAULT 0,
+
+        created_at DATETIME NOT NULL CONSTRAINT DF_InvoiceBookingDetails_CreatedAt DEFAULT GETDATE()
+    );
+END
+GO
+
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.foreign_keys
+    WHERE name = 'FK_InvoiceBookingDetails_Invoices'
+)
+BEGIN
+    ALTER TABLE dbo.Invoice_Booking_Details
+    ADD CONSTRAINT FK_InvoiceBookingDetails_Invoices
+        FOREIGN KEY (invoice_id) REFERENCES dbo.Invoices(id);
+END
+GO
+
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.foreign_keys
+    WHERE name = 'FK_InvoiceBookingDetails_BookingDetails'
+)
+BEGIN
+    ALTER TABLE dbo.Invoice_Booking_Details
+    ADD CONSTRAINT FK_InvoiceBookingDetails_BookingDetails
+        FOREIGN KEY (booking_detail_id) REFERENCES dbo.Booking_Details(id);
+END
+GO
+
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = 'UQ_InvoiceBookingDetails_InvoiceDetail'
+      AND object_id = OBJECT_ID('dbo.Invoice_Booking_Details')
+)
+BEGIN
+    CREATE UNIQUE INDEX UQ_InvoiceBookingDetails_InvoiceDetail
+    ON dbo.Invoice_Booking_Details(invoice_id, booking_detail_id);
+END
+GO
+
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = 'IX_InvoiceBookingDetails_BookingDetail'
+      AND object_id = OBJECT_ID('dbo.Invoice_Booking_Details')
+)
+BEGIN
+    CREATE INDEX IX_InvoiceBookingDetails_BookingDetail
+    ON dbo.Invoice_Booking_Details(booking_detail_id);
+END
+GO
+
+/* =========================================================
+   G. BACKFILL DỮ LIỆU CŨ TỪ BOOKING-LEVEL INVOICE
+   ========================================================= */
+
+INSERT INTO dbo.Invoice_Booking_Details
+(
+    invoice_id,
+    booking_detail_id,
+    room_charge,
+    service_charge,
+    damage_charge,
+    discount_amount,
+    extra_fee_amount,
+    tax_amount,
+    line_total,
+    created_at
+)
+SELECT
+    i.id,
+    bd.id,
+    CASE
+        WHEN ISNULL(bd.line_total, 0) > 0 THEN ISNULL(bd.line_total, 0)
+        ELSE
+            (ISNULL(bd.price_per_night, 0) *
+             CASE
+                WHEN ISNULL(bd.nights, 0) > 0 THEN bd.nights
+                WHEN DATEDIFF(DAY, bd.check_in_date, bd.check_out_date) > 0 THEN DATEDIFF(DAY, bd.check_in_date, bd.check_out_date)
+                ELSE 1
+             END)
+            + ISNULL(bd.early_check_in_fee, 0)
+            + ISNULL(bd.late_check_out_fee, 0)
+    END AS room_charge,
+    0 AS service_charge,
+    0 AS damage_charge,
+    0 AS discount_amount,
+    0 AS extra_fee_amount,
+    0 AS tax_amount,
+    CASE
+        WHEN ISNULL(bd.line_total, 0) > 0 THEN ISNULL(bd.line_total, 0)
+        ELSE
+            (ISNULL(bd.price_per_night, 0) *
+             CASE
+                WHEN ISNULL(bd.nights, 0) > 0 THEN bd.nights
+                WHEN DATEDIFF(DAY, bd.check_in_date, bd.check_out_date) > 0 THEN DATEDIFF(DAY, bd.check_in_date, bd.check_out_date)
+                ELSE 1
+             END)
+            + ISNULL(bd.early_check_in_fee, 0)
+            + ISNULL(bd.late_check_out_fee, 0)
+    END AS line_total,
+    GETDATE()
+FROM dbo.Invoices i
+INNER JOIN dbo.Booking_Details bd
+    ON bd.booking_id = i.booking_id
+WHERE NOT EXISTS
+(
+    SELECT 1
+    FROM dbo.Invoice_Booking_Details ibd
+    WHERE ibd.invoice_id = i.id
+      AND ibd.booking_detail_id = bd.id
+);
+GO
+
+/* =========================================================
+   H. BACKFILL settlement_status CHO DỮ LIỆU CŨ
+   ========================================================= */
+
+;WITH PaidBookings AS
+(
+    SELECT DISTINCT booking_id, MAX(paid_at) AS max_paid_at
+    FROM dbo.Invoices
+    WHERE UPPER(LTRIM(RTRIM(ISNULL(status, '')))) = 'PAID'
+    GROUP BY booking_id
+),
+OpenInvoiceBookings AS
+(
+    SELECT DISTINCT booking_id
+    FROM dbo.Invoices
+    WHERE UPPER(LTRIM(RTRIM(ISNULL(status, '')))) NOT IN ('PAID', 'REFUNDED', 'CANCELLED', 'VOIDED')
+)
+UPDATE bd
+SET
+    settlement_status =
+        CASE
+            WHEN pb.booking_id IS NOT NULL THEN 'PAID'
+            WHEN oib.booking_id IS NOT NULL THEN 'DRAFTED'
+            ELSE 'UNPAID'
+        END,
+    settled_at =
+        CASE
+            WHEN pb.booking_id IS NOT NULL AND bd.settled_at IS NULL THEN pb.max_paid_at
+            ELSE bd.settled_at
+        END
+FROM dbo.Booking_Details bd
+LEFT JOIN PaidBookings pb
+    ON pb.booking_id = bd.booking_id
+LEFT JOIN OpenInvoiceBookings oib
+    ON oib.booking_id = bd.booking_id;
 GO
 

@@ -3,6 +3,7 @@ using HotelERP.BE.DTOs.Common;
 using HotelERP.BE.DTOs.Invoices;
 using HotelERP.BE.Domain.Models;
 using HotelERP.BE.Infrastructure.Data;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 
 namespace HotelERP.BE.Services.Invoices;
@@ -18,8 +19,276 @@ public class InvoiceService : IInvoiceService
         _dbContext = dbContext;
     }
 
-    public async Task<ApiResult<InvoiceActionResponseDto>> AddExtraFeeAsync(
+    private sealed class DetailChargeSummary
+    {
+        public BookingDetail Detail { get; set; } = null!;
+        public decimal RoomCharge { get; set; }
+        public decimal ServiceCharge { get; set; }
+        public decimal DamageCharge { get; set; }
+        public decimal Subtotal => RoomCharge + ServiceCharge + DamageCharge;
+    }
+
+    public async Task<ApiResult<List<EligibleBookingDetailResponseDto>>> GetEligibleBookingDetailsAsync(
         int bookingId,
+        CancellationToken cancellationToken = default)
+    {
+        var booking = await LoadBookingGraphAsync(bookingId, cancellationToken);
+        if (booking is null)
+        {
+            return ApiResult<List<EligibleBookingDetailResponseDto>>.Fail(
+                StatusCodes.Status404NotFound,
+                "BOOKING_NOT_FOUND",
+                $"Không tìm thấy booking id = {bookingId}.");
+        }
+
+        var result = booking.BookingDetails
+            .OrderBy(x => x.Id)
+            .Select(detail =>
+            {
+                var summary = BuildDetailChargeSummary(detail);
+                var hasOpenInvoice = detail.InvoiceBookingDetails.Any(x => !IsClosedInvoice(x.Invoice?.Status));
+
+                var canCreateInvoice = true;
+                string? blockReason = null;
+
+                if (!IsCheckedOut(detail))
+                {
+                    canCreateInvoice = false;
+                    blockReason = "Phòng này chưa checkout.";
+                }
+                else if (Normalize(detail.SettlementStatus) == "PAID")
+                {
+                    canCreateInvoice = false;
+                    blockReason = "Phòng này đã thanh toán.";
+                }
+                else if (hasOpenInvoice)
+                {
+                    canCreateInvoice = false;
+                    blockReason = "Phòng này đang nằm trong một invoice nháp khác.";
+                }
+
+                return new EligibleBookingDetailResponseDto
+                {
+                    BookingDetailId = detail.Id,
+                    BookingId = booking.Id,
+                    RoomId = detail.RoomId,
+                    RoomNumber = detail.Room?.RoomNumber ?? string.Empty,
+                    RoomTypeId = detail.RoomTypeId,
+                    RoomTypeName = detail.RoomType?.Name,
+                    CheckInDate = detail.CheckInDate,
+                    CheckOutDate = detail.CheckOutDate,
+                    RoomCharge = Money(summary.RoomCharge),
+                    ServiceCharge = Money(summary.ServiceCharge),
+                    DamageCharge = Money(summary.DamageCharge),
+                    CheckoutStatus = detail.Status,
+                    SettlementStatus = detail.SettlementStatus,
+                    CanCreateInvoice = canCreateInvoice,
+                    BlockReason = blockReason
+                };
+            })
+            .ToList();
+
+        return ApiResult<List<EligibleBookingDetailResponseDto>>.Ok(
+            result,
+            "Lấy danh sách phòng đủ điều kiện lập hóa đơn thành công.",
+            "GET_ELIGIBLE_BOOKING_DETAILS_SUCCESS");
+    }
+
+    public async Task<ApiResult<InvoiceActionResponseDto>> CreateDraftAsync(
+        CreateDraftInvoiceRequestDto request,
+        int? performedByUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var detailIds = request.BookingDetailIds
+            .Where(x => x > 0)
+            .Distinct()
+            .ToList();
+
+        if (request.BookingId <= 0 || detailIds.Count == 0)
+        {
+            return ApiResult<InvoiceActionResponseDto>.Fail(
+                StatusCodes.Status400BadRequest,
+                "INVALID_DRAFT_REQUEST",
+                "Phải truyền bookingId và ít nhất 1 bookingDetailId hợp lệ.");
+        }
+
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        var booking = await LoadBookingGraphAsync(request.BookingId, cancellationToken);
+        if (booking is null)
+        {
+            return ApiResult<InvoiceActionResponseDto>.Fail(
+                StatusCodes.Status404NotFound,
+                "BOOKING_NOT_FOUND",
+                $"Không tìm thấy booking id = {request.BookingId}.");
+        }
+
+        var selectedDetails = booking.BookingDetails
+            .Where(x => detailIds.Contains(x.Id))
+            .OrderBy(x => x.Id)
+            .ToList();
+
+        if (selectedDetails.Count != detailIds.Count)
+        {
+            return ApiResult<InvoiceActionResponseDto>.Fail(
+                StatusCodes.Status400BadRequest,
+                "BOOKING_DETAILS_NOT_BELONG_TO_BOOKING",
+                "Có bookingDetail không thuộc booking đã chọn.",
+                new
+                {
+                    bookingId = request.BookingId,
+                    bookingDetailIds = detailIds
+                });
+        }
+
+        var notCheckedOut = selectedDetails.Where(x => !IsCheckedOut(x)).Select(x => x.Id).ToList();
+        if (notCheckedOut.Count > 0)
+        {
+            return ApiResult<InvoiceActionResponseDto>.Fail(
+                StatusCodes.Status409Conflict,
+                "BOOKING_DETAILS_NOT_CHECKED_OUT",
+                "Chỉ được lập hóa đơn cho những phòng đã checkout.",
+                new { bookingDetailIds = notCheckedOut });
+        }
+
+        var alreadyPaid = selectedDetails
+            .Where(x => Normalize(x.SettlementStatus) == "PAID")
+            .Select(x => x.Id)
+            .ToList();
+
+        if (alreadyPaid.Count > 0)
+        {
+            return ApiResult<InvoiceActionResponseDto>.Fail(
+                StatusCodes.Status409Conflict,
+                "BOOKING_DETAILS_ALREADY_PAID",
+                "Có phòng đã thanh toán trước đó.",
+                new { bookingDetailIds = alreadyPaid });
+        }
+
+        var overlappingDraft = booking.Invoices
+            .Where(x => !IsClosedInvoice(x.Status))
+            .FirstOrDefault(x => x.InvoiceBookingDetails.Any(y => detailIds.Contains(y.BookingDetailId)));
+
+        if (overlappingDraft is not null)
+        {
+            var existingIds = overlappingDraft.InvoiceBookingDetails
+                .Select(x => x.BookingDetailId)
+                .OrderBy(x => x)
+                .ToList();
+
+            var incomingIds = detailIds.OrderBy(x => x).ToList();
+
+            if (existingIds.SequenceEqual(incomingIds))
+            {
+                var existingResponse = MapResponse(booking, overlappingDraft);
+                return ApiResult<InvoiceActionResponseDto>.Ok(
+                    existingResponse,
+                    "Nhóm phòng này đã có invoice nháp, trả lại invoice hiện tại.",
+                    "DRAFT_INVOICE_ALREADY_EXISTS");
+            }
+
+            return ApiResult<InvoiceActionResponseDto>.Fail(
+                StatusCodes.Status409Conflict,
+                "BOOKING_DETAILS_ALREADY_IN_OTHER_DRAFT",
+                "Một phần phòng đã nằm trong invoice nháp khác.",
+                new
+                {
+                    incomingBookingDetailIds = incomingIds,
+                    existingInvoiceId = overlappingDraft.Id,
+                    existingBookingDetailIds = existingIds
+                });
+        }
+
+        var sequence = booking.Invoices.Count + 1;
+        var now = DateTime.UtcNow;
+
+        var invoice = new Invoice
+        {
+            BookingId = booking.Id,
+            InvoiceCode = BuildInvoiceCode(booking.BookingCode, sequence),
+            Status = "Draft",
+            Notes = string.IsNullOrWhiteSpace(request.Note)
+                ? "Invoice nháp tạo theo Hướng B"
+                : AppendAuditText(null, request.Note),
+            CreatedAt = now,
+            UpdatedAt = now,
+            TotalRoomAmount = 0,
+            TotalServiceAmount = 0,
+            TotalDamageAmount = 0,
+            DiscountAmount = 0,
+            ManualAdjustmentAmount = 0,
+            TaxAmount = 0,
+            FinalTotal = 0,
+            RefundAmount = 0
+        };
+
+        foreach (var detail in selectedDetails)
+        {
+            invoice.InvoiceBookingDetails.Add(new InvoiceBookingDetail
+            {
+                BookingDetailId = detail.Id,
+                RoomCharge = 0,
+                ServiceCharge = 0,
+                DamageCharge = 0,
+                DiscountAmount = 0,
+                ExtraFeeAmount = 0,
+                TaxAmount = 0,
+                LineTotal = 0,
+                CreatedAt = now
+            });
+
+            detail.SettlementStatus = "DRAFTED";
+            detail.UpdatedAt = now;
+        }
+
+        booking.Invoices.Add(invoice);
+        _dbContext.Invoices.Add(invoice);
+
+        RecalculateInvoice(booking, invoice);
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        var after = MapResponse(booking, invoice);
+
+        AddAuditLog(
+            performedByUserId,
+            "CREATE_DRAFT_INVOICE_PARTIAL",
+            "Invoices",
+            invoice.Id,
+            null,
+            after,
+            request.Note);
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        return ApiResult<InvoiceActionResponseDto>.Created(
+            after,
+            "Tạo hóa đơn tạm tính theo nhóm phòng thành công.",
+            "CREATE_DRAFT_INVOICE_SUCCESS");
+    }
+
+    public async Task<ApiResult<InvoiceActionResponseDto>> GetInvoiceAsync(
+        int invoiceId,
+        CancellationToken cancellationToken = default)
+    {
+        var invoice = await LoadInvoiceGraphAsync(invoiceId, cancellationToken);
+        if (invoice is null || invoice.Booking is null)
+        {
+            return ApiResult<InvoiceActionResponseDto>.Fail(
+                StatusCodes.Status404NotFound,
+                "INVOICE_NOT_FOUND",
+                $"Không tìm thấy invoice id = {invoiceId}.");
+        }
+
+        return ApiResult<InvoiceActionResponseDto>.Ok(
+            MapResponse(invoice.Booking, invoice),
+            "Lấy chi tiết hóa đơn thành công.",
+            "GET_INVOICE_SUCCESS");
+    }
+
+    public async Task<ApiResult<InvoiceActionResponseDto>> AddExtraFeeAsync(
+        int invoiceId,
         AddExtraFeeRequestDto request,
         int? performedByUserId,
         CancellationToken cancellationToken = default)
@@ -34,16 +303,22 @@ public class InvoiceService : IInvoiceService
 
         await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
 
-        var booking = await LoadBookingForInvoiceAsync(bookingId, cancellationToken);
-        if (booking is null)
+        var invoice = await LoadInvoiceGraphAsync(invoiceId, cancellationToken);
+        if (invoice is null || invoice.Booking is null)
         {
             return ApiResult<InvoiceActionResponseDto>.Fail(
                 StatusCodes.Status404NotFound,
-                "BOOKING_NOT_FOUND",
-                $"Không tìm thấy booking id = {bookingId}.");
+                "INVOICE_NOT_FOUND",
+                $"Không tìm thấy invoice id = {invoiceId}.");
         }
 
-        var invoice = GetOrCreateWorkingInvoice(booking);
+        if (invoice.InvoiceBookingDetails.Count == 0)
+        {
+            return ApiResult<InvoiceActionResponseDto>.Fail(
+                StatusCodes.Status409Conflict,
+                "INVOICE_HAS_NO_BOOKING_DETAILS",
+                "Invoice này chưa gắn với booking detail nào.");
+        }
 
         if (IsClosedInvoice(invoice.Status))
         {
@@ -53,12 +328,12 @@ public class InvoiceService : IInvoiceService
                 $"Không thể thêm phụ phí vì hóa đơn đang ở trạng thái {invoice.Status}.",
                 new
                 {
-                    bookingId,
-                    invoiceId = invoice.Id,
+                    invoiceId,
                     invoiceStatus = invoice.Status
                 });
         }
 
+        var booking = invoice.Booking;
         var before = MapResponse(booking, invoice);
 
         invoice.ManualAdjustmentAmount = Money(invoice.ManualAdjustmentAmount + request.Amount);
@@ -77,7 +352,7 @@ public class InvoiceService : IInvoiceService
 
         AddAuditLog(
             performedByUserId,
-            "ADD_EXTRA_FEE",
+            "ADD_EXTRA_FEE_INVOICE",
             "Invoices",
             invoice.Id,
             before,
@@ -94,7 +369,7 @@ public class InvoiceService : IInvoiceService
     }
 
     public async Task<ApiResult<InvoiceActionResponseDto>> FinalizeAsync(
-        int bookingId,
+        int invoiceId,
         FinalizeInvoiceRequestDto request,
         int? performedByUserId,
         CancellationToken cancellationToken = default)
@@ -109,16 +384,22 @@ public class InvoiceService : IInvoiceService
 
         await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
 
-        var booking = await LoadBookingForInvoiceAsync(bookingId, cancellationToken);
-        if (booking is null)
+        var invoice = await LoadInvoiceGraphAsync(invoiceId, cancellationToken);
+        if (invoice is null || invoice.Booking is null)
         {
             return ApiResult<InvoiceActionResponseDto>.Fail(
                 StatusCodes.Status404NotFound,
-                "BOOKING_NOT_FOUND",
-                $"Không tìm thấy booking id = {bookingId}.");
+                "INVOICE_NOT_FOUND",
+                $"Không tìm thấy invoice id = {invoiceId}.");
         }
 
-        var invoice = GetOrCreateWorkingInvoice(booking);
+        if (invoice.InvoiceBookingDetails.Count == 0)
+        {
+            return ApiResult<InvoiceActionResponseDto>.Fail(
+                StatusCodes.Status409Conflict,
+                "INVOICE_HAS_NO_BOOKING_DETAILS",
+                "Invoice này chưa gắn với booking detail nào.");
+        }
 
         if (Normalize(invoice.Status) == "PAID")
         {
@@ -128,8 +409,7 @@ public class InvoiceService : IInvoiceService
                 "Hóa đơn này đã được chốt trước đó.",
                 new
                 {
-                    bookingId,
-                    invoiceId = invoice.Id,
+                    invoiceId,
                     invoiceStatus = invoice.Status,
                     paidAt = invoice.PaidAt
                 });
@@ -143,21 +423,24 @@ public class InvoiceService : IInvoiceService
                 $"Không thể chốt hóa đơn vì trạng thái hiện tại là {invoice.Status}.",
                 new
                 {
-                    bookingId,
-                    invoiceId = invoice.Id,
+                    invoiceId,
                     invoiceStatus = invoice.Status
                 });
         }
 
+        var booking = invoice.Booking;
         var before = MapResponse(booking, invoice);
 
-        invoice.Status = "Draft";
-        if (!string.IsNullOrWhiteSpace(request.Note))
-        {
-            invoice.Notes = AppendAuditText(invoice.Notes, $"Ghi chú chốt hóa đơn: {request.Note}");
-        }
-
         RecalculateInvoice(booking, invoice);
+
+        var selectedDetailIds = invoice.InvoiceBookingDetails
+            .Select(x => x.BookingDetailId)
+            .Distinct()
+            .ToList();
+
+        var selectedDetails = booking.BookingDetails
+            .Where(x => selectedDetailIds.Contains(x.Id))
+            .ToList();
 
         var now = DateTime.UtcNow;
 
@@ -166,15 +449,17 @@ public class InvoiceService : IInvoiceService
         invoice.PaidAt = now;
         invoice.UpdatedAt = now;
 
-        booking.PaymentStatus = "PAID";
-        booking.Status = "Completed";
-        booking.FinalAmount = invoice.FinalTotal;
-        booking.UpdatedAt = now;
+        if (!string.IsNullOrWhiteSpace(request.Note))
+        {
+            invoice.Notes = AppendAuditText(invoice.Notes, $"Ghi chú chốt hóa đơn: {request.Note}");
+        }
 
-        foreach (var detail in booking.BookingDetails)
+        foreach (var detail in selectedDetails)
         {
             detail.Status = "Checked_out";
             detail.ActualCheckOutAt ??= now;
+            detail.SettlementStatus = "PAID";
+            detail.SettledAt = now;
             detail.UpdatedAt = now;
         }
 
@@ -184,13 +469,15 @@ public class InvoiceService : IInvoiceService
             _dbContext.Payments.Add(payment);
         }
 
+        UpdateBookingAggregateStatus(booking, now);
+
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         var after = MapResponse(booking, invoice);
 
         AddAuditLog(
             performedByUserId,
-            "FINALIZE_INVOICE",
+            "FINALIZE_INVOICE_PARTIAL",
             "Invoices",
             invoice.Id,
             before,
@@ -206,94 +493,248 @@ public class InvoiceService : IInvoiceService
             "FINALIZE_INVOICE_SUCCESS");
     }
 
-    private async Task<Booking?> LoadBookingForInvoiceAsync(int bookingId, CancellationToken cancellationToken)
+    private async Task<Booking?> LoadBookingGraphAsync(int bookingId, CancellationToken cancellationToken)
     {
         return await _dbContext.Bookings
+            .Include(x => x.BookingDetails)
+                .ThenInclude(x => x.Room)
+            .Include(x => x.BookingDetails)
+                .ThenInclude(x => x.RoomType)
             .Include(x => x.BookingDetails)
                 .ThenInclude(x => x.OrderServices)
                     .ThenInclude(x => x.OrderServiceDetails)
             .Include(x => x.BookingDetails)
                 .ThenInclude(x => x.LossAndDamages)
+            .Include(x => x.BookingDetails)
+                .ThenInclude(x => x.InvoiceBookingDetails)
+                    .ThenInclude(x => x.Invoice)
             .Include(x => x.Invoices)
                 .ThenInclude(x => x.Payments)
+            .Include(x => x.Invoices)
+                .ThenInclude(x => x.InvoiceBookingDetails)
+                    .ThenInclude(x => x.BookingDetail)
+                        .ThenInclude(x => x.Room)
             .FirstOrDefaultAsync(x => x.Id == bookingId, cancellationToken);
     }
 
-    private Invoice GetOrCreateWorkingInvoice(Booking booking)
+    private async Task<Invoice?> LoadInvoiceGraphAsync(int invoiceId, CancellationToken cancellationToken)
     {
-        var latestInvoice = booking.Invoices
-            .OrderByDescending(x => x.Id)
-            .FirstOrDefault();
-
-        if (latestInvoice is not null)
-        {
-            if (string.IsNullOrWhiteSpace(latestInvoice.InvoiceCode))
-            {
-                latestInvoice.InvoiceCode = BuildInvoiceCode(booking.BookingCode);
-            }
-
-            if (!IsClosedInvoice(latestInvoice.Status))
-            {
-                latestInvoice.Status = "Draft";
-            }
-
-            return latestInvoice;
-        }
-
-        var invoice = new Invoice
-        {
-            BookingId = booking.Id,
-            InvoiceCode = BuildInvoiceCode(booking.BookingCode),
-            Status = "Draft",
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow,
-            TotalRoomAmount = 0,
-            TotalServiceAmount = 0,
-            TotalDamageAmount = 0,
-            DiscountAmount = 0,
-            ManualAdjustmentAmount = 0,
-            TaxAmount = 0,
-            FinalTotal = 0,
-            RefundAmount = 0
-        };
-
-        booking.Invoices.Add(invoice);
-        _dbContext.Invoices.Add(invoice);
-
-        return invoice;
+        return await _dbContext.Invoices
+            .Include(x => x.Payments)
+            .Include(x => x.InvoiceBookingDetails)
+                .ThenInclude(x => x.BookingDetail)
+                    .ThenInclude(x => x.Room)
+            .Include(x => x.Booking)
+                .ThenInclude(x => x.BookingDetails)
+                    .ThenInclude(x => x.Room)
+            .Include(x => x.Booking)
+                .ThenInclude(x => x.BookingDetails)
+                    .ThenInclude(x => x.RoomType)
+            .Include(x => x.Booking)
+                .ThenInclude(x => x.BookingDetails)
+                    .ThenInclude(x => x.OrderServices)
+                        .ThenInclude(x => x.OrderServiceDetails)
+            .Include(x => x.Booking)
+                .ThenInclude(x => x.BookingDetails)
+                    .ThenInclude(x => x.LossAndDamages)
+            .Include(x => x.Booking)
+                .ThenInclude(x => x.BookingDetails)
+                    .ThenInclude(x => x.InvoiceBookingDetails)
+                        .ThenInclude(x => x.Invoice)
+            .Include(x => x.Booking)
+                .ThenInclude(x => x.Invoices)
+                    .ThenInclude(x => x.InvoiceBookingDetails)
+                        .ThenInclude(x => x.BookingDetail)
+                            .ThenInclude(x => x.Room)
+            .FirstOrDefaultAsync(x => x.Id == invoiceId, cancellationToken);
     }
 
     private void RecalculateInvoice(Booking booking, Invoice invoice)
     {
-        var roomTotal = Money(booking.BookingDetails.Sum(CalculateRoomLineAmount));
+        var selectedDetails = GetSelectedDetails(booking, invoice);
+        var summaries = selectedDetails
+            .Select(BuildDetailChargeSummary)
+            .ToList();
 
-        var serviceTotal = Money(
+        var roomTotal = Money(summaries.Sum(x => x.RoomCharge));
+        var serviceTotal = Money(summaries.Sum(x => x.ServiceCharge));
+        var damageTotal = Money(summaries.Sum(x => x.DamageCharge));
+        var selectedSubtotal = Money(summaries.Sum(x => x.Subtotal));
+
+        var wholeBookingBase = Money(
             booking.BookingDetails
-                .SelectMany(x => x.OrderServices)
-                .Where(x => Normalize(x.Status) != "CANCELLED")
-                .Sum(CalculateOrderServiceAmount));
+                .Select(BuildDetailChargeSummary)
+                .Sum(x => x.Subtotal));
 
-        var damageTotal = Money(
-            booking.BookingDetails
-                .SelectMany(x => x.LossAndDamages)
-                .Where(x => IsChargeableDamage(x.Status))
-                .Sum(x => x.PenaltyAmount));
+        var discountShare = 0m;
+        if (wholeBookingBase > 0 && booking.DiscountAmount > 0 && selectedSubtotal > 0)
+        {
+            discountShare = Money(booking.DiscountAmount * (selectedSubtotal / wholeBookingBase));
+        }
 
-        var discount = Money(Math.Max(0, booking.DiscountAmount));
         var manualAdjustment = Money(Math.Max(0, invoice.ManualAdjustmentAmount));
         var refundAmount = Money(Math.Max(0, invoice.RefundAmount));
 
-        var taxableBase = Money(Math.Max(0, roomTotal + serviceTotal + damageTotal + manualAdjustment - discount));
+        var taxableBase = Money(Math.Max(0, selectedSubtotal + manualAdjustment - discountShare));
         var taxAmount = Money(taxableBase * VatRate);
         var finalTotal = Money(Math.Max(0, taxableBase + taxAmount - refundAmount));
 
         invoice.TotalRoomAmount = roomTotal;
         invoice.TotalServiceAmount = serviceTotal;
         invoice.TotalDamageAmount = damageTotal;
-        invoice.DiscountAmount = discount;
+        invoice.DiscountAmount = discountShare;
         invoice.ManualAdjustmentAmount = manualAdjustment;
         invoice.TaxAmount = taxAmount;
         invoice.FinalTotal = finalTotal;
+
+        ApplyLineBreakdown(invoice, summaries, discountShare, manualAdjustment, taxAmount);
+    }
+
+    private void ApplyLineBreakdown(
+        Invoice invoice,
+        List<DetailChargeSummary> summaries,
+        decimal discountShare,
+        decimal manualAdjustment,
+        decimal taxAmount)
+    {
+        if (invoice.InvoiceBookingDetails.Count == 0 || summaries.Count == 0)
+        {
+            return;
+        }
+
+        var weights = summaries.Select(x => x.Subtotal).ToList();
+
+        var discountDistribution = DistributeAmount(discountShare, weights);
+        var extraFeeDistribution = DistributeAmount(manualAdjustment, weights);
+        var taxDistribution = DistributeAmount(taxAmount, weights);
+
+        for (var i = 0; i < summaries.Count; i++)
+        {
+            var summary = summaries[i];
+            var line = invoice.InvoiceBookingDetails.First(x => x.BookingDetailId == summary.Detail.Id);
+
+            line.RoomCharge = Money(summary.RoomCharge);
+            line.ServiceCharge = Money(summary.ServiceCharge);
+            line.DamageCharge = Money(summary.DamageCharge);
+            line.DiscountAmount = Money(discountDistribution[i]);
+            line.ExtraFeeAmount = Money(extraFeeDistribution[i]);
+            line.TaxAmount = Money(taxDistribution[i]);
+            line.LineTotal = Money(
+                summary.Subtotal
+                - line.DiscountAmount
+                + line.ExtraFeeAmount
+                + line.TaxAmount);
+        }
+    }
+
+    private static List<decimal> DistributeAmount(decimal total, IReadOnlyList<decimal> weights)
+    {
+        if (weights.Count == 0)
+        {
+            return new List<decimal>();
+        }
+
+        var result = Enumerable.Repeat(0m, weights.Count).ToList();
+        total = Money(total);
+
+        if (total == 0)
+        {
+            return result;
+        }
+
+        var safeWeights = weights.Select(x => Math.Max(0, x)).ToList();
+        var weightSum = safeWeights.Sum();
+
+        if (weightSum <= 0)
+        {
+            var even = Money(total / weights.Count);
+            for (var i = 0; i < weights.Count - 1; i++)
+            {
+                result[i] = even;
+            }
+
+            result[^1] = Money(total - result.Take(weights.Count - 1).Sum());
+            return result;
+        }
+
+        decimal assigned = 0;
+        for (var i = 0; i < weights.Count - 1; i++)
+        {
+            result[i] = Money(total * safeWeights[i] / weightSum);
+            assigned += result[i];
+        }
+
+        result[^1] = Money(total - assigned);
+        return result;
+    }
+
+    private List<BookingDetail> GetSelectedDetails(Booking booking, Invoice invoice)
+    {
+        var selectedIds = invoice.InvoiceBookingDetails
+            .Select(x => x.BookingDetailId)
+            .Distinct()
+            .ToHashSet();
+
+        return booking.BookingDetails
+            .Where(x => selectedIds.Contains(x.Id))
+            .OrderBy(x => x.Id)
+            .ToList();
+    }
+
+    private DetailChargeSummary BuildDetailChargeSummary(BookingDetail detail)
+    {
+        var roomCharge = CalculateRoomLineAmount(detail);
+
+        var serviceCharge = Money(
+            detail.OrderServices
+                .Where(x => Normalize(x.Status) != "CANCELLED")
+                .Sum(CalculateOrderServiceAmount));
+
+        var damageCharge = Money(
+            detail.LossAndDamages
+                .Where(x => IsChargeableDamage(x.Status))
+                .Sum(x => x.PenaltyAmount));
+
+        return new DetailChargeSummary
+        {
+            Detail = detail,
+            RoomCharge = roomCharge,
+            ServiceCharge = serviceCharge,
+            DamageCharge = damageCharge
+        };
+    }
+
+    private void UpdateBookingAggregateStatus(Booking booking, DateTime now)
+    {
+        var allPaid = booking.BookingDetails.Count > 0 &&
+                      booking.BookingDetails.All(x => Normalize(x.SettlementStatus) == "PAID");
+
+        var anyPaid = booking.BookingDetails.Any(x => Normalize(x.SettlementStatus) == "PAID");
+        var allCheckedOut = booking.BookingDetails.Count > 0 &&
+                            booking.BookingDetails.All(IsCheckedOut);
+        var anyCheckedOut = booking.BookingDetails.Any(IsCheckedOut);
+
+        booking.PaymentStatus = allPaid
+            ? "PAID"
+            : anyPaid
+                ? "PARTIALLY_PAID"
+                : "UNPAID";
+
+        if (allPaid && allCheckedOut)
+        {
+            booking.Status = "Completed";
+        }
+        else if (anyCheckedOut)
+        {
+            booking.Status = "Partially_checked_out";
+        }
+
+        booking.FinalAmount = Money(
+            booking.Invoices
+                .Where(x => Normalize(x.Status) == "PAID")
+                .Sum(x => x.FinalTotal));
+
+        booking.UpdatedAt = now;
     }
 
     private static decimal CalculateRoomLineAmount(BookingDetail detail)
@@ -364,6 +805,18 @@ public class InvoiceService : IInvoiceService
             .OrderByDescending(x => x.Id)
             .FirstOrDefault(x => Normalize(x.PaymentDirection) == "IN");
 
+        var detailIds = invoice.InvoiceBookingDetails
+            .Select(x => x.BookingDetailId)
+            .Distinct()
+            .OrderBy(x => x)
+            .ToList();
+
+        var roomNumbers = invoice.InvoiceBookingDetails
+            .Select(x => x.BookingDetail?.Room?.RoomNumber ?? $"Detail#{x.BookingDetailId}")
+            .Distinct()
+            .OrderBy(x => x)
+            .ToList();
+
         return new InvoiceActionResponseDto
         {
             BookingId = booking.Id,
@@ -373,6 +826,8 @@ public class InvoiceService : IInvoiceService
             InvoiceStatus = invoice.Status,
             BookingStatus = booking.Status,
             PaymentStatus = booking.PaymentStatus,
+            BookingDetailIds = detailIds,
+            RoomNumbers = roomNumbers,
             TotalRoomAmount = invoice.TotalRoomAmount,
             TotalServiceAmount = invoice.TotalServiceAmount,
             TotalDamageAmount = invoice.TotalDamageAmount,
@@ -412,9 +867,9 @@ public class InvoiceService : IInvoiceService
         });
     }
 
-    private static string BuildInvoiceCode(string bookingCode)
+    private static string BuildInvoiceCode(string bookingCode, int sequence)
     {
-        return $"INV-{bookingCode}".Trim().ToUpperInvariant();
+        return $"INV-{bookingCode}-{sequence:00}".Trim().ToUpperInvariant();
     }
 
     private static bool IsClosedInvoice(string? status)
@@ -427,6 +882,12 @@ public class InvoiceService : IInvoiceService
     {
         var normalized = Normalize(status);
         return normalized is not "WAIVED" and not "CANCELLED" and not "VOIDED";
+    }
+
+    private static bool IsCheckedOut(BookingDetail detail)
+    {
+        return detail.ActualCheckOutAt.HasValue
+               || Normalize(detail.Status) is "CHECKED_OUT" or "COMPLETED";
     }
 
     private static string AppendAuditText(string? current, string newLine)

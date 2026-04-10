@@ -12,6 +12,9 @@ public class InvoiceActionResponseDto
     public string BookingStatus { get; set; } = string.Empty;
     public string PaymentStatus { get; set; } = string.Empty;
 
+    public List<int> BookingDetailIds { get; set; } = new();
+    public List<string> RoomNumbers { get; set; } = new();
+
     public decimal TotalRoomAmount { get; set; }
     public decimal TotalServiceAmount { get; set; }
     public decimal TotalDamageAmount { get; set; }

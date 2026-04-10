@@ -19,6 +19,7 @@ const getValue = (obj, ...keys) => {
 const buildPrintableHtml = (payload) => {
   const bookingId = getValue(payload, 'bookingId', 'BookingId') || '';
   const bookingCode = getValue(payload, 'bookingCode', 'BookingCode') || '';
+  const invoiceId = getValue(payload, 'invoiceId', 'InvoiceId') || '';
   const invoiceCode = getValue(payload, 'invoiceCode', 'InvoiceCode') || '';
   const finalTotal = getValue(payload, 'finalTotal', 'FinalTotal') || 0;
   const invoiceStatus = getValue(payload, 'invoiceStatus', 'InvoiceStatus') || '';
@@ -28,6 +29,8 @@ const buildPrintableHtml = (payload) => {
   const manualAdjustmentAmount = getValue(payload, 'manualAdjustmentAmount', 'ManualAdjustmentAmount') || 0;
   const discountAmount = getValue(payload, 'discountAmount', 'DiscountAmount') || 0;
   const taxAmount = getValue(payload, 'taxAmount', 'TaxAmount') || 0;
+  const roomNumbers = getValue(payload, 'roomNumbers', 'RoomNumbers') || [];
+  const bookingDetailIds = getValue(payload, 'bookingDetailIds', 'BookingDetailIds') || [];
   const notes = getValue(payload, 'notes', 'Notes') || '';
 
   const money = (val) =>
@@ -48,8 +51,6 @@ const buildPrintableHtml = (payload) => {
           table { width: 100%; border-collapse: collapse; margin-top: 12px; }
           th, td { border: 1px solid #d1d5db; padding: 10px; text-align: left; }
           th { background: #f3f4f6; }
-          .summary { margin-top: 20px; }
-          .summary div { margin-bottom: 8px; }
           .final { font-size: 20px; font-weight: bold; color: #dc2626; margin-top: 12px; }
           .note { margin-top: 18px; white-space: pre-wrap; }
         </style>
@@ -57,10 +58,13 @@ const buildPrintableHtml = (payload) => {
       <body>
         <h1>HÓA ĐƠN TẠM TÍNH</h1>
         <div class="meta">
+          <div><b>Invoice ID:</b> ${invoiceId}</div>
           <div><b>Booking ID:</b> ${bookingId}</div>
           <div><b>Mã booking:</b> ${bookingCode}</div>
           <div><b>Mã hóa đơn:</b> ${invoiceCode}</div>
           <div><b>Trạng thái:</b> ${invoiceStatus}</div>
+          <div><b>Phòng:</b> ${(roomNumbers || []).join(', ') || 'Không có'}</div>
+          <div><b>BookingDetailIds:</b> ${(bookingDetailIds || []).join(', ') || 'Không có'}</div>
         </div>
 
         <table>
@@ -97,7 +101,7 @@ const buildPrintableHtml = (payload) => {
   `;
 };
 
-const InvoiceActionButtons = ({ bookingId, invoiceStatus, onChanged }) => {
+const InvoiceActionButtons = ({ invoiceId, invoiceStatus, onChanged }) => {
   const [quickActionOpen, setQuickActionOpen] = useState(false);
   const [finalizeOpen, setFinalizeOpen] = useState(false);
   const [printing, setPrinting] = useState(false);
@@ -109,7 +113,7 @@ const InvoiceActionButtons = ({ bookingId, invoiceStatus, onChanged }) => {
     try {
       setPrinting(true);
 
-      const res = await invoiceApi.getDraftInvoice(bookingId);
+      const res = await invoiceApi.getInvoiceDetail(invoiceId);
       const payload = res?.data?.data || res?.data || {};
 
       const html = buildPrintableHtml(payload);
@@ -125,10 +129,7 @@ const InvoiceActionButtons = ({ bookingId, invoiceStatus, onChanged }) => {
       printWindow.document.close();
     } catch (error) {
       console.error('Print draft error:', error);
-      message.error(
-        error?.response?.data?.message ||
-          'Nút in bản nháp đang chờ API GET /api/invoices/draft/{bookingId} của Gói 1.'
-      );
+      message.error(error?.response?.data?.message || 'Không in được bản nháp.');
     } finally {
       setPrinting(false);
     }
@@ -141,6 +142,7 @@ const InvoiceActionButtons = ({ bookingId, invoiceStatus, onChanged }) => {
           icon={<PrinterOutlined />}
           onClick={handlePrintDraft}
           loading={printing}
+          disabled={!invoiceId}
         >
           In bản nháp
         </Button>
@@ -148,7 +150,7 @@ const InvoiceActionButtons = ({ bookingId, invoiceStatus, onChanged }) => {
         <Button
           icon={<ThunderboltOutlined />}
           onClick={() => setQuickActionOpen(true)}
-          disabled={isPaid}
+          disabled={!invoiceId || isPaid}
         >
           Thao tác nhanh
         </Button>
@@ -157,7 +159,7 @@ const InvoiceActionButtons = ({ bookingId, invoiceStatus, onChanged }) => {
           type="primary"
           icon={<CheckCircleOutlined />}
           onClick={() => setFinalizeOpen(true)}
-          disabled={isPaid}
+          disabled={!invoiceId || isPaid}
         >
           Chốt & Xuất
         </Button>
@@ -167,14 +169,14 @@ const InvoiceActionButtons = ({ bookingId, invoiceStatus, onChanged }) => {
 
       <QuickActionModal
         open={quickActionOpen}
-        bookingId={bookingId}
+        invoiceId={invoiceId}
         onCancel={() => setQuickActionOpen(false)}
         onSuccess={onChanged}
       />
 
       <FinalizeInvoiceModal
         open={finalizeOpen}
-        bookingId={bookingId}
+        invoiceId={invoiceId}
         onCancel={() => setFinalizeOpen(false)}
         onSuccess={onChanged}
       />
