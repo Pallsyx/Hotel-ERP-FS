@@ -206,6 +206,7 @@ builder.Services.AddSignalR();
 builder.Services.AddScoped<IRoomTypeAmenityService, RoomTypeAmenityService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(Program).Assembly));
+builder.Services.AddScoped<IEmailService, EmailService>();
 
 
 

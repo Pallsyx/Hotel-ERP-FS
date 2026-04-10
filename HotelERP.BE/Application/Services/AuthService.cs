@@ -8,6 +8,7 @@ using HotelERP.BE.Domain.Models;
 using HotelERP.BE.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using StackExchange.Redis;
 
 namespace HotelERP.BE.Application.Services;
 
@@ -15,11 +16,15 @@ public class AuthService : IAuthService
 {
     private readonly HotelDbContext _context;
     private readonly IConfiguration _configuration;
+    private readonly IEmailService _emailService;
+    private readonly IConnectionMultiplexer _redis;
 
-    public AuthService(HotelDbContext context, IConfiguration configuration)
+    public AuthService(HotelDbContext context, IConfiguration configuration, IEmailService emailService, IConnectionMultiplexer redis)
     {
         _context = context;
         _configuration = configuration;
+        _emailService = emailService;
+        _redis = redis;
     }
 
    public async Task<TokenResponse> LoginAsync(LoginRequest request)
@@ -77,6 +82,17 @@ public class AuthService : IAuthService
         await _context.Users.AddAsync(newUser);
         await _context.SaveChangesAsync();
 
+    try 
+    {
+    // Gửi Email chào mừng (Đặt trong try-catch để nếu lỗi mail thì vẫn cho khách đăng ký xong)
+    string emailBody = $"<h3>Xin chào {request.FullName},</h3><p>Chào mừng bạn đến với Hotel ERP!</p>";
+    await _emailService.SendEmailAsync(request.Email, "Chào mừng đến với Hotel ERP", emailBody);
+    }
+    catch (Exception ex)
+    {
+    // Chỉ ghi log lỗi mail thôi, không 'throw' để tránh báo lỗi 400 về Frontend
+    Console.WriteLine("Lỗi gửi mail: " + ex.Message);
+    }
         return true;
     }
     public async Task<UserProfileResponse> GetCurrentUserProfileAsync(int userId)
@@ -341,5 +357,60 @@ public class AuthService : IAuthService
         {
             return null;
         }
+    }
+
+    public async Task<bool> ForgotPasswordAsync(ForgotPasswordRequest request)
+    {
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email && u.Status == true);
+        if (user == null) throw new Exception("Tài khoản không tồn tại hoặc đã bị khóa.");
+
+        // 1. Tạo mã OTP 6 số ngẫu nhiên
+        string otp = new Random().Next(100000, 999999).ToString();
+
+        // 2. Lưu OTP vào Redis (Tự động xóa sau 5 phút để bảo mật)
+        var db = _redis.GetDatabase();
+        await db.StringSetAsync($"otp:reset:{request.Email}", otp, TimeSpan.FromMinutes(5));
+
+        // 3. Gửi email
+        string emailBody = $"<h3>Khôi phục mật khẩu</h3><p>Mã OTP của bạn là: <b style='font-size: 20px; color: blue;'>{otp}</b></p><p>Mã này sẽ hết hạn sau 5 phút. Tuyệt đối không chia sẻ mã này cho người khác.</p>";
+        await _emailService.SendEmailAsync(request.Email, "Mã OTP Khôi phục mật khẩu", emailBody);
+
+        return true;
+    }
+
+    // =================================================================
+    // Quên mật khẩu bằng OTP (Dành cho User/Nhân viên)
+    // =================================================================
+
+    public async Task<bool> ResetPasswordWithOtpAsync(ResetPasswordOtpRequest request)
+    {
+        // 1. Kiểm tra OTP trong Redis
+        var db = _redis.GetDatabase();
+        string redisKey = $"otp:reset:{request.Email}";
+        var savedOtp = await db.StringGetAsync(redisKey);
+
+        if (string.IsNullOrEmpty(savedOtp) || savedOtp != request.OtpCode)
+            throw new Exception("Mã OTP không hợp lệ hoặc đã hết hạn.");
+
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email && u.Status == true);
+        if (user == null) throw new Exception("Người dùng không tồn tại.");
+
+        // 2. Đổi mật khẩu
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+
+        // 3. Đăng xuất ép buộc (Thu hồi toàn bộ Refresh Token cũ)
+        var activeRefreshTokens = await _context.RefreshTokens.Where(rt => rt.UserId == user.Id && !rt.IsRevoked).ToListAsync();
+        foreach (var rt in activeRefreshTokens)
+        {
+            rt.IsRevoked = true;
+        }
+
+        _context.Users.Update(user);
+        await _context.SaveChangesAsync();
+
+        // 4. Xóa OTP khỏi Redis để tránh bị dùng lại
+        await db.KeyDeleteAsync(redisKey);
+
+        return true;
     }
 }
