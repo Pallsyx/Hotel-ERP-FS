@@ -59,7 +59,7 @@ public class RoomInventoryService(HotelDbContext context) : IRoomInventoryServic
         };
 
         // Cập nhật số lượng đang sử dụng trong kho
-        equipment.InUseQuantity += request.Quantity;
+        equipment.InUseQuantity = Math.Max(0, equipment.InUseQuantity + request.Quantity);
 
         context.RoomInventories.Add(inventory);
         await context.SaveChangesAsync();
@@ -101,7 +101,7 @@ public class RoomInventoryService(HotelDbContext context) : IRoomInventoryServic
         inventory.IsActive = true;
 
         // Cập nhật số lượng đang sử dụng trong kho
-        equipment.InUseQuantity += quantityDiff;
+        equipment.InUseQuantity = Math.Max(0, equipment.InUseQuantity + quantityDiff);
 
         await context.SaveChangesAsync();
         return true;
@@ -117,8 +117,7 @@ public class RoomInventoryService(HotelDbContext context) : IRoomInventoryServic
         var equipment = await context.Equipments.FirstOrDefaultAsync(e => e.Id == inventory.EquipmentId);
         if (equipment != null)
         {
-            equipment.InUseQuantity -= inventory.Quantity;
-            if (equipment.InUseQuantity < 0) equipment.InUseQuantity = 0;
+            equipment.InUseQuantity = Math.Max(0, equipment.InUseQuantity - inventory.Quantity);
         }
 
         inventory.IsActive = false;

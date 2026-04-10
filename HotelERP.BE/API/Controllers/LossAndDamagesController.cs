@@ -83,16 +83,8 @@ public class LossAndDamagesController : ControllerBase
                 // ==========================================
                 if (damage.RoomInventory.Equipment != null)
                 {
-                    var equipName = damage.RoomInventory.Equipment.Name;
-                    var activeEquipmentsToSync = await _context.Equipments
-                        .Where(e => e.Name == equipName && e.IsActive)
-                        .ToListAsync();
-                    
-                    foreach (var eq in activeEquipmentsToSync)
-                    {
-                        eq.DamagedQuantity -= damage.Quantity;
-                        eq.InUseQuantity += damage.Quantity;
-                    }
+                    damage.RoomInventory.Equipment.DamagedQuantity = Math.Max(0, damage.RoomInventory.Equipment.DamagedQuantity - damage.Quantity);
+                    damage.RoomInventory.Equipment.InUseQuantity += damage.Quantity;
                 }
             }
 
@@ -149,16 +141,8 @@ public class LossAndDamagesController : ControllerBase
             // ==========================================
             if (damage.RoomInventory.Equipment != null)
             {
-                var equipName = damage.RoomInventory.Equipment.Name;
-                var activeEquipmentsToSync = await _context.Equipments
-                    .Where(e => e.Name == equipName && e.IsActive)
-                    .ToListAsync();
-                
-                foreach (var eq in activeEquipmentsToSync)
-                {
-                    eq.DamagedQuantity += quantityDifference;
-                    eq.InUseQuantity -= quantityDifference;
-                }
+                damage.RoomInventory.Equipment.DamagedQuantity = Math.Max(0, damage.RoomInventory.Equipment.DamagedQuantity + quantityDifference);
+                damage.RoomInventory.Equipment.InUseQuantity = Math.Max(0, damage.RoomInventory.Equipment.InUseQuantity - quantityDifference);
             }
         }
 
@@ -243,16 +227,8 @@ public class LossAndDamagesController : ControllerBase
         var equipment = await _context.Equipments.FindAsync(req.EquipmentId);
         if (equipment != null)
         {
-            var equipName = equipment.Name;
-            var activeEquipmentsToSync = await _context.Equipments
-                .Where(e => e.Name == equipName && e.IsActive)
-                .ToListAsync();
-            
-            foreach (var eq in activeEquipmentsToSync)
-            {
-                eq.DamagedQuantity += req.Quantity;
-                eq.InUseQuantity -= req.Quantity;
-            }
+            equipment.DamagedQuantity += req.Quantity;
+            equipment.InUseQuantity = Math.Max(0, equipment.InUseQuantity - req.Quantity);
         }// ==========================================
 
         // 3. Lưu cả Phiếu đền bù và Cập nhật Kho vào Database cùng lúc
