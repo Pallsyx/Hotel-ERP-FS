@@ -160,7 +160,7 @@ public class BookingManagementService : IBookingManagementService
         {
             foreach (var detail in booking.BookingDetails)
             {
-                if (detail.Status == BookingStatus.CheckedIn && detail.Room != null)
+                if (detail.Room != null && detail.Room.Status != RoomPhysicalStatus.Available)
                 {
                     detail.Room.Status = RoomPhysicalStatus.Available;
                 }
@@ -223,7 +223,7 @@ public class BookingManagementService : IBookingManagementService
         }
         else if (newStatus == BookingStatus.Cancelled)
         {
-            if (oldDetailStatus == BookingStatus.CheckedIn && detail.Room != null)
+            if (detail.Room != null && detail.Room.Status != RoomPhysicalStatus.Available)
             {
                 detail.Room.Status = RoomPhysicalStatus.Available;
             }
@@ -273,6 +273,7 @@ public class BookingManagementService : IBookingManagementService
             .Where(bd => bd.CheckInDate >= today && bd.CheckInDate < tomorrow &&
                         bd.Status != BookingStatus.CheckedIn && 
                         bd.Status != BookingStatus.Cancelled &&
+                        bd.Status != BookingStatus.CancelledByAdmin &&
                         bd.Status != BookingStatus.Completed)
             .OrderBy(bd => bd.CheckInDate)
             .ToListAsync();

@@ -92,10 +92,15 @@ public class BookingEngineController : ControllerBase
 
         var userId = int.Parse(userIdClaim);
         
-        // Đã đồng bộ sử dụng _bookingService
-        var bookingId = await _bookingService.CreateMultiRoomBookingAsync(userId, request);
-        
-        return Ok(new { success = true, message = "Đặt phòng thành công (Holding)", bookingId });
+        try 
+        {
+            var bookingId = await _bookingService.CreateMultiRoomBookingAsync(userId, request);
+            return Ok(new { success = true, message = "Đặt phòng thành công (Holding)", bookingId });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
     }
 
     [HttpPost("force-cancel/{id}")]
