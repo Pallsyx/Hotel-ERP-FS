@@ -10,24 +10,6 @@ public class BookingManagementService : IBookingManagementService
 {
     private readonly HotelDbContext _context;
 
-    // ==============================================================
-    // QUY TRÌNH CHUYỂN TRẠNG THÁI BOOKING THEO HOTEL THỰC TẾ
-    // ==============================================================
-    //
-    //  Pending ──────► Confirmed ──────► Checked_in ──────► Completed
-    //     │                │                                    
-    //     │                │                                    
-    //     ▼                ▼                                    
-    //  Cancelled       Cancelled                               
-    //
-    //  Holding ──────► Confirmed (khi thanh toán xong)
-    //     │
-    //     ▼
-    //  Cancelled
-    //
-    // Trạng thái terminal (không chuyển tiếp): Cancelled, Completed, Expired, CancelledByAdmin
-    // ==============================================================
-
     private static readonly Dictionary<string, List<string>> _allowedTransitions = new()
     {
         { BookingStatus.Pending,    new List<string> { BookingStatus.Confirmed, BookingStatus.Cancelled } },
