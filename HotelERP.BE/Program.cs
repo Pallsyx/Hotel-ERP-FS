@@ -26,7 +26,6 @@ using HotelERP.BE.Services.Vouchers;
 using HotelERP.BE.Hubs;
 using HotelERP.BE.Constants;
 using System.Reflection;
-using HotelERP.BE.Services.Invoices;
 
 var builder = WebApplication.CreateBuilder(args);
 
