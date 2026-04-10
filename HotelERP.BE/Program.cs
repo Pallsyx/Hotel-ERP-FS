@@ -15,12 +15,10 @@ using RedLockNet.SERedis.Configuration;
 using Hangfire;
 using HotelERP.BE.Utils;
 using HotelERP.BE.Services;
-using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc;
 using HotelERP.BE.DTOs.Configurations;
 using HotelERP.BE.DTOs.Common;
 using HotelERP.BE.Helpers.AuditLogs;
-using HotelERP.BE.DTOs.Hubs;
 using HotelERP.BE.Services.Bookings;
 using HotelERP.BE.Services.Loyalty;
 using HotelERP.BE.Services.RoomTypes;
@@ -205,6 +203,7 @@ builder.Services.AddScoped<IRoomTypeAmenityService, RoomTypeAmenityService>();
 builder.Services.AddSignalR();
 builder.Services.AddScoped<IRoomTypeAmenityService, RoomTypeAmenityService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IInvoiceService, InvoiceService>();
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(Program).Assembly));
 
 

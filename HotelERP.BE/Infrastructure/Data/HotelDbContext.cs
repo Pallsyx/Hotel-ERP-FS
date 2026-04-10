@@ -1250,9 +1250,6 @@ public partial class HotelDbContext : DbContext
             entity.Property(e => e.DiscountValue)
                 .HasColumnType("decimal(18, 2)")
                 .HasColumnName("discount_value");
-            entity.Property(e => e.MinBookingAmount)
-                .HasColumnType("decimal(18, 2)")
-                .HasColumnName("min_booking_amount");
             entity.Property(e => e.MinBookingValue)
                 .HasColumnType("decimal(18, 2)")
                 .HasColumnName("min_booking_value");

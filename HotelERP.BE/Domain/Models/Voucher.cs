@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace HotelERP.BE.Domain.Models;
 
@@ -13,9 +14,15 @@ public partial class Voucher
 
     public decimal DiscountValue { get; set; }
 
-    public decimal MinBookingValue { get; set; }
+    // Giữ nguyên có dấu ? để map với DB cho an toàn
+    public decimal? MinBookingValue { get; set; }
 
-    public decimal MinBookingAmount { get; set; }
+    [NotMapped]
+    public decimal MinBookingAmount 
+    { 
+        get => MinBookingValue ?? 0; 
+        set => MinBookingValue = value; 
+    }
 
     public DateTime? ValidFrom { get; set; }
 

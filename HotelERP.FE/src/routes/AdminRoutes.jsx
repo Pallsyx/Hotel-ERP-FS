@@ -14,6 +14,7 @@ import UserManagement from '../pages/Users/UserManagement';
 import RoleManagement from '../pages/Users/RoleManagement';
 import LossAndDamages from '../pages/LossAndDamages.jsx';
 import UserProfile from '../pages/Profile/UserProfile';
+import InvoiceDashboard from '../pages/Admin/Invoices/InvoiceDashboard.jsx';
 
 // COMPONENT GIỮ CHỖ (Placeholder)
 const Placeholder = ({ title }) => (
@@ -55,6 +56,7 @@ const AdminRoutes = () => {
         <Route path="housekeeping" element={<HousekeepingMobile />} />
         <Route path="damage-reports" element={<Placeholder title="Báo cáo Hư hỏng & Đền bù" />} />
         <Route path="loss-and-damages" element={<LossAndDamages />} />
+        <Route path="invoices" element={<InvoiceDashboard />} />
 
         {/* MODULE 1 */}
         <Route path="article-categories" element={<Placeholder title="Danh mục Bài viết" />} />

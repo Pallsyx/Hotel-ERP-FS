@@ -29,7 +29,7 @@ public class LoyaltyService
         if (invoice.Booking.IsPointsAwarded == true) 
             return false; 
 
-        decimal finalAmount = invoice.FinalTotal;
+        decimal finalAmount = (invoice.FinalTotal ?? 0);
         int pointsToAdd = (int)(finalAmount / 10000);
 
         if (pointsToAdd <= 0) 
