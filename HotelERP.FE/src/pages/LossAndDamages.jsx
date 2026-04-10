@@ -52,6 +52,9 @@ export default function LossAndDamages() {
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [form] = Form.useForm();
+  
+  const [uploadFile, setUploadFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
 
   // Các state cho thao tác Lọc ngày
   const [selectedDates, setSelectedDates] = useState(null);
@@ -111,6 +114,8 @@ export default function LossAndDamages() {
 
   const handleEdit = (record) => {
     setEditingRecord(record);
+    setUploadFile(null);
+    setPreviewUrl(record.evidenceImageUrl || null);
     form.setFieldsValue({
       quantity: record.quantity,
       description: record.description,
@@ -123,9 +128,20 @@ export default function LossAndDamages() {
     try {
       const values = await form.validateFields();
       await axios.put(`https://localhost:7100/api/LossAndDamages/${editingRecord.id}`, values);
+      
+      // Tiền hành upload ảnh nếu có file mới được chọn
+      if (uploadFile) {
+        const formData = new FormData();
+        formData.append('file', uploadFile);
+        await axios.post(`https://localhost:7100/api/LossAndDamages/${editingRecord.id}/image`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+      }
+
       message.success('Cập nhật thành công!');
       setIsEditModalVisible(false);
-      fetchData(); // Cập nhật lại Stats
+      setUploadFile(null);
+      fetchData(); // Cập nhật lại Stats & Ảnh
     } catch (error) {
       if(error.isAxiosError) {
         message.error('Lỗi khi cập nhật trên Server!');
@@ -376,25 +392,22 @@ export default function LossAndDamages() {
               <Form.Item label="Đổi ảnh bằng chứng">
                 <Upload
                   name="file"
-                  action={`https://localhost:7100/api/LossAndDamages/${editingRecord?.id}/image`}
                   showUploadList={false}
-                  onChange={(info) => {
-                    if (info.file.status === 'done') {
-                      message.success('Đã thay đổi ảnh bằng chứng thành công!');
-                      fetchData(); // Load lại ảnh mới
-                      // Cập nhật record hiện tại trong modal để hiện ảnh mới
-                      setEditingRecord(prev => ({ ...prev, evidenceImageUrl: info.file.response.url }));
-                    } else if (info.file.status === 'error') {
-                      message.error(`Lỗi tải ảnh: ${info.file.response?.message || 'Hãy kiểm tra lại Backend'}`);
-                    }
+                  beforeUpload={(file) => {
+                    setUploadFile(file);
+                    // Tạo preview URL
+                    const reader = new FileReader();
+                    reader.onload = (e) => setPreviewUrl(e.target.result);
+                    reader.readAsDataURL(file);
+                    return false; // Ngăn chặn upload tự động
                   }}
                 >
-                  <Button icon={<UploadOutlined />}>Tải tệp tin ảnh & Cập nhật ngay</Button>
+                  <Button icon={<UploadOutlined />}>Chọn ảnh mới</Button>
                 </Upload>
-                {editingRecord?.evidenceImageUrl && (
+                {previewUrl && (
                    <div className="mt-3 p-3 bg-gray-50 border rounded text-center">
                      <Text type="secondary" className="block mb-2 text-xs">Ảnh hiển tại</Text>
-                     <Image width={80} height={80} src={editingRecord.evidenceImageUrl} style={{objectFit: 'cover', borderRadius: '4px'}}/>
+                     <Image width={80} height={80} src={previewUrl} style={{objectFit: 'cover', borderRadius: '4px'}}/>
                    </div>
                 )}
               </Form.Item>

@@ -139,6 +139,38 @@ public class RoomService : IRoomService
         damage.EvidencePublicId = res.PublicId; // Khớp với trường DB
     }
 
+    // ==========================================
+    // ĐỒNG BỘ TỒN KHO VÀ KHO VẬT TƯ (INVENTORY SLYNC)
+    // ==========================================
+    if (request.RoomInventoryId.HasValue)
+    {
+        var roomInventory = await _context!.RoomInventories
+            .Include(ri => ri.Equipment)
+            .FirstOrDefaultAsync(ri => ri.Id == request.RoomInventoryId.Value);
+
+        if (roomInventory != null)
+        {
+            // Trừ đi vật tư trong kho của phòng đó
+            roomInventory.Quantity -= request.Quantity;
+
+            // Cập nhật lại kho chung (Equipment) - Cập nhật tất cả các Equipment cùng tên (Active) vì RoomInventory có thể map sang ID cũ
+            if (roomInventory.Equipment != null)
+            {
+                var equipName = roomInventory.Equipment.Name;
+                var activeEquipmentsToSync = await _context.Equipments
+                    .Where(e => e.Name == equipName && e.IsActive)
+                    .ToListAsync();
+                
+                foreach (var eq in activeEquipmentsToSync)
+                {
+                    eq.DamagedQuantity += request.Quantity;
+                    eq.InUseQuantity -= request.Quantity;
+                }
+            }
+        }
+    }
+    // ==========================================
+
     _context!.LossAndDamages.Add(damage);
     await _context!.SaveChangesAsync(); 
 
