@@ -16,13 +16,9 @@ import UserManagement from '../pages/Users/UserManagement';
 import RoleManagement from '../pages/Users/RoleManagement';
 import LossAndDamages from '../pages/LossAndDamages.jsx';
 import UserProfile from '../pages/Profile/UserProfile';
-<<<<<<< HEAD
 import Arrivals from '../pages/Receptionist/Arrivals';
 import InHouse from '../pages/Receptionist/InHouse';
 import Departures from '../pages/Receptionist/Departures';
-=======
-import BookingSystem from '../pages/Booking/BookingPage';
->>>>>>> 676e77b (Manage Booking For Receptionist & DATABASE update)
 
 // COMPONENT GIỮ CHỖ (Placeholder)
 const Placeholder = ({ title }) => (
@@ -75,14 +71,10 @@ const AdminRoutes = () => {
 
         {/* MODULE 2 - QUẦY LỄ TÂN */}
         <Route path="reception-calendar" element={<Placeholder title="Lịch Lễ Tân (Gantt Chart)" />} />
-<<<<<<< HEAD
         <Route path="bookings" element={<Placeholder title="Quản lý Đơn Đặt Phòng (Check-in/Out)" />} />
         <Route path="arrivals" element={<Arrivals />} />
         <Route path="in-house" element={<InHouse />} />
         <Route path="departures" element={<Departures />} />
-=======
-        <Route path="bookings/*" element={<BookingSystem />} />
->>>>>>> 676e77b (Manage Booking For Receptionist & DATABASE update)
         
         {/* HOUSEKEEPING CHECKLIST ROUTE */}
         <Route path="housekeeping/room/:id" element={<InventoryChecklist />} />
