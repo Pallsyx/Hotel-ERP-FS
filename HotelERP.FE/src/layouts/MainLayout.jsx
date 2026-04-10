@@ -123,6 +123,55 @@ const MainLayout = () => {
       label: 'Vai trò & Phân quyền',
       requiredPermission: 'MANAGE_ROLES',
     },
+    // MENU THẢ XUỐNG: QUẦY LỄ TÂN
+    {
+      key: 'reception_menu',
+      icon: <IdcardOutlined />,
+      label: 'Quầy lễ tân',
+      requiredPermission: 'MANAGE_BOOKINGS',
+      children: [
+        {
+          key: '/admin/bookings',
+          label: 'Quản lý Đặt phòng',
+        },
+        {
+          key: '/admin/arrivals',
+          label: 'Khách đến hôm nay',
+        },
+        {
+          key: '/admin/in-house',
+          label: 'Khách đang lưu trú',
+        },
+        {
+          key: '/admin/departures',
+          label: 'Thủ tục trả phòng',
+        },
+      ],
+    },
+    {
+      key: '/admin/invoices',
+      icon: <FileTextOutlined />,
+      label: 'Quản lý hóa đơn',
+      requiredPermission: 'MANAGE_INVOICES',
+    },
+    {
+      key: '/admin/vouchers',
+      icon: <GiftOutlined />,
+      label: 'Quản lý Voucher',
+      requiredPermission: 'MANAGE_SERVICES',
+    },
+    {
+      key: '/admin/users',
+      icon: <TeamOutlined />,
+      label: 'Danh sách Nhân sự',
+      requiredPermission: 'MANAGE_USERS',
+    },
+    {
+      key: '/admin/roles',
+      icon: <SafetyCertificateOutlined />,
+      label: 'Vai trò & Phân quyền',
+      requiredPermission: 'MANAGE_ROLES',
+    }
   ];
 
   // === ĐÃ NÂNG CẤP: Hàm lọc quyền thông minh (Lọc cả Menu cha lẫn Menu con) ===

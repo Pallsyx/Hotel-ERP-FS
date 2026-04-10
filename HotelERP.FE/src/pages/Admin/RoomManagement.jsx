@@ -31,6 +31,8 @@ export default function App() {
   const [filterFloor, setFilterFloor] = useState(null);
   const [isAmenitiesModalVisible, setIsAmenitiesModalVisible] = useState(false);
   const [isInventoryModalVisible, setIsInventoryModalVisible] = useState(false);
+  const [isCreateMultipleVisible, setIsCreateMultipleVisible] = useState(false);
+  const [multipleForm] = Form.useForm();
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [currentRoomInventory, setCurrentRoomInventory] = useState([]);
   const [roomAmenities, setRoomAmenities] = useState([]);
@@ -138,6 +140,70 @@ export default function App() {
       setEquipments(dataList || []);
     } catch (error) {
       console.error("fetchEquipments error:", error);
+    }
+  };
+
+  const handleCreateMultipleRooms = async (values) => {
+    setLoading(true);
+    try {
+      let templateInventories = [];
+      if (values.cloneRoomId) {
+        const res = await axiosClient.get(`/rooms/${values.cloneRoomId}/inventories`);
+        templateInventories = res.data.data || [];
+      }
+
+      let successCount = 0;
+      for (let i = 0; i < values.count; i++) {
+          const currentNumber = values.startNumber + (i * values.step);
+          
+          if (rooms.find(r => String(r.roomNumber) === String(currentNumber))) {
+              message.warning(`Phòng ${currentNumber} đã tồn tại`);
+              continue; 
+          }
+
+          try {
+              const submitData = {
+                roomNumber: String(currentNumber),
+                floor: values.floor,
+                roomTypeId: values.typeId,
+                status: 'AVAILABLE',
+                cleaningStatus: 'CLEAN',
+              };
+              const resRoom = await axiosClient.post('/Rooms', submitData);
+              const newRoomId = resRoom.data?.roomId || resRoom.data?.data?.roomId;
+
+              if (newRoomId && templateInventories.length > 0) {
+                for (const item of templateInventories) {
+                  await axiosClient.post(`/rooms/${newRoomId}/inventories`, {
+                    equipmentId: item.equipmentId,
+                    quantity: item.quantity,
+                    condition: item.condition || "Tốt",
+                    isMinibar: item.itemName?.toLowerCase().includes("minibar") || false,
+                    priceIfLost: item.priceIfLost || 0
+                  });
+                }
+              }
+              successCount++;
+          } catch (e) {
+              const errorMsg = e.response?.data?.message || `Lỗi khi tạo phòng ${currentNumber}`;
+              if (errorMsg.toLowerCase().includes("tồn tại") || errorMsg.toLowerCase().includes("exists")) {
+                  message.warning(`Phòng ${currentNumber} đã tồn tại`);
+              } else {
+                  message.error(errorMsg);
+              }
+          }
+      }
+      
+      if (successCount > 0) {
+          message.success(`Tạo thành công ${successCount} phòng mới!`);
+          multipleForm.resetFields();
+          setIsCreateMultipleVisible(false);
+          fetchRooms();
+      }
+    } catch (error) {
+       console.error("handleCreateMultipleRooms error:", error);
+    } finally {
+       setLoading(false);
     }
   };
 
@@ -290,9 +356,12 @@ export default function App() {
             </Select>
             <Button icon={<SearchOutlined />}>Lọc dữ liệu</Button>
           </Space>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setCurrentView('create')}>
-            Thêm phòng mới
-          </Button>
+          <Space>
+            <Button onClick={() => setIsCreateMultipleVisible(true)}>Tạo nhiều phòng</Button>
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => setCurrentView('create')}>
+              Thêm phòng mới
+            </Button>
+          </Space>
         </div>
         <Table loading={loading} dataSource={filteredRooms} columns={columns} rowKey="id" pagination={{ pageSize: 8 }} />
       </Card>
@@ -310,6 +379,20 @@ export default function App() {
     const [isCloneModalVisible, setIsCloneModalVisible] = useState(false);
     const [isAddSupplyModalVisible, setIsAddSupplyModalVisible] = useState(false);
     const [supplyForm] = Form.useForm();
+    const [supplySearchText, setSupplySearchText] = useState('');
+    const [supplyCategoryFilter, setSupplyCategoryFilter] = useState(null);
+
+    const supplyCategories = [...new Set(equipments.map(e => e.category || e.Category).filter(Boolean))];
+    const filteredEquipments = equipments.filter(e => {
+        const name = (e.name || e.Name || '').toLowerCase();
+        const code = (e.itemCode || e.ItemCode || '').toLowerCase();
+        const cat = e.category || e.Category || '';
+        const search = supplySearchText.toLowerCase();
+        const matchesSearch = name.includes(search) || code.includes(search);
+        const matchesCat = supplyCategoryFilter ? cat === supplyCategoryFilter : true;
+        return matchesSearch && matchesCat;
+    });
+
     const [submitting, setSubmitting] = useState(false);
     const [currentStep, setCurrentStep] = useState(0);
     const isEdit = currentView === 'edit';
@@ -401,6 +484,12 @@ export default function App() {
     const onFinish = async (values) => {
       setSubmitting(true);
       try {
+        if (!isEdit && rooms.find(r => String(r.roomNumber) === String(values.roomNumber))) {
+            message.warning(`Phòng ${values.roomNumber} đã tồn tại vui lòng tạo phòng mới`);
+            setSubmitting(false);
+            return;
+        }
+
         if (isEdit) {
           // Chỉ cập nhật hạng phòng (và các thông tin cho phép)
           await axiosClient.put(`/Rooms/${selectedRoom.id}`, {
@@ -612,9 +701,10 @@ export default function App() {
           open={isAddSupplyModalVisible}
           onCancel={() => setIsAddSupplyModalVisible(false)}
           onOk={() => supplyForm.submit()}
+          width={800}
         >
           <Form form={supplyForm} layout="vertical" onFinish={async (vals) => {
-            const eq = equipments.find(e => e.id === vals.equipmentId);
+            const eq = equipments.find(e => (e.id || e.Id) === vals.equipmentId);
             
             if (isEdit) {
               try {
@@ -622,18 +712,18 @@ export default function App() {
                   equipmentId: vals.equipmentId,
                   quantity: vals.quantity,
                   condition: vals.condition || "Tốt",
-                  isMinibar: eq?.name.toLowerCase().includes("minibar"),
+                  isMinibar: (eq?.name || eq?.Name || '').toLowerCase().includes("minibar"),
                   priceIfLost: vals.penaltyPrice || 0
                 });
                 
                 const newItem = {
                   ...vals,
                   id: res.data.inventoryId || Date.now(),
-                  name: eq?.name || 'Unknown',
-                  code: eq?.id || 'N/A'
+                  name: eq?.name || eq?.Name || 'Unknown',
+                  code: eq?.itemCode || eq?.ItemCode || 'N/A'
                 };
                 setInventoryData(prev => [...prev, newItem]);
-                message.success(`Đã thêm ${eq?.name} vào phòng.`);
+                message.success(`Đã thêm ${newItem.name} vào phòng.`);
               } catch (e) {
                 message.error(e.response?.data?.message || "Lỗi khi thêm vật tư vào phòng.");
                 return;
@@ -641,9 +731,9 @@ export default function App() {
             } else {
               setInventoryData(prev => [...prev, { 
                 ...vals, 
-                name: eq?.name || 'Unknown', 
+                name: eq?.name || eq?.Name || 'Unknown', 
                 id: Date.now(), 
-                code: eq?.id || 'N/A' 
+                code: eq?.itemCode || eq?.ItemCode || 'N/A' 
               }]);
             }
             
@@ -651,51 +741,103 @@ export default function App() {
             supplyForm.resetFields();
             setSelectedEquipment(null);
           }}>
-            <Form.Item name="equipmentId" label="Tên vật tư (từ kho)" rules={[{ required: true, message: 'Vui lòng chọn vật tư từ kho' }]}>
-              <Select
-                showSearch
-                allowClear
-                placeholder="Tìm vật tư trong kho..."
-                onChange={(id) => {
-                  const eq = equipments.find(e => e.id === id);
-                  setSelectedEquipment(eq);
-                  if (eq) {
-                    supplyForm.setFieldsValue({
-                      unit: eq.unit,
-                      penaltyPrice: eq.defaultPriceIfLost,
-                      quantity: 1
-                    });
-                  }
-                }}
-                filterOption={(input, option) =>
-                  (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                }
-                options={equipments.map(e => ({
-                  value: e.Id || e.id, 
-                  label: `${e.Name || e.name} (Tồn: ${e.InStockQuantity || e.inStockQuantity || 0} ${e.Unit || e.unit || ''})`,
-                  disabled: (e.InStockQuantity || e.inStockQuantity || 0) <= 0
-                }))}
+            <div className="flex space-x-2 mb-4">
+              <Input 
+                placeholder="Tìm theo tên, mã sản phẩm..." 
+                prefix={<SearchOutlined />} 
+                value={supplySearchText}
+                onChange={(e) => setSupplySearchText(e.target.value)}
+                style={{ flex: 1 }}
               />
-            </Form.Item>
-            <Form.Item name="unit" label="ĐVT" rules={[{ required: true }]}><Input disabled /></Form.Item>
-            <Form.Item 
-              name="quantity" 
-              label={selectedEquipment ? `Số lượng (Tối đa: ${selectedEquipment.inStockQuantity})` : "Số lượng"} 
-              rules={[
-                { required: true },
+              <Select 
+                allowClear 
+                placeholder="Lọc theo Danh mục" 
+                style={{ width: 220 }}
+                value={supplyCategoryFilter}
+                onChange={setSupplyCategoryFilter}
+              >
+                {supplyCategories.map(c => <Option key={c} value={c}>{c}</Option>)}
+              </Select>
+            </div>
+
+            <Table 
+              size="small"
+              dataSource={filteredEquipments}
+              columns={[
+                { title: 'Mã SP', dataIndex: 'itemCode', render: (_, r) => r.itemCode || r.ItemCode },
+                { title: 'Tên vật tư', dataIndex: 'name', render: (_, r) => r.name || r.Name },
+                { title: 'Danh mục', dataIndex: 'category', render: (_, r) => r.category || r.Category },
+                { title: 'Tồn kho', render: (_, r) => r.inStockQuantity || r.InStockQuantity || 0 },
                 { 
-                  validator: (_, value) => {
-                    if (selectedEquipment && value > selectedEquipment.inStockQuantity) {
-                      return Promise.reject(new Error(`${selectedEquipment.name} không đủ số lượng`));
-                    }
-                    return Promise.resolve();
-                  }
+                   title: 'Thao tác', 
+                   render: (_, record) => {
+                     const stock = record.inStockQuantity || record.InStockQuantity || 0;
+                     return (
+                       <Button 
+                         type="primary" 
+                         size="small" 
+                         disabled={stock <= 0}
+                         ghost={selectedEquipment?.id !== (record.id || record.Id)}
+                         onClick={() => {
+                          const eq = equipments.find(e => (e.id || e.Id) === (record.id || record.Id));
+                          setSelectedEquipment(eq);
+                          supplyForm.setFieldsValue({
+                             equipmentId: eq.id || eq.Id,
+                             unit: eq.unit || eq.Unit,
+                             penaltyPrice: eq.defaultPriceIfLost || eq.DefaultPriceIfLost,
+                             quantity: 1
+                          });
+                       }}>Chọn</Button>
+                     )
+                   }
                 }
               ]}
-            >
-              <InputNumber min={1} max={selectedEquipment?.inStockQuantity} className="w-full" />
+              pagination={{ pageSize: 5 }}
+              rowKey={(r) => r.id || r.Id}
+              className="mb-4"
+            />
+
+            <Form.Item name="equipmentId" hidden rules={[{ required: true, message: 'Vui lòng chọn vật tư từ bảng trên' }]}>
+              <Input />
             </Form.Item>
-            <Form.Item name="penaltyPrice" label="Giá đền bù mặc định (VNĐ)"><InputNumber min={0} className="w-full" /></Form.Item>
+
+            {selectedEquipment && (
+              <div className="p-4 border rounded bg-blue-50 mb-4">
+                <p className="font-semibold text-blue-800 mb-2">Đã chọn: {selectedEquipment.name || selectedEquipment.Name}</p>
+                <Row gutter={16}>
+                  <Col span={8}>
+                    <Form.Item name="unit" label="ĐVT" rules={[{ required: true }]}>
+                      <Input disabled />
+                    </Form.Item>
+                  </Col>
+                  <Col span={8}>
+                    <Form.Item 
+                      name="quantity" 
+                      label={`Số lượng (Max: ${selectedEquipment.inStockQuantity || selectedEquipment.InStockQuantity || 0})`} 
+                      rules={[
+                        { required: true },
+                        { 
+                          validator: (_, value) => {
+                            const max = selectedEquipment.inStockQuantity || selectedEquipment.InStockQuantity || 0;
+                            if (value > max) {
+                              return Promise.reject(new Error(`Không đủ số lượng (${max})`));
+                            }
+                            return Promise.resolve();
+                          }
+                        }
+                      ]}
+                    >
+                      <InputNumber min={1} className="w-full" />
+                    </Form.Item>
+                  </Col>
+                  <Col span={8}>
+                    <Form.Item name="penaltyPrice" label="Giá đền bù mặc định (VNĐ)">
+                      <InputNumber min={0} className="w-full" formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} parser={value => value.replace(/\$\s?|(,*)/g, '')} />
+                    </Form.Item>
+                  </Col>
+                </Row>
+              </div>
+            )}
           </Form>
         </Modal>
       </div>
@@ -791,6 +933,53 @@ export default function App() {
         <div className="mt-4 p-3 bg-blue-50 text-blue-700 rounded text-xs">
           💡 Bạn có thể thay đổi số lượng trực tiếp trên bảng. Để thêm vật tư mới hoặc xóa, hãy sử dụng chức năng <b>Sửa phòng</b>.
         </div>
+      </Modal>
+
+      {/* Modal Tạo nhiều phòng */}
+      <Modal
+        title="Tạo nhiều phòng"
+        open={isCreateMultipleVisible}
+        onCancel={() => setIsCreateMultipleVisible(false)}
+        onOk={() => multipleForm.submit()}
+        confirmLoading={loading}
+        width={600}
+      >
+        <Form form={multipleForm} layout="vertical" onFinish={handleCreateMultipleRooms} initialValues={{ step: 1, count: 5 }}>
+          <Form.Item name="cloneRoomId" label="Phòng clone (Tùy chọn)">
+            <Select allowClear showSearch placeholder="Chọn phòng mẫu để sao chép tiện ích/vật tư">
+              {rooms.map(r => <Option key={r.id} value={r.id}>{r.roomNumber} - Tầng {r.floor}</Option>)}
+            </Select>
+          </Form.Item>
+          <Form.Item name="typeId" label="Hạng phòng" rules={[{ required: true, message: 'Vui lòng chọn hạng phòng' }]}>
+            <Select placeholder="Chọn hạng phòng (Bắt buộc)">
+              {roomTypes.map(t => <Option key={t.id} value={t.id}>{t.name}</Option>)}
+            </Select>
+          </Form.Item>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="startNumber" label="Số phòng bắt đầu (VD: 101)" rules={[{ required: true }]}>
+                <InputNumber className="w-full" min={1} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="step" label="Bước nhảy" rules={[{ required: true }]}>
+                <InputNumber className="w-full" min={1} />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="count" label="Số lượng phòng cần tạo" rules={[{ required: true }]}>
+                <InputNumber className="w-full" min={1} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="floor" label="Tầng" rules={[{ required: true }]}>
+                <InputNumber className="w-full" min={1} />
+              </Form.Item>
+            </Col>
+          </Row>
+        </Form>
       </Modal>
     </div>
   );

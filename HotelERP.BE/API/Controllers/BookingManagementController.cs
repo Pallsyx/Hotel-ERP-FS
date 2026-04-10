@@ -1,0 +1,149 @@
+using HotelERP.BE.Application.DTOs.BookingManagement;
+using HotelERP.BE.Application.Interfaces;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace HotelERP.BE.API.Controllers;
+
+[Route("api/booking-management")]
+[ApiController]
+[Authorize(Roles = "Admin,Manager,Receptionist")]
+public class BookingManagementController : ControllerBase
+{
+    private readonly IBookingManagementService _bookingService;
+
+    public BookingManagementController(IBookingManagementService bookingService)
+    {
+        _bookingService = bookingService;
+    }
+
+    // ==============================================================
+    // API 1: GET /api/booking-management
+    // Search + Filter bookings theo keyword, status, date range
+    // ==============================================================
+    /// <summary>
+    /// Tìm kiếm và lọc danh sách booking.
+    /// Hỗ trợ: keyword (tên, SĐT, email, mã booking), trạng thái, khoảng ngày check-in.
+    /// </summary>
+    [HttpGet]
+    public async Task<IActionResult> SearchBookings([FromQuery] BookingSearchRequest request)
+    {
+        var result = await _bookingService.SearchBookingsAsync(request);
+        return Ok(new { success = true, data = result });
+    }
+
+    // ==============================================================
+    // API 2: PUT /api/booking-management/{id}/status
+    // Cập nhật trạng thái booking theo quy trình hotel
+    // ==============================================================
+    /// <summary>
+    /// Cập nhật trạng thái booking.
+    /// Quy trình: Pending → Confirmed → Checked_in → Completed.
+    /// Có thể hủy (Cancelled) từ Pending hoặc Confirmed.
+    /// </summary>
+    [HttpPut("{id}/status")]
+    public async Task<IActionResult> UpdateStatus(int id, [FromBody] UpdateBookingStatusRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.NewStatus))
+        {
+            return BadRequest(new { success = false, message = "Trạng thái mới không được để trống." });
+        }
+
+        var (success, message) = await _bookingService.UpdateBookingStatusAsync(id, request.NewStatus);
+
+        if (!success)
+        {
+            return BadRequest(new { success = false, message });
+        }
+
+        return Ok(new { success = true, message });
+    }
+
+    // ==============================================================
+    // API 3: GET /api/booking-management/today-arrivals
+    // Danh sách "Khách đến hôm nay"
+    // ==============================================================
+    /// <summary>
+    /// Lấy danh sách khách đến hôm nay (CheckInDate = Today, Status = Confirmed).
+    /// </summary>
+    [HttpGet("today-arrivals")]
+    public async Task<IActionResult> GetTodayArrivals()
+    {
+        var result = await _bookingService.GetTodayArrivalsAsync();
+        return Ok(new { success = true, count = result.Count, data = result });
+    }
+
+    // ==============================================================
+    // API 4: GET /api/booking-management/in-house
+    // Danh sách "Khách đang lưu trú"
+    // ==============================================================
+    /// <summary>
+    /// Lấy danh sách khách đang lưu trú (Status = Checked_in).
+    /// </summary>
+    [HttpGet("in-house")]
+    public async Task<IActionResult> GetInHouseGuests()
+    {
+        var result = await _bookingService.GetInHouseGuestsAsync();
+        return Ok(new { success = true, count = result.Count, data = result });
+    }
+
+    // ==============================================================
+    // API 5: PUT /api/booking-management/details/{detailId}/status
+    // Cập nhật trạng thái từng phòng lẻ
+    // ==============================================================
+    /// <summary>
+    /// Cập nhật trạng thái cho từng phòng lẻ (BookingDetail).
+    /// Hỗ trợ Check-in/Check-out riêng lẻ và tự động đồng bộ trạng thái phòng vật lý.
+    /// </summary>
+    [HttpPut("details/{detailId}/status")]
+    public async Task<IActionResult> UpdateDetailStatus(int detailId, [FromBody] UpdateBookingStatusRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.NewStatus))
+        {
+            return BadRequest(new { success = false, message = "Trạng thái mới không được để trống." });
+        }
+
+        var (success, message) = await _bookingService.UpdateBookingDetailStatusAsync(detailId, request.NewStatus);
+
+        if (!success)
+        {
+            return BadRequest(new { success = false, message });
+        }
+
+        return Ok(new { success = true, message });
+    }
+
+    // ==============================================================
+    // API 6: GET /api/booking-management/today-departures
+    // Danh sách "Khách dự kiến trả phòng hôm nay"
+    // ==============================================================
+    /// <summary>
+    /// Lấy danh sách khách dự kiến trả phòng hôm nay (CheckOutDate <= Today, Status = Checked_in).
+    /// </summary>
+    [HttpGet("today-departures")]
+    public async Task<IActionResult> GetTodayDepartures()
+    {
+        var result = await _bookingService.GetTodayDeparturesAsync();
+        return Ok(new { success = true, count = result.Count, data = result });
+    }
+
+    // ==============================================================
+    // API 7: PUT /api/booking-management/details/{detailId}/change-room
+    // Đổi phòng cho khách
+    // ==============================================================
+    /// <summary>
+    /// Thay đổi phòng vật lý cho một booking detail.
+    /// </summary>
+    [HttpPut("details/{detailId}/change-room")]
+    public async Task<IActionResult> ChangeRoom(int detailId, [FromBody] ChangeRoomRequest request)
+    {
+        if (request.NewRoomId <= 0)
+            return BadRequest(new { success = false, message = "ID phòng mới không hợp lệ." });
+
+        var (success, message) = await _bookingService.ChangeRoomAsync(detailId, request.NewRoomId);
+
+        if (!success) return BadRequest(new { success = false, message });
+
+        return Ok(new { success = true, message });
+    }
+}

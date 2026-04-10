@@ -26,6 +26,8 @@ const InventoryChecklist = () => {
   // Track xem người dùng đã bấm "Hoàn tất" chưa để tránh reset sai
   const isCompletedRef = useRef(false);
 
+  const [reportedItemIds, setReportedItemIds] = useState([]);
+
   useEffect(() => {
     if (!roomId) return;
     fetchInventory();
@@ -81,7 +83,7 @@ const InventoryChecklist = () => {
     }
   };
 
-  const filteredItems = (Array.isArray(items) ? items : []).filter(item => 
+  const filteredItems = (Array.isArray(items) ? items : []).filter(item =>
     item.itemName.toLowerCase().includes(searchText.toLowerCase())
   );
 
@@ -138,7 +140,7 @@ const InventoryChecklist = () => {
       formData.append('PenaltyAmount', values.PenaltyAmount);
       formData.append('Description', values.Reason || '');
       formData.append('Reason', values.Reason || 'Báo hỏng nội bộ');
-      
+
       if (values.EvidenceImage?.fileList?.[0]?.originFileObj) {
         formData.append('EvidenceImage', values.EvidenceImage.fileList[0].originFileObj);
       }
@@ -146,8 +148,13 @@ const InventoryChecklist = () => {
       await axiosClient.post(`/Rooms/loss-damages`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      
+
       message.success("Đã gửi biên bản báo hỏng thành công!");
+      
+      if (selectedItem?.id) {
+        setReportedItemIds(prev => [...prev, selectedItem.id]);
+      }
+
       setIsModalOpen(false);
       form.resetFields();
     } catch (error) {
@@ -178,15 +185,15 @@ const InventoryChecklist = () => {
         )}
       </div>
 
-      <Button 
-        type="primary" 
-        block 
-        size="large" 
+      <Button
+        type="primary"
+        block
+        size="large"
         icon={<CheckCircleOutlined />}
-        style={{ 
-          backgroundColor: '#52c41a', 
-          borderColor: '#52c41a', 
-          marginBottom: '24px', 
+        style={{
+          backgroundColor: '#52c41a',
+          borderColor: '#52c41a',
+          marginBottom: '24px',
           height: '48px',
           fontSize: '16px',
           fontWeight: 'bold',
@@ -198,9 +205,9 @@ const InventoryChecklist = () => {
       </Button>
 
       <Title level={5} style={{ marginBottom: '12px', paddingLeft: '8px', fontSize: '15px' }}>Danh sách đồ đạc:</Title>
-      
-      <Input 
-        placeholder="Tìm nhanh vật tư..." 
+
+      <Input
+        placeholder="Tìm nhanh vật tư..."
         prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
         style={{ marginBottom: '16px', borderRadius: '8px', height: '40px' }}
         value={searchText}
@@ -209,7 +216,9 @@ const InventoryChecklist = () => {
 
       <Spin spinning={loading}>
         <div style={{ paddingBottom: '40px' }}>
-          {filteredItems.map(item => (
+          {filteredItems.map(item => {
+            const isReported = reportedItemIds.includes(item.id);
+            return (
             <Card 
               key={item.id} 
               size="small" 
@@ -226,23 +235,24 @@ const InventoryChecklist = () => {
                 <Text style={{ color: '#1890ff', fontWeight: 'bold', fontSize: '13px' }}>SL: {item.quantity}</Text>
               </div>
               <Button 
-                danger 
+                danger={!isReported}
                 block 
-                icon={<WarningOutlined />}
+                icon={isReported ? <CheckCircleOutlined /> : <WarningOutlined />}
                 style={{ 
-                  backgroundColor: '#a8071a', 
-                  borderColor: '#a8071a', 
-                  color: '#fff', 
+                  backgroundColor: isReported ? '#f5f5f5' : '#a8071a', 
+                  borderColor: isReported ? '#d9d9d9' : '#a8071a', 
+                  color: isReported ? '#aaa' : '#fff', 
                   fontWeight: '600',
                   borderRadius: '6px',
                   height: '36px'
                 }}
+                disabled={isReported}
                 onClick={() => openDamageModal(item)}
               >
-                Báo hỏng / Mất
+                {isReported ? "Đã báo cáo" : "Báo hỏng / Mất"}
               </Button>
             </Card>
-          ))}
+          )})}
           {filteredItems.length === 0 && !loading && (
             <Empty description="Không tìm thấy vật tư" style={{ marginTop: '30px' }} />
           )}
@@ -261,10 +271,10 @@ const InventoryChecklist = () => {
             <Input placeholder="Vd: Vỡ cốc, rách khăn..." disabled />
           </Form.Item>
           <Form.Item label="Số lượng" name="Quantity" rules={[{ required: true }]} initialValue={1}>
-            <InputNumber 
-              min={1} 
-              max={selectedItem?.quantity || 1} 
-              style={{ width: '100%' }} 
+            <InputNumber
+              min={1}
+              max={selectedItem?.quantity || 1}
+              style={{ width: '100%' }}
               onChange={(val) => {
                 const penaltyPrice = selectedItem?.priceIfLost || 0;
                 form.setFieldsValue({ PenaltyAmount: (val || 1) * penaltyPrice });
