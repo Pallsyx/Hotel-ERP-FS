@@ -1,5 +1,12 @@
 namespace HotelERP.BE.Application.DTOs.BookingManagement;
 
+public enum DateFilterType
+{
+    CheckInDate,
+    CheckOutDate,
+    BookedDate
+}
+
 // ===================================================
 // REQUEST DTOs
 // ===================================================
@@ -21,6 +28,9 @@ public class BookingSearchRequest
 
     /// <summary>Filter: CheckInDate <= ToDate</summary>
     public DateTime? ToDate { get; set; }
+
+    /// <summary>Loại ngày muốn query (CheckInDate, CheckOutDate, BookedDate). Mặc định: CheckInDate</summary>
+    public DateFilterType FilterType { get; set; } = DateFilterType.CheckInDate;
 
     public int Page { get; set; } = 1;
     public int PageSize { get; set; } = 10;

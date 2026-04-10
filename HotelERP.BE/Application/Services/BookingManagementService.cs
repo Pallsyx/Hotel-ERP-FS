@@ -71,17 +71,27 @@ public class BookingManagementService : IBookingManagementService
             query = query.Where(b => b.Status == request.Status);
         }
 
-        // --- Filter theo Date Range (dựa trên CheckInDate của BookingDetail) ---
-        if (request.FromDate.HasValue)
+        // --- Filter theo Date Range (dựa trên DateFilterType) ---
+        if (request.FromDate.HasValue || request.ToDate.HasValue)
         {
-            var fromDate = request.FromDate.Value.Date;
-            query = query.Where(b => b.BookingDetails.Any(bd => bd.CheckInDate >= fromDate));
-        }
+            var fromDate = request.FromDate?.Date;
+            var toDate = request.ToDate?.Date.AddDays(1); // inclusive end
 
-        if (request.ToDate.HasValue)
-        {
-            var toDate = request.ToDate.Value.Date.AddDays(1); // inclusive end
-            query = query.Where(b => b.BookingDetails.Any(bd => bd.CheckInDate < toDate));
+            switch (request.FilterType)
+            {
+                case DateFilterType.CheckInDate:
+                    if (fromDate.HasValue) query = query.Where(b => b.BookingDetails.Any(bd => bd.CheckInDate >= fromDate.Value));
+                    if (toDate.HasValue) query = query.Where(b => b.BookingDetails.Any(bd => bd.CheckInDate < toDate.Value));
+                    break;
+                case DateFilterType.CheckOutDate:
+                    if (fromDate.HasValue) query = query.Where(b => b.BookingDetails.Any(bd => bd.CheckOutDate >= fromDate.Value));
+                    if (toDate.HasValue) query = query.Where(b => b.BookingDetails.Any(bd => bd.CheckOutDate < toDate.Value));
+                    break;
+                case DateFilterType.BookedDate:
+                    if (fromDate.HasValue) query = query.Where(b => b.CreatedAt >= fromDate.Value);
+                    if (toDate.HasValue) query = query.Where(b => b.CreatedAt < toDate.Value);
+                    break;
+            }
         }
 
         // --- Đếm tổng ---
