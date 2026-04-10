@@ -309,7 +309,7 @@ const SelectRoom = () => {
   useEffect(() => { clearRooms(); }, [clearRooms]);
 
   const handleSelect = (room) => {
-    if (room.status === 'Occupied') return;
+    if (room.status === 'Occupied' || room.status === 'Maintenance' || room.status === 'MAINTENANCE') return;
     toggleRoom(room.id); 
   };
 
@@ -478,6 +478,7 @@ const SelectRoom = () => {
                     <Row gutter={[16, 16]}>
                       {roomsInFloor.map((room) => {
                         const isOccupied = room.status === 'Occupied';
+                        const isMaintenance = room.status === 'Maintenance' || room.status === 'MAINTENANCE';
                         const isSelected = selectedRooms.includes(room.id); 
 
                         let cardStyle = {
@@ -488,6 +489,8 @@ const SelectRoom = () => {
 
                         if (isOccupied) {
                           cardStyle = { ...cardStyle, backgroundColor: '#fff1f0', borderColor: '#ffa39e', cursor: 'not-allowed' };
+                        } else if (isMaintenance) {
+                          cardStyle = { ...cardStyle, backgroundColor: '#fffbe6', borderColor: '#ffe58f', cursor: 'not-allowed' };
                         } else if (isSelected) {
                           cardStyle = { ...cardStyle, backgroundColor: '#e6f7ff', borderColor: '#1890ff', boxShadow: '0 0 8px rgba(24,144,255,0.2)' };
                         }
@@ -495,12 +498,12 @@ const SelectRoom = () => {
                         return (
                           <Col span={4} key={room.id}>
                             <div style={cardStyle} onClick={() => handleSelect(room)}>
-                              <Title level={4} style={{ margin: 0, color: isOccupied ? '#cf1322' : (isSelected ? '#096dd9' : '#262626') }}>
+                              <Title level={4} style={{ margin: 0, color: isOccupied ? '#cf1322' : isMaintenance ? '#d4b106' : (isSelected ? '#096dd9' : '#262626') }}>
                                 {room.roomNumber}
                               </Title>
                               <Text type="secondary" style={{ fontSize: 12 }}>Tầng {room.floor || room.Floor}</Text>
                               <div style={{ marginTop: 12 }}>
-                                {isOccupied ? <Tag color="red" style={{ margin: 0 }}>Đang ở</Tag> : isSelected ? <Tag color="blue" icon={<CheckCircleOutlined />} style={{ margin: 0 }}>Đã chọn</Tag> : <Tag color="default" style={{ margin: 0 }}>Trống</Tag>}
+                                {isOccupied ? <Tag color="red" style={{ margin: 0 }}>Đang ở</Tag> : isMaintenance ? <Tag color="warning" style={{ margin: 0 }}>Bảo trì</Tag> : isSelected ? <Tag color="blue" icon={<CheckCircleOutlined />} style={{ margin: 0 }}>Đã chọn</Tag> : <Tag color="default" style={{ margin: 0 }}>Trống</Tag>}
                               </div>
                             </div>
                           </Col>
