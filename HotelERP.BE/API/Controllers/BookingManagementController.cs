@@ -86,4 +86,64 @@ public class BookingManagementController : ControllerBase
         var result = await _bookingService.GetInHouseGuestsAsync();
         return Ok(new { success = true, count = result.Count, data = result });
     }
+
+    // ==============================================================
+    // API 5: PUT /api/booking-management/details/{detailId}/status
+    // Cập nhật trạng thái từng phòng lẻ
+    // ==============================================================
+    /// <summary>
+    /// Cập nhật trạng thái cho từng phòng lẻ (BookingDetail).
+    /// Hỗ trợ Check-in/Check-out riêng lẻ và tự động đồng bộ trạng thái phòng vật lý.
+    /// </summary>
+    [HttpPut("details/{detailId}/status")]
+    public async Task<IActionResult> UpdateDetailStatus(int detailId, [FromBody] UpdateBookingStatusRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.NewStatus))
+        {
+            return BadRequest(new { success = false, message = "Trạng thái mới không được để trống." });
+        }
+
+        var (success, message) = await _bookingService.UpdateBookingDetailStatusAsync(detailId, request.NewStatus);
+
+        if (!success)
+        {
+            return BadRequest(new { success = false, message });
+        }
+
+        return Ok(new { success = true, message });
+    }
+
+    // ==============================================================
+    // API 6: GET /api/booking-management/today-departures
+    // Danh sách "Khách dự kiến trả phòng hôm nay"
+    // ==============================================================
+    /// <summary>
+    /// Lấy danh sách khách dự kiến trả phòng hôm nay (CheckOutDate <= Today, Status = Checked_in).
+    /// </summary>
+    [HttpGet("today-departures")]
+    public async Task<IActionResult> GetTodayDepartures()
+    {
+        var result = await _bookingService.GetTodayDeparturesAsync();
+        return Ok(new { success = true, count = result.Count, data = result });
+    }
+
+    // ==============================================================
+    // API 7: PUT /api/booking-management/details/{detailId}/change-room
+    // Đổi phòng cho khách
+    // ==============================================================
+    /// <summary>
+    /// Thay đổi phòng vật lý cho một booking detail.
+    /// </summary>
+    [HttpPut("details/{detailId}/change-room")]
+    public async Task<IActionResult> ChangeRoom(int detailId, [FromBody] ChangeRoomRequest request)
+    {
+        if (request.NewRoomId <= 0)
+            return BadRequest(new { success = false, message = "ID phòng mới không hợp lệ." });
+
+        var (success, message) = await _bookingService.ChangeRoomAsync(detailId, request.NewRoomId);
+
+        if (!success) return BadRequest(new { success = false, message });
+
+        return Ok(new { success = true, message });
+    }
 }
