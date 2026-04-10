@@ -20,6 +20,8 @@ const buildPrintableHtml = (payload) => {
 
   const invoiceId = getValue(payload, 'invoiceId', 'InvoiceId') || '';
   const invoiceCode = getValue(payload, 'invoiceCode', 'InvoiceCode') || '';
+  const grossTotal = getValue(payload, 'grossTotal', 'GrossTotal') ?? 0;
+  const depositAmount = getValue(payload, 'depositAmount', 'DepositAmount') || 0;
   const finalTotal = getValue(payload, 'finalTotal', 'FinalTotal') || 0;
   const invoiceStatus = getValue(payload, 'invoiceStatus', 'InvoiceStatus') || '';
   const totalRoomAmount = getValue(payload, 'totalRoomAmount', 'TotalRoomAmount') || 0;
@@ -81,10 +83,12 @@ const buildPrintableHtml = (payload) => {
             <tr><td>Phụ phí thêm tay</td><td>${money(manualAdjustmentAmount)}</td></tr>
             <tr><td>Giảm giá</td><td>${money(discountAmount)}</td></tr>
             <tr><td>VAT</td><td>${money(taxAmount)}</td></tr>
+            <tr><td><b>Tổng tiền hóa đơn</b></td><td><b>${money(grossTotal || finalTotal)}</b></td></tr>
+            <tr><td><b>Tiền cọc đã thu</b></td><td><b>-${money(depositAmount)}</b></td></tr>
           </tbody>
         </table>
 
-        <div class="final">TỔNG THANH TOÁN: ${money(finalTotal)}</div>
+        <div class="final">SỐ TIỀN CẦN THANH TOÁN: ${money(finalTotal)}</div>
 
         <div class="note">
           <b>Ghi chú:</b><br/>

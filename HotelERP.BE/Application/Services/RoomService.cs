@@ -112,80 +112,95 @@ public class RoomService : IRoomService
     }
 
     public async Task<bool> ReportDamageAsync(int userId, ReportDamageRequest request)
-{
-    var room = await _context!.Rooms.FindAsync(request.RoomId);
-    if (room == null || room.DeletedAt != null)
-        throw new InvalidOperationException("Phòng không tồn tại.");
-
-    // NGHIÊP VỤ: Chỉ cho phép báo hỏng khi phòng đang có khách (Occupied)
-    if (room.Status.ToUpper() != "OCCUPIED")
-        throw new InvalidOperationException($"Không thể báo hỏng cho phòng đang ở trạng thái '{room.Status}'. Tính năng này chỉ dành cho phòng đang có khách lưu trú.");
-
-    var damage = new LossAndDamage
     {
-        RoomId = request.RoomId,
-        BookingDetailId = request.BookingDetailId, 
-        RoomInventoryId = request.RoomInventoryId, 
-        ReportedByUserId = userId,
-        Description = request.Description,
-        PenaltyAmount = request.PenaltyAmount,     
-        Quantity = request.Quantity,               
-        CreatedAt = DateTime.UtcNow
-    };
+        var room = await _context!.Rooms.FindAsync(request.RoomId);
+        if (room == null || room.DeletedAt != null)
+            throw new InvalidOperationException("Phòng không tồn tại.");
 
-    if (request.EvidenceImage != null && request.EvidenceImage.Length > 0) {
-        var res = await _cloudinary.UploadImageAsync(request.EvidenceImage, "damages");
-        damage.EvidenceImageUrl = res.Url;
-        damage.EvidencePublicId = res.PublicId; // Khớp với trường DB
-    }
+        if (room.Status.ToUpper() != "OCCUPIED")
+            throw new InvalidOperationException($"Không thể báo hỏng cho phòng đang ở trạng thái '{room.Status}'. Tính năng này chỉ dành cho phòng đang có khách lưu trú.");
 
-    // ==========================================
-    // ĐỒNG BỘ TỒN KHO VÀ KHO VẬT TƯ (INVENTORY SLYNC)
-    // ==========================================
-    if (request.RoomInventoryId.HasValue)
-    {
-        var roomInventory = await _context!.RoomInventories
-            .Include(ri => ri.Equipment)
-            .FirstOrDefaultAsync(ri => ri.Id == request.RoomInventoryId.Value);
-
-        if (roomInventory != null)
+        var activeBookingDetailId = request.BookingDetailId;
+        if (!activeBookingDetailId.HasValue || activeBookingDetailId.Value <= 0)
         {
-            // Trừ đi vật tư trong kho của phòng đó
-            roomInventory.Quantity -= request.Quantity;
+            activeBookingDetailId = await _context.BookingDetails
+                .Include(bd => bd.Booking)
+                .Where(bd => bd.RoomId == request.RoomId
+                             && bd.ActualCheckOutAt == null
+                             && bd.BookingId != null
+                             && bd.Booking != null
+                             && bd.Booking.Status != "Cancelled")
+                .OrderByDescending(bd => bd.ActualCheckInAt ?? bd.CheckInDate)
+                .Select(bd => (int?)bd.Id)
+                .FirstOrDefaultAsync();
+        }
 
-            // Cập nhật lại kho chung (Equipment) - Cập nhật tất cả các Equipment cùng tên (Active) vì RoomInventory có thể map sang ID cũ
-            if (roomInventory.Equipment != null)
+        if (!activeBookingDetailId.HasValue || activeBookingDetailId.Value <= 0)
+            throw new InvalidOperationException("Không tìm thấy booking detail đang lưu trú của phòng này để gắn phí đền bù vào hóa đơn.");
+
+        var damage = new LossAndDamage
+        {
+            RoomId = request.RoomId,
+            BookingDetailId = activeBookingDetailId.Value,
+            RoomInventoryId = request.RoomInventoryId,
+            ReportedByUserId = userId,
+            Description = request.Description,
+            PenaltyAmount = request.PenaltyAmount,
+            Quantity = request.Quantity,
+            Status = "OPEN",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        if (request.EvidenceImage != null && request.EvidenceImage.Length > 0)
+        {
+            var res = await _cloudinary.UploadImageAsync(request.EvidenceImage, "damages");
+            damage.EvidenceImageUrl = res.Url;
+            damage.EvidencePublicId = res.PublicId;
+        }
+
+        if (request.RoomInventoryId.HasValue)
+        {
+            var roomInventory = await _context.RoomInventories
+                .Include(ri => ri.Equipment)
+                .FirstOrDefaultAsync(ri => ri.Id == request.RoomInventoryId.Value);
+
+            if (roomInventory != null)
             {
-                var equipName = roomInventory.Equipment.Name;
-                var activeEquipmentsToSync = await _context.Equipments
-                    .Where(e => e.Name == equipName && e.IsActive)
-                    .ToListAsync();
-                
-                foreach (var eq in activeEquipmentsToSync)
+                roomInventory.Quantity -= request.Quantity;
+
+                if (roomInventory.Equipment != null)
                 {
-                    eq.DamagedQuantity += request.Quantity;
-                    eq.InUseQuantity -= request.Quantity;
+                    var equipName = roomInventory.Equipment.Name;
+                    var activeEquipmentsToSync = await _context.Equipments
+                        .Where(e => e.Name == equipName && e.IsActive)
+                        .ToListAsync();
+
+                    foreach (var eq in activeEquipmentsToSync)
+                    {
+                        eq.DamagedQuantity += request.Quantity;
+                        eq.InUseQuantity -= request.Quantity;
+                    }
                 }
             }
         }
+
+        _context.LossAndDamages.Add(damage);
+        await _context.SaveChangesAsync();
+
+        _context.AuditLogs.Add(new AuditLog
+        {
+            UserId = userId,
+            Action = "REPORT_DAMAGE",
+            TableName = "Loss_And_Damages",
+            RecordId = damage.Id,
+            Reason = request.Reason,
+            CreatedAt = DateTime.UtcNow
+        });
+
+        await _context.SaveChangesAsync();
+        return true;
     }
-    // ==========================================
-
-    _context!.LossAndDamages.Add(damage);
-    await _context!.SaveChangesAsync(); 
-
-    _context!.AuditLogs.Add(new AuditLog {
-        UserId = userId,
-        Action = "REPORT_DAMAGE",
-        TableName = "Loss_And_Damages",
-        RecordId = damage.Id,
-        Reason = request.Reason,
-        CreatedAt = DateTime.UtcNow
-    });
-
-    await _context!.SaveChangesAsync();
-    return true;
-}
 
 public async Task<IEnumerable<DamageReportResponseDto>> GetRoomDamagesAsync(int roomId)
 {

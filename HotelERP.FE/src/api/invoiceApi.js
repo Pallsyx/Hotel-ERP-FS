@@ -13,6 +13,9 @@ const invoiceApi = {
   addExtraFee: (invoiceId, payload) =>
     axiosClient.post(`/invoices/${invoiceId}/extra-fee`, payload),
 
+  updateDamageCharge: (invoiceId, payload) =>
+    axiosClient.put(`/invoices/${invoiceId}/damage-charge`, payload),
+
   finalizeInvoice: (invoiceId, payload) =>
     axiosClient.post(`/invoices/${invoiceId}/finalize`, payload),
 

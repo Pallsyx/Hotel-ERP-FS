@@ -24,6 +24,12 @@ public interface IInvoiceService
         int? performedByUserId,
         CancellationToken cancellationToken = default);
 
+    Task<ApiResult<InvoiceActionResponseDto>> SetDamageChargeAsync(
+        int invoiceId,
+        UpdateDamageChargeRequestDto request,
+        int? performedByUserId,
+        CancellationToken cancellationToken = default);
+
     Task<ApiResult<InvoiceActionResponseDto>> FinalizeAsync(
         int invoiceId,
         FinalizeInvoiceRequestDto request,

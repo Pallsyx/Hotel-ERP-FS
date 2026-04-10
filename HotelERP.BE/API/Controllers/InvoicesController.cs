@@ -108,6 +108,17 @@ public class InvoicesController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpPut("{invoiceId:int}/damage-charge")]
+    public async Task<IActionResult> UpdateDamageCharge(
+        int invoiceId,
+        [FromBody] UpdateDamageChargeRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var userId = ResolveCurrentUserId();
+        var result = await _invoiceService.SetDamageChargeAsync(invoiceId, request, userId, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPost("{invoiceId:int}/finalize")]
     public async Task<IActionResult> FinalizeInvoice(
         int invoiceId,
