@@ -270,9 +270,17 @@ app.UseSwaggerUI(c =>
 using (var scope = app.Services.CreateScope())
 {
     var recurringJobManager = scope.ServiceProvider.GetRequiredService<IRecurringJobManager>();
+    
+    // Job giải phóng booking hết hạn - chạy mỗi phút
     recurringJobManager.AddOrUpdate("ReleaseExpiredBookings", 
         () => scope.ServiceProvider.GetRequiredService<IBookingEngineService>().ReleaseExpiredBookingsAsync(), 
         Cron.Minutely);
+    
+    // Job 9h sáng giờ Việt Nam (UTC+7) = 02:00 UTC
+    // Tự động chuyển tất cả phòng OCCUPIED + CLEAN → DIRTY (phòng có khách cần dọn lại)
+    recurringJobManager.AddOrUpdate("MarkOccupiedRoomsDirtyAt9AM",
+        () => scope.ServiceProvider.GetRequiredService<IRoomService>().MarkOccupiedRoomsDirtyAsync(),
+        "0 2 * * *"); // 02:00 UTC = 09:00 Vietnam (UTC+7)
 }
 
 app.UseHttpsRedirection(); 
