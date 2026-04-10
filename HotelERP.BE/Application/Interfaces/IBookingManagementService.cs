@@ -32,10 +32,11 @@ public interface IBookingManagementService
     Task<(bool Success, string Message)> UpdateBookingDetailStatusAsync(int detailId, string newStatus);
 
     /// <summary>
-    /// API 6: Lấy danh sách "Khách dự kiến trả phòng hôm nay" (Departures)
-    /// Hiển thị theo từng phòng lẻ.
+    /// API 6: Lấy danh sách phòng có thể trả (tất cả đang Checked_in).
+    /// Nếu có checkOutDate, chỉ lọc theo ngày đó.
+    /// Cho phép trả phòng sớm (không giới hạn theo ngày hôm nay).
     /// </summary>
-    Task<List<BookingListItemDto>> GetTodayDeparturesAsync();
+    Task<List<BookingListItemDto>> GetTodayDeparturesAsync(DateTime? checkOutDate = null);
 
     /// <summary>
     /// API 7: Đổi phòng cho khách (Room Change)
