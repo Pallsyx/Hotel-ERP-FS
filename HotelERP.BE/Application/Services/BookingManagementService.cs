@@ -288,6 +288,7 @@ public class BookingManagementService : IBookingManagementService
             Status = bd.Booking?.Status ?? "N/A",
             BookedAt = bd.Booking?.BookedAt ?? DateTime.MinValue,
             FinalAmount = bd.Booking?.FinalAmount ?? 0,
+            DepositAmount = bd.Booking?.DepositAmount ?? 0,
             PaymentStatus = bd.Booking?.PaymentStatus ?? "N/A",
             Notes = bd.Booking?.Notes,
             CreatedAt = bd.Booking?.CreatedAt ?? DateTime.MinValue,
@@ -320,6 +321,7 @@ public class BookingManagementService : IBookingManagementService
             Status = bd.Booking?.Status ?? "N/A",
             BookedAt = bd.Booking?.BookedAt ?? DateTime.MinValue,
             FinalAmount = bd.Booking?.FinalAmount ?? 0,
+            DepositAmount = bd.Booking?.DepositAmount ?? 0,
             PaymentStatus = bd.Booking?.PaymentStatus ?? "N/A",
             Notes = bd.Booking?.Notes,
             CreatedAt = bd.Booking?.CreatedAt ?? DateTime.MinValue,
@@ -357,6 +359,7 @@ public class BookingManagementService : IBookingManagementService
             Status = bd.Booking?.Status ?? "N/A",
             BookedAt = bd.Booking?.BookedAt ?? DateTime.MinValue,
             FinalAmount = bd.Booking?.FinalAmount ?? 0,
+            DepositAmount = bd.Booking?.DepositAmount ?? 0,
             PaymentStatus = bd.Booking?.PaymentStatus ?? "N/A",
             Notes = bd.Booking?.Notes,
             CreatedAt = bd.Booking?.CreatedAt ?? DateTime.MinValue,
@@ -453,11 +456,36 @@ public class BookingManagementService : IBookingManagementService
             Status = b.Status,
             BookedAt = b.BookedAt,
             FinalAmount = b.FinalAmount,
+            DepositAmount = b.DepositAmount,
             PaymentStatus = b.PaymentStatus,
             Notes = b.Notes,
             CreatedAt = b.CreatedAt,
             UpdatedAt = b.UpdatedAt,
             Details = b.BookingDetails.Select(MapDetailToDto).ToList()
         };
+    }
+
+    // ==============================================================
+    // API 8: NẠP CỌC (DEPOSIT)
+    // ==============================================================
+    public async Task<(bool Success, string Message, decimal NewDeposit)> AddDepositAsync(int bookingId, decimal amount)
+    {
+        var booking = await _context.Bookings.FindAsync(bookingId);
+        if (booking == null) return (false, "Không tìm thấy booking.", 0);
+
+        if (booking.Status == BookingStatus.Cancelled || booking.Status == BookingStatus.CancelledByAdmin)
+            return (false, "Không thể nạp cọc cho booking đã hủy.", 0);
+
+        booking.DepositAmount += amount;
+        
+        // (Tuỳ chọn) Nếu tổng cọc >= FinalAmount thì chuyển PaymentStatus = Paid
+        if (booking.DepositAmount >= booking.FinalAmount && booking.FinalAmount > 0)
+        {
+            booking.PaymentStatus = "Paid";
+        }
+
+        await _context.SaveChangesAsync();
+        
+        return (true, "Nạp cọc thành công!", booking.DepositAmount);
     }
 }

@@ -146,4 +146,24 @@ public class BookingManagementController : ControllerBase
 
         return Ok(new { success = true, message });
     }
+
+    // ==============================================================
+    // API 8: PUT /api/booking-management/{id}/deposit
+    // Nạp cọc
+    // ==============================================================
+    /// <summary>
+    /// Nạp cọc cho booking
+    /// </summary>
+    [HttpPut("{id}/deposit")]
+    public async Task<IActionResult> AddDeposit(int id, [FromBody] DepositRequest request)
+    {
+        if (request.Amount <= 0)
+            return BadRequest(new { success = false, message = "Số tiền cọc phải lớn hơn 0." });
+
+        var result = await _bookingService.AddDepositAsync(id, request.Amount);
+
+        if (!result.Success) return BadRequest(new { success = false, message = result.Message });
+
+        return Ok(new { success = true, message = result.Message, newDeposit = result.NewDeposit });
+    }
 }

@@ -3,10 +3,12 @@ import { Card, Table, DatePicker, Input, Button, Space, Typography, Tooltip, mes
 import { SearchOutlined, EyeOutlined, LoginOutlined, CopyOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import bookingManagementApi from '../../api/bookingManagementApi';
+import { useNavigate } from 'react-router-dom';
 
 const { Title } = Typography;
 
 const Arrivals = () => {
+  const navigate = useNavigate();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchText, setSearchText] = useState('');
@@ -20,8 +22,8 @@ const Arrivals = () => {
     setLoading(true);
     try {
       const response = await bookingManagementApi.getTodayArrivals();
-      if (response && response.success) {
-        setData(response.data);
+      if (response.data && response.data.success) {
+        setData(response.data.data);
       }
     } catch (error) {
       console.error('Lỗi khi tải danh sách khách đến:', error);
@@ -46,7 +48,7 @@ const Arrivals = () => {
     
     try {
       const res = await bookingManagementApi.updateDetailStatus(detailId, 'Checked_in');
-      if (res && res.success) {
+      if (res.data && res.data.success) {
         message.success(`Nhận phòng thành công cho phòng ${record.details[0].roomNumber}!`);
         fetchArrivals(); // Refresh list
       }
@@ -122,7 +124,7 @@ const Arrivals = () => {
       render: (_, record) => (
         <Space size="middle">
           <Tooltip title="Xem chi tiết">
-            <Button icon={<EyeOutlined />} size="small" />
+            <Button icon={<EyeOutlined />} size="small" onClick={() => navigate('/admin/bookings/' + record.bookingCode)} />
           </Tooltip>
           <Popconfirm
             title={`Xác nhận khách đã vào phòng ${record.details?.[0]?.roomNumber}?`}

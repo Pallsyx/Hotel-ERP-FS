@@ -9,6 +9,7 @@ import {
   DeleteOutlined, CheckCircleOutlined, CloseCircleOutlined, EyeOutlined, LoginOutlined 
 } from '@ant-design/icons';
 import axios from 'axios';
+import bookingManagementApi from '../../api/bookingManagementApi';
 import { create } from 'zustand';
 import dayjs from 'dayjs';
 import { useAuthStore } from "../../store/authStore";
@@ -75,87 +76,89 @@ const BookingList = () => {
   const [statusFilter, setStatusFilter] = useState(null);
   const [searchingRooms, setSearchingRooms] = useState(false);
 
-  const [allMockData, setAllMockData] = useState(() => {
-    const saved = localStorage.getItem('hotel_mock_bookings');
-    if (saved) {
-      // Xoá bỏ 4 dữ liệu giả gốc nếu chúng vẫn còn tồn tại trong kho lưu trữ
-      const parsed = JSON.parse(saved);
-      const filtered = parsed.filter(b => 
-        b.customerName !== 'ABC' && 
-        b.customerName !== 'Nhóm phòng' && 
-        b.customerName !== 'Nhóm phòng 2' && 
-        b.customerName !== 'Nguyễn Văn A'
-      );
-      return filtered;
-    }
-    return [];
-  });
-
-  // Tự động lưu mảng dữ liệu vào bộ nhớ của trình duyệt mỗi khi có thay đổi
-  useEffect(() => {
-    localStorage.setItem('hotel_mock_bookings', JSON.stringify(allMockData));
-  }, [allMockData]);
-
   const fetchBookings = async (page = 1, search = '', status = null) => {
     setLoadingBookings(true);
     try {
-      // Dùng dữ liệu giả (Mock) trực tiếp thay vì API để Test các Nút Thao Tác (Nhiệm vụ 3)
-      let filtered = allMockData;
-      if (search) {
-        filtered = filtered.filter(item => 
-          item.bookingCode.toLowerCase().includes(search.toLowerCase()) ||
-          item.customerName.toLowerCase().includes(search.toLowerCase()) ||
-          item.phone?.includes(search)
-        );
+      const response = await bookingManagementApi.searchBookings({
+        keyword: search || undefined,
+        status: status || undefined,
+        page: page,
+        pageSize: pagination.pageSize
+      });
+      const resultData = response.data?.data;
+      if (resultData) {
+        const items = resultData.items || resultData.Items || [];
+        const mappedBookings = items.map(item => ({
+          id: item.id || item.Id,
+          bookingCode: item.bookingCode || item.BookingCode,
+          customerName: item.guestName || item.GuestName || 'Khách vãng lai',
+          phone: item.guestPhone || item.GuestPhone,
+          checkInDate: (item.details || item.Details || [])[0]?.checkInDate || (item.details || item.Details || [])[0]?.CheckInDate || item.bookedAt || item.BookedAt || new Date().toISOString(),
+          status: item.status || item.Status,
+        }));
+        setBookings(mappedBookings);
+        setPagination(prev => ({ ...prev, current: page, total: resultData.totalCount || resultData.TotalCount || 0 }));
       }
-      if (status) {
-        filtered = filtered.filter(item => item.status === status);
-      }
-      setBookings(filtered);
-      setPagination(prev => ({ ...prev, current: page, total: filtered.length }));
+    } catch (error) {
+      console.error("Lỗi tải danh sách Booking:", error);
     } finally {
-      setTimeout(() => setLoadingBookings(false), 200); // Tạo độ trễ giả lập Network
+      setLoadingBookings(false);
     }
   };
 
   useEffect(() => {
     const timer = setTimeout(() => fetchBookings(1, searchTerm, statusFilter), 300);
     return () => clearTimeout(timer);
-  }, [searchTerm, statusFilter, allMockData]); // Thêm allMockData để tự re-render khi ấn nút
+  }, [searchTerm, statusFilter]); // Thêm allMockData để tự re-render khi ấn nút
 
   // CÁC HÀM XỬ LÝ LOGIC NÚT THAO TÁC (NHIỆM VỤ 3)
-  const handleConfirm = (bookingCode) => {
+  const handleConfirm = (record) => {
     Modal.confirm({
       title: 'Xác nhận đơn đặt phòng',
-      content: `XÁC NHẬN đơn ${bookingCode}?`,
+      content: `XÁC NHẬN đơn ${record.bookingCode}?`,
       okText: 'Xác nhận ngay', cancelText: 'Hủy bỏ',
-      onOk: () => {
-        setAllMockData(prev => prev.map(b => b.bookingCode === bookingCode ? { ...b, status: 'Đã xác nhận' } : b));
-        message.success(`Đã xác nhận đơn ${bookingCode} thành công!`);
+      onOk: async () => {
+        try {
+          await bookingManagementApi.updateBookingStatus(record.id, 'Confirmed');
+          message.success(`Đã xác nhận đơn ${record.bookingCode} thành công!`);
+          fetchBookings(pagination.current, searchTerm, statusFilter);
+        } catch (error) {
+          message.error('Lỗi khi cập nhật trạng thái');
+        }
       }
     });
   };
 
-  const handleCancel = (bookingCode) => {
+  const handleCancel = (record) => {
     Modal.confirm({
       title: 'Hủy đơn đặt phòng',
-      content: `HỦY đơn ${bookingCode}? Thao tác không thể hoàn tác.`,
+      content: `HỦY đơn ${record.bookingCode}? Thao tác không thể hoàn tác.`,
       okText: 'Đồng ý hủy', okType: 'danger', cancelText: 'Quay lại',
-      onOk: () => {
-        setAllMockData(prev => prev.map(b => b.bookingCode === bookingCode ? { ...b, status: 'Đã hủy' } : b));
-        message.success(`Đã hủy đơn ${bookingCode}!`);
+      onOk: async () => {
+        try {
+          await bookingManagementApi.updateBookingStatus(record.id, 'Cancelled');
+          message.success(`Đã hủy đơn ${record.bookingCode}!`);
+          fetchBookings(pagination.current, searchTerm, statusFilter);
+        } catch (error) {
+          message.error('Lỗi khi hủy đơn');
+        }
       }
     });
   };
 
-  const handleCheckIn = (bookingCode) => {
+  const handleCheckIn = (record) => {
     Modal.confirm({
       title: 'Tiến hành Nhận Phòng',
-      content: `Khách của đơn ${bookingCode} đã đến và Nhận phòng?`,
+      content: `Khách của đơn ${record.bookingCode} đã đến và Nhận phòng?`,
       okText: 'Nhận phòng', cancelText: 'Chưa phải lúc',
-      onOk: () => {
-        setAllMockData(prev => prev.map(b => b.bookingCode === bookingCode ? { ...b, status: 'Hoàn tất' } : b));
-        message.success(`Check-in thành công cho đơn ${bookingCode}!`);
+      onOk: async () => {
+        try {
+          await bookingManagementApi.updateBookingStatus(record.id, 'Checked_in');
+          message.success(`Check-in thành công cho đơn ${record.bookingCode}!`);
+          fetchBookings(pagination.current, searchTerm, statusFilter);
+        } catch (error) {
+          message.error('Lỗi khi nhận phòng');
+        }
       }
     });
   };
@@ -193,12 +196,14 @@ const BookingList = () => {
     { title: 'Khách Hàng', dataIndex: 'customerName', key: 'customerName' },
     { title: 'Ngày Nhận', dataIndex: 'checkInDate', render: (d) => dayjs(d).format('DD/MM/YYYY HH:mm') },
     { title: 'Trạng thái', dataIndex: 'status', render: (status) => {
+        let displayStatus = status;
         let color = 'default';
-        if (status === 'Đã xác nhận') color = 'success';
-        if (status === 'Chờ xử lý') color = 'default'; 
-        if (status === 'Hoàn tất') color = 'processing';
-        if (status === 'Đã hủy') color = 'error';
-        return <Tag color={color}>{status}</Tag>;
+        if (status === 'Pending' || status === 'Chờ xử lý') { color = 'default'; displayStatus = 'Chờ xử lý'; }
+        else if (status === 'Confirmed' || status === 'Đã xác nhận') { color = 'success'; displayStatus = 'Đã xác nhận'; }
+        else if (status === 'Checked_in' || status === 'Đang ở') { color = 'processing'; displayStatus = 'Đang ở'; }
+        else if (status === 'Completed' || status === 'Hoàn tất') { color = 'processing'; displayStatus = 'Hoàn tất'; }
+        else if (status === 'Cancelled' || status === 'Đã hủy') { color = 'error'; displayStatus = 'Đã hủy'; }
+        return <Tag color={color}>{displayStatus}</Tag>;
     }},
     {
       title: 'Thao tác',
@@ -207,15 +212,15 @@ const BookingList = () => {
         <Space size="middle">
           <Button type="text" icon={<EyeOutlined />} onClick={() => navigate(`/admin/bookings/${record.bookingCode}`)} title="Xem chi tiết" />
           
-          {record.status === 'Chờ xử lý' && (
+          {['Pending', 'Chờ xử lý', 'Holding'].includes(record.status) && (
             <>
-              <Button type="text" style={{ color: '#1890ff' }} icon={<CheckCircleOutlined />} onClick={() => handleConfirm(record.bookingCode)} title="Xác nhận" />
-              <Button type="text" danger icon={<CloseCircleOutlined />} onClick={() => handleCancel(record.bookingCode)} title="Hủy đơn" />
+              <Button type="text" style={{ color: '#1890ff' }} icon={<CheckCircleOutlined />} onClick={() => handleConfirm(record)} title="Xác nhận" />
+              <Button type="text" danger icon={<CloseCircleOutlined />} onClick={() => handleCancel(record)} title="Hủy đơn" />
             </>
           )}
 
-          {record.status === 'Đã xác nhận' && (
-            <Button type="primary" size="small" icon={<LoginOutlined />} onClick={() => handleCheckIn(record.bookingCode)}>Nhận phòng</Button>
+          {['Confirmed', 'Đã xác nhận'].includes(record.status) && (
+            <Button type="primary" size="small" icon={<LoginOutlined />} onClick={() => handleCheckIn(record)}>Nhận phòng</Button>
           )}
         </Space>
       )
@@ -259,15 +264,27 @@ const BookingList = () => {
                  allowClear 
                  onChange={(val) => setStatusFilter(val)}
                >
-                 <Select.Option value="Chờ xử lý">Chờ xử lý</Select.Option>
-                 <Select.Option value="Đã xác nhận">Đã xác nhận</Select.Option>
-                 <Select.Option value="Hoàn tất">Hoàn tất</Select.Option>
-                 <Select.Option value="Đã hủy">Đã hủy</Select.Option>
+                 <Select.Option value="Pending">Chờ xử lý</Select.Option>
+                 <Select.Option value="Confirmed">Đã xác nhận</Select.Option>
+                 <Select.Option value="Checked_in">Đang ở</Select.Option>
+                 <Select.Option value="Completed">Hoàn tất</Select.Option>
+                 <Select.Option value="Cancelled">Đã hủy</Select.Option>
                </Select>
              </Col>
           </Row>
         </div>
-        <Table columns={columns} dataSource={bookings} rowKey="id" loading={loadingBookings} />
+        <Table 
+          columns={columns} 
+          dataSource={bookings} 
+          rowKey="id" 
+          loading={loadingBookings} 
+          pagination={{
+            current: pagination.current,
+            pageSize: pagination.pageSize,
+            total: pagination.total,
+            onChange: (page) => fetchBookings(page, searchTerm, statusFilter),
+          }}
+        />
       </Card>
     </div>
   );
@@ -300,82 +317,61 @@ const SelectRoom = () => {
   const handleConfirmBooking = async (values) => {
     setIsSubmitting(true);
     try {
-      // Đóng gói dữ liệu chuẩn bị gửi API
-      const finalPayload = {
-        checkInDate: searchParams.checkInDate,
-        checkOutDate: searchParams.checkOutDate,
-        adultsCount: searchParams.adultsCount,
-        childrenCount: searchParams.childrenCount,
-        roomIds: selectedRooms, 
-        customerInfo: {
-          fullName: values.fullName,
-          phone: values.phone,
-          email: values.email || '',
-          voucherCode: values.voucherCode || '',
-          notes: values.notes || ''
-        }
-      };
-
-      console.log("Dữ liệu chuẩn bị gửi API:", finalPayload);
-
-      // TẠO BOOKING GIẢ VÀ ĐƯA VÀO BỘ NHỚ TRÌNH DUYỆT ĐỂ BẢNG 1 CÓ THỂ ĐỌC ĐƯỢC
-      const currentList = JSON.parse(localStorage.getItem('hotel_mock_bookings') || '[]');
-      
-      // Map phòng đã chọn thành chi tiết phòng
-      const bookedRooms = [];
-      let totalAmount = 0;
-      
-      const checkInDayjs = dayjs(searchParams.checkInDate || new Date());
-      const checkOutDayjs = dayjs(searchParams.checkOutDate || new Date());
-      const diffDays = checkOutDayjs.diff(checkInDayjs, 'day') || 1;
-
+      // 1. Nhóm các phòng đã chọn theo RoomTypeId để tạo danh sách RoomIds (và tính số lượng)
+      const roomTypeSelections = {};
       selectedRooms.forEach(roomId => {
         roomTypesData.forEach(rt => {
           const roomsArray = rt.rooms || rt.Rooms || [];
           const matched = roomsArray.find(r => r.id === roomId);
           if (matched) {
-            bookedRooms.push({
-              id: matched.id,
-              typeName: rt.name,
-              roomNum: matched.roomNumber,
-              checkIn: searchParams.checkInDate ? searchParams.checkInDate + ' 14:00' : checkInDayjs.format('DD/MM/YYYY HH:mm'),
-              checkOut: searchParams.checkOutDate ? searchParams.checkOutDate + ' 12:00' : checkOutDayjs.format('DD/MM/YYYY HH:mm'),
-              price: rt.basePrice || 0,
-              status: 'Chờ xử lý'
-            });
-            totalAmount += (rt.basePrice || 0) * diffDays;
+            const rtId = rt.id || rt.Id || rt.roomTypeId || rt.RoomTypeId;
+            if (!roomTypeSelections[rtId]) {
+              roomTypeSelections[rtId] = [];
+            }
+            roomTypeSelections[rtId].push(roomId);
           }
         });
       });
 
-      const newMockBooking = {
-        id: Date.now(),
-        bookingCode: 'BK-' + new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14),
-        customerName: values.fullName,
-        phone: values.phone,
-        email: values.email || '',
-        notes: values.notes || 'Không có',
-        voucherCode: values.voucherCode || 'Không áp dụng',
-        checkInDate: searchParams.checkInDate ? searchParams.checkInDate + ' 14:00' : dayjs().format('YYYY-MM-DD HH:mm'),
-        status: 'Chờ xử lý', // Đơn mới mặc định chờ xử lý
-        originalRooms: bookedRooms,
-        totalAmount: totalAmount
-      };
-      
-      // Đẩy lên đầu danh sách
-      currentList.unshift(newMockBooking);
-      localStorage.setItem('hotel_mock_bookings', JSON.stringify(currentList));
+      const checkInObj = dayjs(searchParams.checkInDate || new Date()).hour(14).minute(0).second(0);
+      const checkOutObj = dayjs(searchParams.checkOutDate || new Date()).hour(12).minute(0).second(0);
 
-      message.success('Tạo Booking thành công!');
-      setIsModalOpen(false);
-      bookingForm.resetFields();
-      clearRooms();
-      
-      // SỬA TẠI ĐÂY: Quay về đúng trang Quản lý Đặt Phòng thay vì trang chủ '/' gây lỗi 404
-      navigate('/admin/bookings'); 
-      
+      // 2. Tạo mảng items để gửi lên API (Map với MultiRoomBookingRequest ở Backend)
+      const items = Object.keys(roomTypeSelections).map(rtId => ({
+        roomTypeId: parseInt(rtId),
+        quantity: roomTypeSelections[rtId].length,
+        roomIds: roomTypeSelections[rtId], // Gửi nguyên mảng chứa các roomIds (ví dụ: [102, 103]) lên Backend
+        checkInDate: checkInObj.toISOString(),
+        checkOutDate: checkOutObj.toISOString()
+      }));
+
+      const payload = {
+        guestName: values.fullName,
+        guestPhone: values.phone,
+        guestEmail: values.email || '',
+        notes: values.notes || '',
+        items: items
+      };
+
+      console.log("Dữ liệu chuẩn bị gửi API tạo Booking:", payload);
+
+      // 3. GỌI API THẬT
+      const response = await apiClient.post('/BookingEngine/multi-booking', payload);
+
+      if (response && response.success !== false) {
+         message.success('Tạo Booking thành công!');
+         setIsModalOpen(false);
+         bookingForm.resetFields();
+         clearRooms();
+         
+         // SỬA TẠI ĐÂY: Quay về đúng trang Quản lý Đặt Phòng thay vì trang chủ '/' gây lỗi 404
+         navigate('/admin/bookings'); 
+      } else {
+         message.error(response?.message || 'Có lỗi xảy ra khi tạo Booking!');
+      }
     } catch (error) {
-      message.error('Có lỗi xảy ra khi tạo Booking!');
+      console.error(error);
+      message.error(error.response?.data?.message || 'Có lỗi xảy ra khi tạo Booking!');
     } finally {
       setIsSubmitting(false);
     }
@@ -609,12 +605,40 @@ const BookingDetail = () => {
   const [depositForm] = Form.useForm();
 
   useEffect(() => {
-    // Lấy data từ kho chứa tạm localStorage để hiển thị chi tiết
-    const list = JSON.parse(localStorage.getItem('hotel_mock_bookings') || '[]');
-    const found = list.find(b => b.bookingCode === bookingCode);
-    if (found) {
-      setBooking(found);
-    }
+    const fetchDetail = async () => {
+      try {
+        const response = await bookingManagementApi.searchBookings({ keyword: bookingCode, page: 1, pageSize: 1 });
+        const resultData = response.data?.data;
+        if (resultData && resultData.items && resultData.items.length > 0) {
+           const dbBooking = resultData.items[0];
+           const mappedBooking = {
+              id: dbBooking.id || dbBooking.Id,
+              bookingCode: dbBooking.bookingCode || dbBooking.BookingCode,
+              customerName: dbBooking.guestName || dbBooking.GuestName || 'Khách vãng lai',
+              phone: dbBooking.guestPhone || dbBooking.GuestPhone,
+              email: dbBooking.guestEmail || dbBooking.GuestEmail,
+              checkInDate: (dbBooking.details || dbBooking.Details || [])[0]?.checkInDate || (dbBooking.details || dbBooking.Details || [])[0]?.CheckInDate || dbBooking.bookedAt || dbBooking.BookedAt,
+              status: dbBooking.status || dbBooking.Status,
+              totalAmount: dbBooking.finalAmount || dbBooking.FinalAmount || 0,
+              deposit: dbBooking.depositAmount || dbBooking.DepositAmount || 0, 
+              originalRooms: (dbBooking.details || dbBooking.Details || []).map(d => ({
+                  id: d.id || d.Id,
+                  typeName: d.roomTypeName || d.RoomTypeName,
+                  roomNum: d.roomNumber || d.RoomNumber || 'Chưa xếp',
+                  checkIn: dayjs(d.checkInDate || d.CheckInDate).format('DD/MM/YYYY HH:mm'),
+                  checkOut: dayjs(d.checkOutDate || d.CheckOutDate).format('DD/MM/YYYY HH:mm'),
+                  price: d.pricePerNight ?? d.PricePerNight ?? 0,
+                  status: d.status || d.Status
+              })),
+              notes: dbBooking.notes || dbBooking.Notes
+           };
+           setBooking(mappedBooking);
+        }
+      } catch (err) {
+        console.error("Lỗi khi tải chi tiết booking", err);
+      }
+    };
+    fetchDetail();
   }, [bookingCode]);
 
   if (!booking) {
@@ -622,22 +646,25 @@ const BookingDetail = () => {
   }
 
   const getStatusTag = (status) => {
+    let displayStatus = status;
     let color = 'default';
-    if (status === 'Đã xác nhận') color = 'success';
-    if (status === 'Chờ xử lý') color = 'warning';
-    if (status === 'Hoàn tất') color = 'processing';
-    if (status === 'Đã hủy') color = 'error';
-    return <Tag color={color}>{status}</Tag>;
+    if (status === 'Pending' || status === 'Chờ xử lý' || status === 'Holding') { color = 'default'; displayStatus = 'Chờ xử lý'; }
+    else if (status === 'Confirmed' || status === 'Đã xác nhận') { color = 'success'; displayStatus = 'Đã xác nhận'; }
+    else if (status === 'Checked_in' || status === 'Đang ở') { color = 'processing'; displayStatus = 'Đang ở'; }
+    else if (status === 'Completed' || status === 'Hoàn tất') { color = 'processing'; displayStatus = 'Hoàn tất'; }
+    else if (status === 'Cancelled' || status === 'Đã hủy') { color = 'error'; displayStatus = 'Đã hủy'; }
+    return <Tag color={color}>{displayStatus}</Tag>;
   };
 
   // Nút bên trong Trang chi tiết cũng có thể cập nhật trạng thái ra Bảng 1
-  // Nút bên trong Trang chi tiết cũng có thể cập nhật trạng thái ra Bảng 1
-  const executeConfirm = () => {
-    const list = JSON.parse(localStorage.getItem('hotel_mock_bookings') || '[]');
-    const newList = list.map(b => b.bookingCode === bookingCode ? { ...b, status: 'Đã xác nhận' } : b);
-    localStorage.setItem('hotel_mock_bookings', JSON.stringify(newList));
-    setBooking(prev => ({...prev, status: 'Đã xác nhận'}));
-    message.success('Đã xác nhận đơn thành công!');
+  const executeConfirm = async () => {
+    try {
+      await bookingManagementApi.updateBookingStatus(booking.id, 'Confirmed');
+      setBooking(prev => ({...prev, status: 'Confirmed'}));
+      message.success('Đã xác nhận đơn thành công!');
+    } catch (error) {
+      message.error('Lỗi khi xác nhận đơn');
+    }
   };
 
   const handleConfirm = () => {
@@ -654,26 +681,28 @@ const BookingDetail = () => {
     }
   };
 
-  const handleSaveDeposit = (values) => {
-    const list = JSON.parse(localStorage.getItem('hotel_mock_bookings') || '[]');
-    const currentDeposit = booking.deposit || 0;
-    const newDeposit = currentDeposit + values.amount;
-    
-    const newList = list.map(b => b.bookingCode === bookingCode ? { ...b, deposit: newDeposit } : b);
-    localStorage.setItem('hotel_mock_bookings', JSON.stringify(newList));
-    
-    setBooking(prev => ({...prev, deposit: newDeposit}));
-    message.success(`Đã nạp cọc ${values.amount.toLocaleString()} đ thành công!`);
-    setIsDepositModalOpen(false);
-    depositForm.resetFields();
+  const handleSaveDeposit = async (values) => {
+    try {
+        const res = await bookingManagementApi.addDeposit(booking.id, values.amount);
+        if (res.data && res.data.success) {
+            setBooking(prev => ({...prev, deposit: res.data.newDeposit}));
+            message.success(`Đã nạp cọc ${values.amount.toLocaleString()} đ thành công!`);
+            setIsDepositModalOpen(false);
+            depositForm.resetFields();
+        }
+    } catch (e) {
+        message.error(e.response?.data?.message || "Lỗi khi gọi API nạp cọc.");
+    }
   };
 
-  const handleCancel = () => {
-    const list = JSON.parse(localStorage.getItem('hotel_mock_bookings') || '[]');
-    const newList = list.map(b => b.bookingCode === bookingCode ? { ...b, status: 'Đã hủy' } : b);
-    localStorage.setItem('hotel_mock_bookings', JSON.stringify(newList));
-    setBooking(prev => ({...prev, status: 'Đã hủy'}));
-    message.success('Đã hủy đơn thành công!');
+  const handleCancel = async () => {
+    try {
+      await bookingManagementApi.updateBookingStatus(booking.id, 'Cancelled');
+      setBooking(prev => ({...prev, status: 'Cancelled'}));
+      message.success('Đã hủy đơn thành công!');
+    } catch (error) {
+       message.error('Lỗi khi hủy đơn');
+    }
   };
 
   // Load danh sách phòng thật sự đã đặt (ưu tiên từ dữ liệu giả vừa lưu, nếu không có thì fallback)
@@ -701,7 +730,7 @@ const BookingDetail = () => {
             </Space>
           </Col>
           <Col>
-            {booking.status === 'Chờ xử lý' && (
+            {['Pending', 'Chờ xử lý', 'Holding'].includes(booking.status) && (
               <Space>
                 <Button type="primary" onClick={handleConfirm}>Xác nhận Đơn</Button>
                 <Button danger onClick={handleCancel}>Hủy Đơn</Button>
@@ -748,7 +777,7 @@ const BookingDetail = () => {
             { title: 'Phòng xếp', dataIndex: 'roomNum', key: 'room', render: r => <Tag color="blue">{r}</Tag> },
             { title: 'Check-in', dataIndex: 'checkIn', key: 'in' },
             { title: 'Check-out', dataIndex: 'checkOut', key: 'out' },
-            { title: 'Giá/Đêm (VNĐ)', dataIndex: 'price', key: 'price', render: p => p.toLocaleString() },
+            { title: 'Giá/Đêm (VNĐ)', dataIndex: 'price', key: 'price', render: p => (p || 0).toLocaleString() },
             { title: 'Trạng thái', dataIndex: 'status', key: 'stt', render: s => <Tag color="orange">{s}</Tag> }
           ]}
         />

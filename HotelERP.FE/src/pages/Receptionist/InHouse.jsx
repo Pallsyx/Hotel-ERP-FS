@@ -3,10 +3,12 @@ import { Card, Table, Input, Button, Space, Typography, Tooltip, message } from 
 import { SearchOutlined, EyeOutlined, CopyOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import bookingManagementApi from '../../api/bookingManagementApi';
+import { useNavigate } from 'react-router-dom';
 
 const { Title } = Typography;
 
 const InHouse = () => {
+  const navigate = useNavigate();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchText, setSearchText] = useState('');
@@ -19,8 +21,8 @@ const InHouse = () => {
     setLoading(true);
     try {
       const response = await bookingManagementApi.getInHouseGuests();
-      if (response && response.success) {
-        setData(response.data);
+      if (response.data && response.data.success) {
+        setData(response.data.data);
       }
     } catch (error) {
       console.error('Lỗi khi tải danh sách khách đang lưu trú:', error);
@@ -51,7 +53,7 @@ const InHouse = () => {
       key: 'roomName',
       render: (_, record) => (
         <Typography.Text strong style={{ color: '#1890ff' }}>
-          {record.details?.[0]?.roomNumber}
+          {record.details?.[0]?.roomNumber || 'Chưa xếp phòng'}
         </Typography.Text>
       ),
     },
@@ -105,7 +107,7 @@ const InHouse = () => {
       render: (_, record) => (
         <Space size="middle">
           <Tooltip title="Xem chi tiết">
-            <Button icon={<EyeOutlined />} size="small" />
+            <Button icon={<EyeOutlined />} size="small" onClick={() => navigate('/admin/bookings/' + record.bookingCode)} />
           </Tooltip>
         </Space>
       ),

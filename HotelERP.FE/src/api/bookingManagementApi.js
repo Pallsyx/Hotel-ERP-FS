@@ -34,6 +34,11 @@ const bookingManagementApi = {
   // Đổi phòng cho khách
   changeRoom: (detailId, newRoomId) => {
     return axiosClient.put(`/booking-management/details/${detailId}/change-room`, { newRoomId });
+  },
+
+  // Nạp cọc
+  addDeposit: (bookingId, amount) => {
+    return axiosClient.put(`/booking-management/${bookingId}/deposit`, { amount });
   }
 };
 

@@ -179,21 +179,49 @@ private readonly IDistributedLockFactory _lockFactory;
             await _context.SaveChangesAsync();
 
             var db = _redis.GetDatabase(); // Fix Redis Call
+            decimal finalTotalAmount = 0; // NEW: Biến cộng dồn tổng tiền
+
             foreach (var item in request.Items) {
+                // NEW: Lấy giá BasePrice từ CSDL cho hạng phòng này
+                var roomTypeInfo = await _context.RoomTypes.FindAsync(item.RoomTypeId);
+                var basePrice = roomTypeInfo?.BasePrice ?? 0;
+                var nightsCount = (int)(item.CheckOutDate.Date - item.CheckInDate.Date).TotalDays;
+                if (nightsCount <= 0) nightsCount = 1;
+
                 for (int i = 0; i < item.Quantity; i++) {
+                    var lineTotal = basePrice * nightsCount;
+                    finalTotalAmount += lineTotal;
+
                     var detail = new BookingDetail {
                         BookingId = booking.Id,
                         RoomTypeId = item.RoomTypeId,
+                        RoomId = (item.RoomIds != null && item.RoomIds.Count > i && item.RoomIds[i] > 0) ? item.RoomIds[i] : null, // Gán số phòng vật lý cụ thể nếu có
                         CheckInDate = item.CheckInDate,
                         CheckOutDate = item.CheckOutDate,
-                        Status = BookingStatus.Holding
+                        Status = BookingStatus.Holding,
+                        PricePerNight = basePrice,   // NEW
+                        Nights = nightsCount,        // NEW
+                        LineTotal = lineTotal        // NEW
                     };
                     _context.BookingDetails.Add(detail);
+                    
+                    // Cập nhật trạng thái phòng vật lý thành Occupied/Reserved nếu có RoomId để người khác không chọn được (Nâng cao)
+                    if (detail.RoomId.HasValue) 
+                    {
+                        var physicalRoom = await _context.Rooms.FindAsync(detail.RoomId.Value);
+                        if (physicalRoom != null) 
+                        {
+                            physicalRoom.Status = RoomPhysicalStatus.Occupied; // Tạm khóa phòng lại
+                        }
+                    }
                 }
                 
                 await db.StringSetAsync($"hold:{booking.Id}:{item.RoomTypeId}", "HOLDING", TimeSpan.FromMinutes(15));
             }
 
+            // Gán lại tổng tiền cuối cho mảng Booking cha
+            booking.FinalAmount = finalTotalAmount;
+            
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
             return booking.Id;

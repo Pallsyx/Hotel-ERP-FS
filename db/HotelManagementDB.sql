@@ -2428,3 +2428,6 @@ INSERT [dbo].[Rooms] ([room_type_id], [room_number], [floor], [status], [cleanin
 (9, N'509', 5, N'Available', N'Clean', NULL),
 (9, N'510', 5, N'Available', N'Clean', N'8510');
 GO
+
+ALTER TABLE [dbo].[Bookings] ADD [DepositAmount] DECIMAL(18,2) NOT NULL DEFAULT 0;
+GO

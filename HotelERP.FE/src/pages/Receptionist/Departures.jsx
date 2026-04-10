@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Table, DatePicker, Input, Button, Space, Typography, Tooltip, message, Popconfirm } from 'antd';
-import { SearchOutlined, CopyOutlined, ExportOutlined } from '@ant-design/icons';
+import { SearchOutlined, CopyOutlined, ExportOutlined, EyeOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useNavigate } from 'react-router-dom';
 import bookingManagementApi from '../../api/bookingManagementApi';
@@ -22,8 +22,8 @@ const Departures = () => {
     setLoading(true);
     try {
       const response = await bookingManagementApi.getTodayDepartures();
-      if (response && response.success) {
-        setData(response.data);
+      if (response.data && response.data.success) {
+        setData(response.data.data);
       }
     } catch (error) {
       console.error('Lỗi khi tải danh sách khách rời đi:', error);
@@ -48,7 +48,7 @@ const Departures = () => {
 
     try {
       const res = await bookingManagementApi.updateDetailStatus(detailId, 'CheckedOut');
-      if (res && res.success) {
+      if (res.data && res.data.success) {
         message.success(`Đã Check-out phòng ${record.details[0].roomNumber}. Vui lòng lập hóa đơn thanh toán.`);
         // Tùy chọn: gọi fetchDepartures() để load lại hoặc chuyển luôn sang trang in hóa đơn
         navigate('/admin/invoices');
@@ -64,8 +64,10 @@ const Departures = () => {
     const matchSearch =
       item.guestName?.toLowerCase().includes(searchText.toLowerCase()) ||
       item.bookingCode?.toLowerCase().includes(searchText.toLowerCase()) ||
-      detail?.roomNumber?.toLowerCase().includes(searchText.toLowerCase());
+      (detail?.roomNumber || '').toLowerCase().includes(searchText.toLowerCase());
     
+    // Nới lỏng: Nếu chưa chọn ngày (null) thì hiện tất cả (Hôm nay + Quá hạn), 
+    // Nếu có chọn ngày thì mới lọc chính xác
     const matchDate = selectedDate ? dayjs(detail?.checkOutDate).isSame(selectedDate, 'day') : true;
 
     return matchSearch && matchDate;
@@ -77,7 +79,7 @@ const Departures = () => {
       key: 'roomName',
       render: (_, record) => (
         <Typography.Text strong style={{ color: '#1890ff' }}>
-          {record.details?.[0]?.roomNumber}
+          {record.details?.[0]?.roomNumber || 'Chưa xếp phòng'}
         </Typography.Text>
       ),
     },
@@ -116,16 +118,21 @@ const Departures = () => {
       title: 'Thao tác',
       key: 'action',
       render: (_, record) => (
-        <Popconfirm
-          title={`Xác nhận trả phòng ${record.details?.[0]?.roomNumber}?`}
-          onConfirm={() => handleCheckOut(record)}
-          okText="Check-out"
-          cancelText="Hủy"
-        >
-          <Button danger type="primary" icon={<ExportOutlined />} size="small">
-            Trả phòng
-          </Button>
-        </Popconfirm>
+        <Space size="middle">
+          <Tooltip title="Xem chi tiết">
+            <Button icon={<EyeOutlined />} size="small" onClick={() => navigate('/admin/bookings/' + record.bookingCode)} />
+          </Tooltip>
+          <Popconfirm
+            title={`Xác nhận trả phòng ${record.details?.[0]?.roomNumber || 'chưa xếp'}?`}
+            onConfirm={() => handleCheckOut(record)}
+            okText="Check-out"
+            cancelText="Hủy"
+          >
+            <Button danger type="primary" icon={<ExportOutlined />} size="small">
+              Trả phòng
+            </Button>
+          </Popconfirm>
+        </Space>
       ),
     },
   ];
