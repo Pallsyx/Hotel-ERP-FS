@@ -4,6 +4,7 @@ using HotelERP.BE.Hubs;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.SignalR;
+using HotelERP.BE.Application.Interfaces;
 
 namespace HotelERP.BE.API.Controllers;
 
@@ -93,6 +94,73 @@ public class LossAndDamagesController : ControllerBase
         public int EquipmentId { get; set; }
         public int Quantity { get; set; }
         public string? Description { get; set; }
+    }
+
+    public class EditDamageRequest
+    {
+        public int Quantity { get; set; }
+        public string? Description { get; set; }
+        public decimal? PenaltyAmount { get; set; }
+    }
+
+    [HttpPut("{id}")]
+    public async Task<IActionResult> UpdateDamage(int id, [FromBody] EditDamageRequest req)
+    {
+        var damage = await _context.LossAndDamages
+            .Include(d => d.RoomInventory)
+            .FirstOrDefaultAsync(d => d.Id == id);
+
+        if (damage == null) return NotFound(new { message = "Không tìm thấy bản ghi." });
+
+        damage.Quantity = req.Quantity;
+        damage.Description = req.Description;
+        damage.UpdatedAt = DateTime.UtcNow;
+
+        if (req.PenaltyAmount.HasValue)
+        {
+            damage.PenaltyAmount = req.PenaltyAmount.Value;
+        }
+        else if (damage.RoomInventory != null)
+        {
+            damage.PenaltyAmount = req.Quantity * damage.RoomInventory.PriceIfLost;
+        }
+
+        await _context.SaveChangesAsync();
+        await _hubContext.Clients.All.SendAsync("DamageUpdated", id);
+        return Ok(new { message = "Cập nhật thành công!" });
+    }
+
+    [HttpPost("{id}/image")]
+    public async Task<IActionResult> UploadDamageImage(int id, IFormFile file, [FromServices] IPhotoService photoService)
+    {
+        var damage = await _context.LossAndDamages.FindAsync(id);
+        if (damage == null) return NotFound(new { message = "Không tìm thấy bản ghi đền bù." });
+
+        if (file == null || file.Length == 0) return BadRequest(new { message = "File trống." });
+
+        try
+        {
+            var (url, publicId) = await photoService.UploadPhotoAsync(file);
+
+            // Xóa ảnh cũ nếu có
+            if (!string.IsNullOrEmpty(damage.EvidencePublicId))
+            {
+                await photoService.DeletePhotoAsync(damage.EvidencePublicId);
+            }
+
+            damage.EvidenceImageUrl = url;
+            damage.EvidencePublicId = publicId;
+            damage.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+            await _hubContext.Clients.All.SendAsync("DamageUpdated", id);
+
+            return Ok(new { url });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = "Lỗi khi upload ảnh: " + ex.Message });
+        }
     }
 
     [HttpPost]

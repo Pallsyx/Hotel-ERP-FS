@@ -4,12 +4,12 @@ import axios from 'axios';
 import { 
   Table, Button, DatePicker, 
   Space, Card, Row, Col, Typography, message, 
-  Select, InputNumber, Form, Input, Modal
+  Select, InputNumber, Form, Input, Modal, Image, Upload
 } from 'antd';
 import { 
   AppstoreOutlined, SearchOutlined, ReloadOutlined,
   WarningOutlined, DollarOutlined, ClockCircleOutlined,
-  EditOutlined, DeleteOutlined, InboxOutlined, PlusOutlined
+  EditOutlined, DeleteOutlined, InboxOutlined, PlusOutlined, UploadOutlined
 } from '@ant-design/icons';
 
 const { RangePicker } = DatePicker;
@@ -48,6 +48,20 @@ export default function LossAndDamages() {
   const [stats, setStats] = useState({ totalIncidents: 0, totalAmount: 0, totalQuantity: 0 });
   const [loading, setLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date().toLocaleTimeString('vi-VN', { hour12: false }));
+  
+  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+  const [editingRecord, setEditingRecord] = useState(null);
+  const [form] = Form.useForm();
+
+  // Các state cho thao tác Lọc ngày
+  const [selectedDates, setSelectedDates] = useState(null);
+  const [appliedDates, setAppliedDates] = useState(null);
+
+  const handleApplyFilter = () => {
+    setAppliedDates(selectedDates);
+    message.success('Đã áp dụng bộ lọc ngày!');
+  };
+
   // --- KẾT NỐI SIGNALR ---
   useEffect(() => {
     const connection = new signalR.HubConnectionBuilder()
@@ -96,27 +110,75 @@ export default function LossAndDamages() {
   }, []);
 
   const handleEdit = (record) => {
-    message.info(`Đang mở form chỉnh sửa cho vật tư: ${record.itemName}`);
+    setEditingRecord(record);
+    form.setFieldsValue({
+      quantity: record.quantity,
+      description: record.description,
+      penaltyAmount: record.penaltyAmount
+    });
+    setIsEditModalVisible(true);
+  };
+
+  const handleUpdate = async () => {
+    try {
+      const values = await form.validateFields();
+      await axios.put(`https://localhost:7100/api/LossAndDamages/${editingRecord.id}`, values);
+      message.success('Cập nhật thành công!');
+      setIsEditModalVisible(false);
+      fetchData(); // Cập nhật lại Stats
+    } catch (error) {
+      if(error.isAxiosError) {
+        message.error('Lỗi khi cập nhật trên Server!');
+      } else {
+        console.error(error);
+      }
+    }
   };
 
   const handleDelete = (id) => {
     Modal.confirm({
       title: 'Xác nhận xóa',
-      content: 'Bạn có chắc chắn muốn xóa báo cáo đền bù này không?',
+      content: 'Bạn có chắc chắn muốn xóa vĩnh viễn báo cáo đền bù này không?',
       okText: 'Xóa',
       cancelText: 'Hủy',
       okButtonProps: { danger: true },
-      onOk: () => {
-        // Trong hệ thống thật, gọi API DELETE ở đây rồi mới cập nhật UI
-        setData(prev => prev.filter(item => item.id !== id));
-        fetchData(); // Gọi lại để lấy đúng Stats mới từ Backend
-        message.success('Đã xóa thành công!');
+      onOk: async () => {
+        try {
+          await axios.delete(`https://localhost:7100/api/LossAndDamages/${id}`);
+          setData(prev => prev.filter(item => item.id !== id));
+          message.success('Đã xóa thành công!');
+          fetchData(); // Cập nhật lại Stats
+        } catch (error) {
+          console.error("Lỗi khi xóa:", error);
+          message.error('Không thể xóa dữ liệu từ Server!');
+        }
       }
     });
   };
 
-  // Thống kê (lấy từ backend API)
-  const { totalIncidents, totalAmount, totalQuantity } = stats;
+  // Thống kê & Filter
+  const filteredData = useMemo(() => {
+    if (!appliedDates || appliedDates.length !== 2) return data;
+    const start = appliedDates[0].startOf('day').valueOf();
+    const end = appliedDates[1].endOf('day').valueOf();
+    
+    return data.filter(item => {
+      if (!item.createdAt) return false;
+      const itemDate = new Date(item.createdAt).getTime();
+      return itemDate >= start && itemDate <= end;
+    });
+  }, [data, appliedDates]);
+
+  const displayStats = useMemo(() => {
+    if (!appliedDates || appliedDates.length !== 2) return stats; // dùng stats gốc từ BE
+    return {
+      totalIncidents: filteredData.length,
+      totalAmount: filteredData.reduce((sum, item) => sum + (item.penaltyAmount || 0), 0),
+      totalQuantity: filteredData.reduce((sum, item) => sum + (item.quantity || 0), 0)
+    };
+  }, [filteredData, stats, appliedDates]);
+
+  const { totalIncidents, totalAmount, totalQuantity } = displayStats;
 
   // Format date
   const formatDate = (dateString) => {
@@ -141,7 +203,16 @@ export default function LossAndDamages() {
       dataIndex: 'evidenceImageUrl', 
       key: 'evidence',
       width: 100,
-      render: (img) => img ? <img src={img} alt="Bằng chứng" className="w-10 h-10 object-cover rounded" /> : <span className="text-gray-400 text-sm">Không ảnh</span>
+      render: (img) => img ? (
+        <Image 
+          width={60} 
+          height={60} 
+          src={img} 
+          style={{ objectFit: 'cover', borderRadius: '6px', border: '1px solid #d9d9d9' }} 
+          preview={{ mask: 'Xem' }}
+          alt="Bằng chứng" 
+        />
+      ) : <span className="text-gray-400 text-sm">Không ảnh</span>
     },
     { title: 'Số phòng', dataIndex: 'roomNumber', key: 'roomNumber', width: 100, className: 'font-medium' },
     { 
@@ -232,19 +303,35 @@ export default function LossAndDamages() {
               >
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
                   <Space className="w-full sm:w-auto flex flex-wrap gap-2">
-                    <RangePicker format="DD/MM/YYYY" placeholder={['Từ ngày', 'Đến ngày']} size="middle" className="rounded-md" />
-                    <Button type="primary" icon={<SearchOutlined />} className="bg-blue-600 rounded-md">
+                    <RangePicker 
+                      format="DD/MM/YYYY" 
+                      placeholder={['Từ ngày', 'Đến ngày']} 
+                      size="middle" 
+                      className="rounded-md" 
+                      value={selectedDates}
+                      onChange={(dates) => setSelectedDates(dates)}
+                    />
+                    <Button 
+                      type="primary" 
+                      icon={<SearchOutlined />} 
+                      className="bg-blue-600 rounded-md"
+                      onClick={handleApplyFilter}
+                    >
                       Lọc dữ liệu
                     </Button>
                   </Space>
-                  <Button onClick={fetchData} icon={<ReloadOutlined />} className="rounded-md hover:text-blue-600 hover:border-blue-600">
+                  <Button onClick={() => {
+                    setSelectedDates(null);
+                    setAppliedDates(null);
+                    fetchData();
+                  }} icon={<ReloadOutlined />} className="rounded-md hover:text-blue-600 hover:border-blue-600">
                     Làm mới
                   </Button>
                 </div>
 
                 <Table 
                   columns={columns} 
-                  dataSource={data} 
+                  dataSource={filteredData} 
                   rowKey="id" 
                   loading={loading}
                   pagination={{ pageSize: 8, showSizeChanger: true, showTotal: (total) => `Tổng cộng ${total} bản ghi` }}
@@ -253,6 +340,66 @@ export default function LossAndDamages() {
               </Card>
             </Col>
           </Row>
+          
+          <Modal
+            title="Chỉnh sửa Chi tiết Đền bù"
+            open={isEditModalVisible}
+            onOk={handleUpdate}
+            onCancel={() => setIsEditModalVisible(false)}
+            okText="Lưu thay đổi"
+            cancelText="Hủy"
+          >
+            <Form form={form} layout="vertical">
+              <Form.Item 
+                name="quantity" 
+                label="Số lượng hỏng (*)" 
+                rules={[{ required: true, message: 'Vui lòng nhập số lượng!' }]}
+              >
+                <InputNumber min={1} className="w-full" />
+              </Form.Item>
+
+              <Form.Item 
+                name="penaltyAmount" 
+                label="Tiền phạt (VND) (Tùy chỉnh)" 
+                help="Cứ để trống hệ thống sẽ tự tính lại nếu bạn đổi Số lượng"
+              >
+                <InputNumber min={0} step={1000} className="w-full" placeholder="Ví dụ: 50000" />
+              </Form.Item>
+
+              <Form.Item 
+                name="description" 
+                label="Mô tả / Ghi chú"
+              >
+                <Input.TextArea rows={3} placeholder="Nguyên nhân, tình trạng..." />
+              </Form.Item>
+
+              <Form.Item label="Đổi ảnh bằng chứng">
+                <Upload
+                  name="file"
+                  action={`https://localhost:7100/api/LossAndDamages/${editingRecord?.id}/image`}
+                  showUploadList={false}
+                  onChange={(info) => {
+                    if (info.file.status === 'done') {
+                      message.success('Đã thay đổi ảnh bằng chứng thành công!');
+                      fetchData(); // Load lại ảnh mới
+                      // Cập nhật record hiện tại trong modal để hiện ảnh mới
+                      setEditingRecord(prev => ({ ...prev, evidenceImageUrl: info.file.response.url }));
+                    } else if (info.file.status === 'error') {
+                      message.error(`Lỗi tải ảnh: ${info.file.response?.message || 'Hãy kiểm tra lại Backend'}`);
+                    }
+                  }}
+                >
+                  <Button icon={<UploadOutlined />}>Tải tệp tin ảnh & Cập nhật ngay</Button>
+                </Upload>
+                {editingRecord?.evidenceImageUrl && (
+                   <div className="mt-3 p-3 bg-gray-50 border rounded text-center">
+                     <Text type="secondary" className="block mb-2 text-xs">Ảnh hiển tại</Text>
+                     <Image width={80} height={80} src={editingRecord.evidenceImageUrl} style={{objectFit: 'cover', borderRadius: '4px'}}/>
+                   </div>
+                )}
+              </Form.Item>
+            </Form>
+          </Modal>
     </div>
   );
 }
