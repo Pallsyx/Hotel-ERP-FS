@@ -60,8 +60,11 @@ public class LossAndDamagesController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteDamage(int id)
     {
-        // 1. Tìm bản ghi dựa trên ID
-        var damage = await _context.LossAndDamages.FindAsync(id);
+        // 1. Tìm bản ghi dựa trên ID và kèm theo thông tin Tồn kho
+        var damage = await _context.LossAndDamages
+            .Include(d => d.RoomInventory)
+                .ThenInclude(ri => ri!.Equipment)
+            .FirstOrDefaultAsync(d => d.Id == id);
 
         if (damage == null)
         {
@@ -70,8 +73,30 @@ public class LossAndDamagesController : ControllerBase
 
         try
         {
-            // 2. Xóa bản ghi (Lưu ý: Chỉ xóa dòng trong bảng LossAndDamages, 
-            // không ảnh hưởng đến bảng Equipment hay Room)
+            // Hoàn trả số lượng Tồn kho (Inventory Rollback)
+            if (damage.RoomInventory != null)
+            {
+                damage.RoomInventory.Quantity += damage.Quantity;
+
+                // ==========================================
+                // HOÀN TRẢ KHO VẬT TƯ CHUNG
+                // ==========================================
+                if (damage.RoomInventory.Equipment != null)
+                {
+                    var equipName = damage.RoomInventory.Equipment.Name;
+                    var activeEquipmentsToSync = await _context.Equipments
+                        .Where(e => e.Name == equipName && e.IsActive)
+                        .ToListAsync();
+                    
+                    foreach (var eq in activeEquipmentsToSync)
+                    {
+                        eq.DamagedQuantity -= damage.Quantity;
+                        eq.InUseQuantity += damage.Quantity;
+                    }
+                }
+            }
+
+            // 2. Xóa bản ghi
             _context.LossAndDamages.Remove(damage);
             
             // 3. Lưu thay đổi xuống Database
@@ -108,9 +133,34 @@ public class LossAndDamagesController : ControllerBase
     {
         var damage = await _context.LossAndDamages
             .Include(d => d.RoomInventory)
+                .ThenInclude(ri => ri!.Equipment)
             .FirstOrDefaultAsync(d => d.Id == id);
 
         if (damage == null) return NotFound(new { message = "Không tìm thấy bản ghi." });
+
+        if (damage.RoomInventory != null)
+        {
+            // Nếu người dùng thay đổi số lượng hỏng, cập nhật lại Tồn kho
+            int quantityDifference = req.Quantity - damage.Quantity;
+            damage.RoomInventory.Quantity -= quantityDifference;
+
+            // ==========================================
+            // CẬP NHẬT KHO VẬT TƯ CHUNG KHI SỬA SỐ LƯỢNG
+            // ==========================================
+            if (damage.RoomInventory.Equipment != null)
+            {
+                var equipName = damage.RoomInventory.Equipment.Name;
+                var activeEquipmentsToSync = await _context.Equipments
+                    .Where(e => e.Name == equipName && e.IsActive)
+                    .ToListAsync();
+                
+                foreach (var eq in activeEquipmentsToSync)
+                {
+                    eq.DamagedQuantity += quantityDifference;
+                    eq.InUseQuantity -= quantityDifference;
+                }
+            }
+        }
 
         damage.Quantity = req.Quantity;
         damage.Description = req.Description;
@@ -166,14 +216,15 @@ public class LossAndDamagesController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> CreateNewDamage([FromBody] CreateDamageRequest req)
     {
+        // 1. Tìm thông tin vật tư trong phòng
         var inventory = await _context.RoomInventories
             .FirstOrDefaultAsync(ri => ri.RoomId == req.RoomId && ri.EquipmentId == req.EquipmentId);
 
         if (inventory == null)
             return BadRequest("Vật tư không nằm trong danh sách kiểm kê của phòng này.");
 
+        // 2. Tạo phiếu đền bù
         decimal penaltyAmount = req.Quantity * inventory.PriceIfLost;
-
         var damage = new LossAndDamage
         {
             RoomId = req.RoomId,
@@ -184,13 +235,32 @@ public class LossAndDamagesController : ControllerBase
             Status = "OPEN",
             CreatedAt = DateTime.UtcNow
         };
-
         _context.LossAndDamages.Add(damage);
+
+        // ==========================================
+        // 🚀 LOGIC MỚI: CẬP NHẬT LẠI KHO VẬT TƯ
+        // ==========================================
+        var equipment = await _context.Equipments.FindAsync(req.EquipmentId);
+        if (equipment != null)
+        {
+            var equipName = equipment.Name;
+            var activeEquipmentsToSync = await _context.Equipments
+                .Where(e => e.Name == equipName && e.IsActive)
+                .ToListAsync();
+            
+            foreach (var eq in activeEquipmentsToSync)
+            {
+                eq.DamagedQuantity += req.Quantity;
+                eq.InUseQuantity -= req.Quantity;
+            }
+        }// ==========================================
+
+        // 3. Lưu cả Phiếu đền bù và Cập nhật Kho vào Database cùng lúc
         await _context.SaveChangesAsync();
         
         var room = await _context.Rooms.FindAsync(req.RoomId);
-        var equipment = await _context.Equipments.FindAsync(inventory.EquipmentId);
 
+        // Trả dữ liệu về cho Frontend và gửi SignalR
         var newRecord = new
         {
             id = damage.Id,
