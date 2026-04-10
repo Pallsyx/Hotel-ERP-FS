@@ -1,10 +1,10 @@
 import React from 'react';
 import { Layout, Menu, Button, Typography, Dropdown, Spin } from 'antd';
-import { 
-  UserOutlined, 
-  TeamOutlined, 
-  SafetyCertificateOutlined, 
-  LogoutOutlined, 
+import {
+  UserOutlined,
+  TeamOutlined,
+  SafetyCertificateOutlined,
+  LogoutOutlined,
   AppstoreOutlined,
   HomeOutlined,
   DatabaseOutlined,
@@ -64,9 +64,9 @@ const MainLayout = () => {
     },
     {
       key: '/admin/loss-and-damages',
-      icon: <WarningOutlined />, 
+      icon: <WarningOutlined />,
       label: 'Thất thoát & Đền bù',
-      requiredPermission: 'MANAGE_INVENTORY', 
+      requiredPermission: 'MANAGE_INVENTORY',
     },
     {
       key: '/admin/housekeeping',
@@ -122,7 +122,7 @@ const MainLayout = () => {
       icon: <SafetyCertificateOutlined />,
       label: 'Vai trò & Phân quyền',
       requiredPermission: 'MANAGE_ROLES',
-    },
+    }
   ];
 
   // === ĐÃ NÂNG CẤP: Hàm lọc quyền thông minh (Lọc cả Menu cha lẫn Menu con) ===
@@ -162,7 +162,15 @@ const MainLayout = () => {
         key: 'logout',
         icon: <LogoutOutlined />,
         label: 'Đăng xuất',
-        danger: true, 
+<<<<<<< HEAD
+<<<<<<< HEAD
+        danger: true,
+=======
+        danger: true, // Thêm màu đỏ cho nút đăng xuất nhìn đẹp hơn
+>>>>>>> 8d9308d (Minor changes)
+=======
+        danger: true,
+>>>>>>> 7dde12c (Add rawMenu For FE :)
         onClick: handleLogout,
       },
     ],

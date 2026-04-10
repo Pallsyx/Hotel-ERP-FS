@@ -69,8 +69,8 @@ const HousekeepingMobile = () => {
   const openRoomTasks = async (room) => {
     try {
       // Đổi trạng thái sang INSPECTING (Đang kiểm tra)
-      await axiosClient.patch(`/rooms/${room.id}/cleaning-status`, { 
-        NewCleaningStatus: 'INSPECTING' 
+      await axiosClient.patch(`/rooms/${room.id}/cleaning-status`, {
+        NewCleaningStatus: 'INSPECTING'
       });
       navigate(`/admin/housekeeping/room/${room.id}`, { state: { roomNumber: room.roomNumber } });
     } catch (error) {
@@ -81,7 +81,7 @@ const HousekeepingMobile = () => {
   return (
     <div style={{ padding: '16px', backgroundColor: '#f0f2f5', minHeight: '100vh', maxWidth: '600px', margin: '0 auto' }}>
       <Title level={4} style={{ marginBottom: 16 }}>Phòng Cần Dọn</Title>
-      
+
       <Space orientation="vertical" style={{ width: '100%' }} size="middle">
         {dirtyRooms.map(room => (
           <Badge.Ribbon 

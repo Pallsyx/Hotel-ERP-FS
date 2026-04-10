@@ -83,7 +83,7 @@ const InventoryChecklist = () => {
     }
   };
 
-  const filteredItems = (Array.isArray(items) ? items : []).filter(item => 
+  const filteredItems = (Array.isArray(items) ? items : []).filter(item =>
     item.itemName.toLowerCase().includes(searchText.toLowerCase())
   );
 
@@ -140,7 +140,7 @@ const InventoryChecklist = () => {
       formData.append('PenaltyAmount', values.PenaltyAmount);
       formData.append('Description', values.Reason || '');
       formData.append('Reason', values.Reason || 'Báo hỏng nội bộ');
-      
+
       if (values.EvidenceImage?.fileList?.[0]?.originFileObj) {
         formData.append('EvidenceImage', values.EvidenceImage.fileList[0].originFileObj);
       }
@@ -148,7 +148,7 @@ const InventoryChecklist = () => {
       await axiosClient.post(`/Rooms/loss-damages`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      
+
       message.success("Đã gửi biên bản báo hỏng thành công!");
       
       if (selectedItem?.id) {
@@ -185,15 +185,15 @@ const InventoryChecklist = () => {
         )}
       </div>
 
-      <Button 
-        type="primary" 
-        block 
-        size="large" 
+      <Button
+        type="primary"
+        block
+        size="large"
         icon={<CheckCircleOutlined />}
-        style={{ 
-          backgroundColor: '#52c41a', 
-          borderColor: '#52c41a', 
-          marginBottom: '24px', 
+        style={{
+          backgroundColor: '#52c41a',
+          borderColor: '#52c41a',
+          marginBottom: '24px',
           height: '48px',
           fontSize: '16px',
           fontWeight: 'bold',
@@ -205,9 +205,9 @@ const InventoryChecklist = () => {
       </Button>
 
       <Title level={5} style={{ marginBottom: '12px', paddingLeft: '8px', fontSize: '15px' }}>Danh sách đồ đạc:</Title>
-      
-      <Input 
-        placeholder="Tìm nhanh vật tư..." 
+
+      <Input
+        placeholder="Tìm nhanh vật tư..."
         prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
         style={{ marginBottom: '16px', borderRadius: '8px', height: '40px' }}
         value={searchText}
@@ -271,10 +271,10 @@ const InventoryChecklist = () => {
             <Input placeholder="Vd: Vỡ cốc, rách khăn..." disabled />
           </Form.Item>
           <Form.Item label="Số lượng" name="Quantity" rules={[{ required: true }]} initialValue={1}>
-            <InputNumber 
-              min={1} 
-              max={selectedItem?.quantity || 1} 
-              style={{ width: '100%' }} 
+            <InputNumber
+              min={1}
+              max={selectedItem?.quantity || 1}
+              style={{ width: '100%' }}
               onChange={(val) => {
                 const penaltyPrice = selectedItem?.priceIfLost || 0;
                 form.setFieldsValue({ PenaltyAmount: (val || 1) * penaltyPrice });
