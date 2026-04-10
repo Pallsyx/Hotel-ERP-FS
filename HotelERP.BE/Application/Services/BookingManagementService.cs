@@ -182,7 +182,7 @@ public class BookingManagementService : IBookingManagementService
         var detail = await _context.BookingDetails
             .Include(bd => bd.Room)
             .Include(bd => bd.Booking)
-                .ThenInclude(b => b.BookingDetails)
+                .ThenInclude(b => b!.BookingDetails)
             .FirstOrDefaultAsync(bd => bd.Id == detailId);
 
         if (detail == null) return (false, "Không tìm thấy chi tiết đặt phòng.");
