@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom';
 const { Title } = Typography;
 
 const Departures = () => {
-  const [data, setData] = useState([]); // Không dùng Mock Data
+  const [data, setData] = useState([]);
   const [searchText, setSearchText] = useState('');
   const [selectedDate, setSelectedDate] = useState(dayjs());
   const navigate = useNavigate();

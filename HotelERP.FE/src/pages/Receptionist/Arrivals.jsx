@@ -6,7 +6,7 @@ import dayjs from 'dayjs';
 const { Title } = Typography;
 
 const Arrivals = () => {
-  const [data, setData] = useState([]); // Không dùng Mock Data
+  const [data, setData] = useState([]);
   const [searchText, setSearchText] = useState('');
   const [selectedDate, setSelectedDate] = useState(dayjs());
 

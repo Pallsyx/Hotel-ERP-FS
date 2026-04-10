@@ -162,15 +162,7 @@ const MainLayout = () => {
         key: 'logout',
         icon: <LogoutOutlined />,
         label: 'Đăng xuất',
-<<<<<<< HEAD
-<<<<<<< HEAD
-        danger: true, 
-=======
-        danger: true, // Thêm màu đỏ cho nút đăng xuất nhìn đẹp hơn
->>>>>>> 8d9308d (Minor changes)
-=======
-        danger: true, 
->>>>>>> 7dde12c (Add rawMenu For FE :)
+        danger: true,
         onClick: handleLogout,
       },
     ],

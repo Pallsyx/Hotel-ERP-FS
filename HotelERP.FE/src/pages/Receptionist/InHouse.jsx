@@ -5,7 +5,7 @@ import { SearchOutlined, EyeOutlined, CopyOutlined } from '@ant-design/icons';
 const { Title } = Typography;
 
 const InHouse = () => {
-  const [data, setData] = useState([]); // Không dùng Mock Data
+  const [data, setData] = useState([]);
   const [searchText, setSearchText] = useState('');
 
   const handleCopy = (text) => {
