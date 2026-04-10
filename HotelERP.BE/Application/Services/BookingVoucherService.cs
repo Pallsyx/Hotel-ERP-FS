@@ -1,8 +1,6 @@
 using HotelERP.BE.DTOs.Vouchers;
 using HotelERP.BE.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
-using System;
-using System.Threading.Tasks;
 
 namespace HotelERP.BE.Services.Bookings
 {
@@ -17,31 +15,29 @@ namespace HotelERP.BE.Services.Bookings
 
         public async Task<(bool IsSuccess, string ErrorCode, VoucherResponse? Data)> ApplyVoucherAsync(int bookingId, string voucherCode)
         {
-            var booking = await _context.Bookings.FindAsync(bookingId);
+            var booking = await _context.Bookings.FirstOrDefaultAsync(x => x.Id == bookingId);
             if (booking == null) return (false, "BOOKING_NOT_FOUND", null);
 
-            var voucher = await _context.Vouchers.SingleOrDefaultAsync(v => v.Code == voucherCode);
+            var normalizedCode = voucherCode?.Trim().ToUpperInvariant();
+            if (string.IsNullOrWhiteSpace(normalizedCode)) return (false, "VOUCHER_NOT_FOUND", null);
+
+            var voucher = await _context.Vouchers.FirstOrDefaultAsync(v => v.Code == normalizedCode);
             if (voucher == null) return (false, "VOUCHER_NOT_FOUND", null);
 
-            // --- 1. VALIDATE ---
-            if (voucher.Status != "ACTIVE")
+            var now = DateTime.UtcNow;
+            var usedCount = await GetUsedCountAsync(voucher.Id);
+            var status = ResolveVoucherStatus(voucher, usedCount, now);
+
+            if (status != "ACTIVE")
                 return (false, "VOUCHER_INACTIVE", null);
 
-            var now = DateTime.UtcNow;
-            if ((voucher.ValidFrom.HasValue && voucher.ValidFrom.Value > now) || 
-                (voucher.ValidTo.HasValue && voucher.ValidTo.Value < now))
-            {
-                return (false, "VOUCHER_EXPIRED", null);
-            }
-
-            if (voucher.UsageLimit.HasValue && voucher.UsedCount >= voucher.UsageLimit.Value)
+            if (voucher.UsageLimit.HasValue && usedCount >= voucher.UsageLimit.Value)
                 return (false, "USAGE_LIMIT_EXCEEDED", null);
 
-            var subtotal = booking.BookingSubtotal; 
-            if (subtotal < voucher.MinBookingAmount)
+            var subtotal = booking.BookingSubtotal;
+            if (subtotal < voucher.MinBookingValue)
                 return (false, "MIN_BOOKING_NOT_MET", null);
 
-            // --- 2. TÍNH TOÁN ---
             decimal discount = 0m;
             if (voucher.DiscountType == "PERCENT")
             {
@@ -54,16 +50,13 @@ namespace HotelERP.BE.Services.Bookings
 
             if (discount > subtotal) discount = subtotal;
 
-            decimal finalAmount = subtotal - discount;
+            var finalAmount = subtotal - discount;
             if (finalAmount < 0m) finalAmount = 0m;
 
-            // --- 3. CẬP NHẬT DB ---
             booking.VoucherId = voucher.Id;
             booking.DiscountAmount = discount;
             booking.FinalAmount = finalAmount;
             booking.UpdatedAt = now;
-
-            voucher.UsedCount += 1;
 
             await _context.SaveChangesAsync();
 
@@ -88,13 +81,8 @@ namespace HotelERP.BE.Services.Bookings
             booking.DiscountAmount = 0m;
             booking.FinalAmount = subtotal;
             booking.UpdatedAt = DateTime.UtcNow;
-
-            if (booking.Voucher != null && booking.Voucher.UsedCount > 0)
-            {
-                booking.Voucher.UsedCount -= 1;
-            }
-
             booking.VoucherId = null;
+
             await _context.SaveChangesAsync();
 
             return (true, string.Empty, new VoucherResponse
@@ -103,6 +91,31 @@ namespace HotelERP.BE.Services.Bookings
                 DiscountAmount = 0m,
                 FinalAmount = subtotal
             });
+        }
+
+        private async Task<int> GetUsedCountAsync(int voucherId)
+        {
+            return await _context.Bookings.CountAsync(x => x.VoucherId == voucherId);
+        }
+
+        private static string ResolveVoucherStatus(Domain.Models.Voucher voucher, int usedCount, DateTime now)
+        {
+            if (voucher.ValidFrom.HasValue && voucher.ValidFrom.Value > now)
+            {
+                return "INACTIVE";
+            }
+
+            if (voucher.ValidTo.HasValue && voucher.ValidTo.Value < now)
+            {
+                return "INACTIVE";
+            }
+
+            if (voucher.UsageLimit.HasValue && usedCount >= voucher.UsageLimit.Value)
+            {
+                return "INACTIVE";
+            }
+
+            return "ACTIVE";
         }
     }
 }

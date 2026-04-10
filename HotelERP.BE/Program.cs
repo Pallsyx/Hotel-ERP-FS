@@ -28,6 +28,7 @@ using HotelERP.BE.Services.Vouchers;
 using HotelERP.BE.Hubs;
 using HotelERP.BE.Constants;
 using System.Reflection;
+using HotelERP.BE.Services.Invoices;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -194,6 +195,7 @@ builder.Services.AddScoped<ArticleService>();
 builder.Services.AddScoped<ILoyaltyPointService, LoyaltyPointService>();
 builder.Services.AddScoped<IVoucherService, VoucherService>();
 builder.Services.AddScoped<IVoucherAuditLogHelper, VoucherAuditLogHelper>();
+builder.Services.AddScoped<IInvoiceService, InvoiceService>();
 builder.Services.AddScoped<IRoomTypeService, RoomTypeService>();
 builder.Services.AddScoped<IRoomTypeQueryService, RoomTypeQueryService>();
 builder.Services.AddScoped<IBookingVoucherService, BookingVoucherService>();
