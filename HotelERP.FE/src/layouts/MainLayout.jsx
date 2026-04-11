@@ -1,10 +1,10 @@
 import React from 'react';
 import { Layout, Menu, Button, Typography, Dropdown, Spin } from 'antd';
-import { 
-  UserOutlined, 
-  TeamOutlined, 
-  SafetyCertificateOutlined, 
-  LogoutOutlined, 
+import {
+  UserOutlined,
+  TeamOutlined,
+  SafetyCertificateOutlined,
+  LogoutOutlined,
   AppstoreOutlined,
   HomeOutlined,
   DatabaseOutlined,
@@ -64,9 +64,9 @@ const MainLayout = () => {
     },
     {
       key: '/admin/loss-and-damages',
-      icon: <WarningOutlined />, 
+      icon: <WarningOutlined />,
       label: 'Thất thoát & Đền bù',
-      requiredPermission: 'MANAGE_INVENTORY', 
+      requiredPermission: 'MANAGE_INVENTORY',
     },
     {
       key: '/admin/housekeeping',

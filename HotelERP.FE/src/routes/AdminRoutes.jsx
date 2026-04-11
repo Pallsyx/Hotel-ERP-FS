@@ -66,7 +66,7 @@ const AdminRoutes = () => {
         <Route path='attractions' element={<Placeholder title='Địa điểm lân cận (Bản đồ)' />} />
         <Route path='reviews' element={<Placeholder title='Kiểm duyệt Đánh giá (Review)' />} />
 
-        {/* MODULE 2 */}
+        {/* MODULE 2 - QUẦY LỄ TÂN */}
         <Route path="reception-calendar" element={<Placeholder title="Lịch Lễ Tân (Gantt Chart)" />} />
         <Route path="bookings/*" element={<BookingSystem />} />
         <Route path="arrivals" element={<Arrivals />} />

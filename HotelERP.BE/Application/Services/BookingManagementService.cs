@@ -143,12 +143,14 @@ public class BookingManagementService : IBookingManagementService
         {
             foreach (var detail in booking.BookingDetails)
             {
+                // Chỉ giải phóng những phòng đang ở hoặc đang đợi thanh toán
                 if (detail.Status == BookingStatus.CheckedIn || (newStatus == BookingStatus.Completed && detail.Status == BookingStatus.CheckedOut))
                 {
                     detail.Status = newStatus;
                     if (newStatus == BookingStatus.CheckedOut) detail.ActualCheckOutAt = DateTime.UtcNow;
                     detail.UpdatedAt = DateTime.UtcNow;
 
+                    // GIẢI PHÓNG PHÒNG NGAY LẬP TỨC
                     if (detail.Room != null)
                     {
                         detail.Room.Status = RoomPhysicalStatus.Available;
@@ -162,9 +164,11 @@ public class BookingManagementService : IBookingManagementService
         {
             foreach (var detail in booking.BookingDetails)
             {
-                if (detail.Room != null && detail.Room.Status != RoomPhysicalStatus.Available)
+                if (detail.Status == BookingStatus.CheckedIn && detail.Room != null)
+                {
                     detail.Room.Status = RoomPhysicalStatus.Available;
-
+                }
+                
                 detail.Status = BookingStatus.Cancelled;
                 detail.UpdatedAt = DateTime.UtcNow;
             }
@@ -235,7 +239,7 @@ public class BookingManagementService : IBookingManagementService
         }
         else if (newStatus == BookingStatus.Cancelled)
         {
-            if (detail.Room != null && detail.Room.Status != RoomPhysicalStatus.Available)
+            if (oldDetailStatus == BookingStatus.CheckedIn && detail.Room != null)
             {
                 detail.Room.Status = RoomPhysicalStatus.Available;
             }
