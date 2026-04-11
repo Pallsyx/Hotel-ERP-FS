@@ -357,23 +357,28 @@ public class BookingManagementService : IBookingManagementService
     // ==============================================================
     // API 6: KHÁCH RỜI ĐI HÔM NAY (HIỂN THỊ THEO PHÒNG LẺ CẦN TRẢ)
     // ==============================================================
-    public async Task<List<BookingListItemDto>> GetTodayDeparturesAsync()
+    public async Task<List<BookingListItemDto>> GetTodayDeparturesAsync(DateTime? checkOutDate = null)
     {
-        var today = DateTime.Today;
-        var tomorrow = today.AddDays(1);
-
-        // Lọc các phòng lẻ: 
-        // 1. Ngày trả phòng <= hôm nay (lấy cả khách quá hạn chưa trả)
-        // 2. Trạng thái hiện tại phải là đang ở (Checked_in)
-        var departureDetails = await _context.BookingDetails
+        // Bước 1: Lấy tất cả phòng đang Checked_in
+        var query = _context.BookingDetails
             .Include(bd => bd.Booking)
             .Include(bd => bd.Room)
             .Include(bd => bd.RoomType)
-            .Where(bd => bd.CheckOutDate < tomorrow && bd.Status == BookingStatus.CheckedIn)
+            .Where(bd => bd.Status == BookingStatus.CheckedIn)
+            .AsQueryable();
+
+        // Bước 2: Nếu có filter ngày, lọc theo ngày dự kiến trả phòng
+        if (checkOutDate.HasValue)
+        {
+            var filterDate = checkOutDate.Value.Date;
+            var filterDateNext = filterDate.AddDays(1);
+            query = query.Where(bd => bd.CheckOutDate >= filterDate && bd.CheckOutDate < filterDateNext);
+        }
+
+        var departureDetails = await query
             .OrderBy(bd => bd.CheckOutDate)
             .ToListAsync();
 
-        // Map mỗi Detail thành một BookingListItemDto (Flattened)
         return departureDetails.Select(bd => new BookingListItemDto
         {
             Id = bd.Booking?.Id ?? 0,
@@ -384,7 +389,6 @@ public class BookingManagementService : IBookingManagementService
             Status = bd.Booking?.Status ?? "N/A",
             BookedAt = bd.Booking?.BookedAt ?? DateTime.MinValue,
             FinalAmount = bd.Booking?.FinalAmount ?? 0,
-            DepositAmount = bd.Booking?.DepositAmount ?? 0,
             PaymentStatus = bd.Booking?.PaymentStatus ?? "N/A",
             Notes = bd.Booking?.Notes,
             CreatedAt = bd.Booking?.CreatedAt ?? DateTime.MinValue,

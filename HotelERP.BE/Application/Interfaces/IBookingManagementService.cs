@@ -35,7 +35,7 @@ public interface IBookingManagementService
     /// API 6: Lấy danh sách "Khách dự kiến trả phòng hôm nay" (Departures)
     /// Hiển thị theo từng phòng lẻ.
     /// </summary>
-    Task<List<BookingListItemDto>> GetTodayDeparturesAsync();
+    Task<List<BookingListItemDto>> GetTodayDeparturesAsync(DateTime? checkOutDate = null);
 
     /// <summary>
     /// API 7: Đổi phòng cho khách (Room Change)
