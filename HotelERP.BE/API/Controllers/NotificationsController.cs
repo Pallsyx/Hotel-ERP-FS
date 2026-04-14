@@ -18,23 +18,24 @@ namespace HotelERP.BE.Controllers
             _context = context;
         }
 
-        // 1. API: Lấy danh sách 20 thông báo mới nhất
+        // 1. API: Lấy 20 thông báo mới nhất (cả đã đọc lẫn chưa đọc - hiện lịch sử)
         [HttpGet]
         [Authorize(Policy = PermissionKeys.ViewNotifications)]
         public async Task<IActionResult> GetNotifications()
         {
            try 
             {
-                // Kiểm tra xem database có bản ghi nào không để tránh null
                 var notifications = await _context.Notifications
-                .OrderByDescending(n => n.CreatedAt)
+                .OrderByDescending(n => n.CreatedAt)   // Mới nhất lên đầu
                 .Take(20)
-                .Select(n => new { // FIX 500: Map thẳng ra Object vô danh để tránh JSON Cycle
-                n.Id,
-                n.Title,
-                n.Content,
-                n.IsRead,
-                n.CreatedAt
+                .Select(n => new {
+                    n.Id,
+                    n.Title,
+                    n.Content,
+                    n.Type,
+                    n.IsRead,
+                    n.CreatedAt,
+                    n.ReferenceLink
                 })
                 .ToListAsync();
 
@@ -42,14 +43,12 @@ namespace HotelERP.BE.Controllers
             }
             catch (Exception ex)
             {
-                 // Log lỗi ra để biết chính xác là thiếu cột gì
-                 var realError = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
                  return StatusCode(500, new { message = ex.Message, inner = ex.InnerException?.Message });
             }
         }
         
 
-        // 2. API: Đánh dấu 1 thông báo là đã đọc (Khi user click vào)
+        // 2. API: Đánh dấu 1 thông báo là đã đọc
         [HttpPut("{id}/read")]
         public async Task<IActionResult> MarkAsRead(int id)
         {
@@ -61,12 +60,12 @@ namespace HotelERP.BE.Controllers
             return Ok();
         }
 
-        // 3. API: Đánh dấu ĐÃ ĐỌC TẤT CẢ (Nút dọn dẹp)
+        // 3. API: Đánh dấu TẤT CẢ đã đọc (badge số đỏ = 0, lịch sử vẫn còn)
         [HttpPut("read-all")]
         public async Task<IActionResult> MarkAllAsRead()
         {
             var unreadNotis = await _context.Notifications
-                .Where(n => n.UserId == null && !n.IsRead)
+                .Where(n => !n.IsRead)
                 .ToListAsync();
 
             if (!unreadNotis.Any()) 

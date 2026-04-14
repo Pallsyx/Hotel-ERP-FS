@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using HotelERP.BE.Domain.Models;
 using HotelERP.BE.Models;
@@ -212,6 +212,21 @@ public partial class HotelDbContext : DbContext
             a.Status == "ACTIVE" &&
             (a.Category == null || a.Category.Status == "ACTIVE")
         );
+
+        // ✅ Map đúng tên cột DB thực tế (xác nhận từ INFORMATION_SCHEMA.COLUMNS)
+        modelBuilder.Entity<HotelERP.BE.Models.Notification>(entity =>
+        {
+            entity.ToTable("Notifications");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.UserId).HasColumnName("user_id");
+            entity.Property(e => e.Title).HasColumnName("title");
+            entity.Property(e => e.Content).HasColumnName("content");
+            entity.Property(e => e.Type).HasColumnName("type");
+            entity.Property(e => e.ReferenceLink).HasColumnName("reference_link");
+            entity.Property(e => e.IsRead).HasColumnName("is_read");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+        });
         modelBuilder.Entity<Amenity>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("PK__Amenitie__3213E83FF99261C0");
