@@ -7,21 +7,30 @@ using RedLockNet;
 using StackExchange.Redis;
 using Microsoft.EntityFrameworkCore;
 using System.CodeDom.Compiler;
+using HotelERP.BE.Services;
+using HotelERP.BE.DTOs.Notifications;
+using HotelERP.BE.Models.Enums;
+using HotelERP.BE.Models;
 
 namespace HotelERP.BE.Application.Services;
 
 public class BookingEngineService : IBookingEngineService
 {
     private readonly HotelDbContext _context;
-private readonly IDistributedLockFactory _lockFactory;
+    private readonly IDistributedLockFactory _lockFactory;
     private readonly IConnectionMultiplexer _redis;
+    private readonly INotificationService _notificationService;
 
-    // 1 CONSTRUCTOR
-    public BookingEngineService(HotelDbContext context, IDistributedLockFactory lockFactory, IConnectionMultiplexer redis)
+    public BookingEngineService(
+        HotelDbContext context, 
+        IDistributedLockFactory lockFactory, 
+        IConnectionMultiplexer redis,
+        INotificationService notificationService)
     {
         _context = context;
         _lockFactory = lockFactory;
         _redis = redis;
+        _notificationService = notificationService;
     }
 
     // ====================================================================
@@ -233,11 +242,32 @@ private readonly IDistributedLockFactory _lockFactory;
                 await db.StringSetAsync($"hold:{booking.Id}:{item.RoomTypeId}", "HOLDING", TimeSpan.FromMinutes(15));
             }
 
-            // Gán lại tổng tiền cuối cho mảng Booking cha
             booking.FinalAmount = finalTotalAmount;
             
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
+
+            // ✅ Thông báo Booking mới
+            var newBookingMsg = new NotificationMessage
+            {
+                Title = "Booking mới",
+                Content = $"Đơn đặt phòng mới #{booking.BookingCode} cho {request.GuestName}. Tổng: {finalTotalAmount:N0}đ.",
+                Type = "Success",
+                Action = NotificationAction.CreateBooking
+            };
+            var dbNotif = new Notification
+            {
+                Title = newBookingMsg.Title,
+                Content = newBookingMsg.Content,
+                Type = newBookingMsg.Type,
+                IsRead = false,
+                CreatedAt = DateTime.UtcNow
+            };
+            _context.Notifications.Add(dbNotif);
+            await _context.SaveChangesAsync();
+            newBookingMsg.Id = dbNotif.Id; // ✅ Cập nhật ID sau khi save DB
+            await _notificationService.SendToRoleAsync("Admin", newBookingMsg);
+
             return booking.Id;
         }
         catch {
@@ -268,6 +298,28 @@ private readonly IDistributedLockFactory _lockFactory;
         }
 
         await _context.SaveChangesAsync();
+
+        // ✅ Thông báo Force Cancel
+        var forceCancelMsg = new NotificationMessage
+        {
+            Title = "Hủy Booking (Admin)",
+            Content = $"Booking #{booking.BookingCode} đã bị Admin ép hủy.",
+            Type = "Warning",
+            Action = NotificationAction.CancelBooking
+        };
+        var dbNotif = new Notification
+        {
+            Title = forceCancelMsg.Title,
+            Content = forceCancelMsg.Content,
+            Type = forceCancelMsg.Type,
+            IsRead = false,
+            CreatedAt = DateTime.UtcNow
+        };
+        _context.Notifications.Add(dbNotif);
+        await _context.SaveChangesAsync();
+        forceCancelMsg.Id = dbNotif.Id; // ✅ Cập nhật ID sau khi save DB
+        await _notificationService.SendToRoleAsync("Admin", forceCancelMsg);
+
         return true;
     }
 

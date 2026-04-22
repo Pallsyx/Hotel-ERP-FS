@@ -5,6 +5,10 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.SignalR;
 using HotelERP.BE.Application.Interfaces;
+using HotelERP.BE.Services;
+using HotelERP.BE.DTOs.Notifications;
+using HotelERP.BE.Models.Enums;
+using HotelERP.BE.Models;
 
 namespace HotelERP.BE.API.Controllers;
 
@@ -14,11 +18,16 @@ public class LossAndDamagesController : ControllerBase
 {
     private readonly HotelDbContext _context;
     private readonly IHubContext<DamageHub> _hubContext;
+    private readonly INotificationService _notificationService;
 
-    public LossAndDamagesController(HotelDbContext context, IHubContext<DamageHub> hubContext)
+    public LossAndDamagesController(
+        HotelDbContext context, 
+        IHubContext<DamageHub> hubContext,
+        INotificationService notificationService)
     {
         _context = context;
         _hubContext = hubContext;
+        _notificationService = notificationService;
     }
 
     [HttpGet]
@@ -161,6 +170,28 @@ public class LossAndDamagesController : ControllerBase
 
         await _context.SaveChangesAsync();
         await _hubContext.Clients.All.SendAsync("DamageUpdated", id);
+
+        // ✅ Gửi thông báo hệ thống
+        var updateNotif = new Notification
+        {
+            Title = "Cập nhật đền bù",
+            Content = $"Phiếu đền bù phòng {damage.Room?.RoomNumber} đã được cập nhật bởi Admin.",
+            Type = "Info",
+            IsRead = false,
+            CreatedAt = DateTime.UtcNow
+        };
+        _context.Notifications.Add(updateNotif);
+        await _context.SaveChangesAsync();
+
+        await _notificationService.SendToRoleAsync("Admin", new NotificationMessage
+        {
+            Id = updateNotif.Id,
+            Title = updateNotif.Title,
+            Content = updateNotif.Content,
+            Type = "Info",
+            Action = NotificationAction.UpdateDamage
+        });
+
         return Ok(new { message = "Cập nhật thành công!" });
     }
 
@@ -282,6 +313,27 @@ public class LossAndDamagesController : ControllerBase
         };
 
         await _hubContext.Clients.All.SendAsync("ReceiveNewDamage", newRecord);
+
+        // ✅ Gửi thông báo hệ thống (Cảnh báo Warning)
+        var systemNotif = new Notification
+        {
+            Title = "Cảnh báo hỏng hóc",
+            Content = $"Phòng {newRecord.roomNumber} báo hỏng {newRecord.itemName} x{newRecord.quantity}. Phạt: {newRecord.penaltyAmount:N0}đ",
+            Type = "Warning",
+            IsRead = false,
+            CreatedAt = DateTime.UtcNow
+        };
+        _context.Notifications.Add(systemNotif);
+        await _context.SaveChangesAsync();
+
+        await _notificationService.SendToRoleAsync("Admin", new NotificationMessage
+        {
+            Id = systemNotif.Id,
+            Title = systemNotif.Title,
+            Content = systemNotif.Content,
+            Type = "Warning",
+            Action = NotificationAction.CreateDamage
+        });
 
         return Ok(newRecord);
     }

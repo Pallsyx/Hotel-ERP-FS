@@ -4,6 +4,7 @@ namespace HotelERP.BE.DTOs.Notifications
 {
     public class NotificationMessage
     {
+        public int Id { get; set; }
         public string Title { get; set; } = string.Empty;
         public string Content { get; set; } = string.Empty;
         public string Type { get; set; } = "Info"; // Success, Error, Warning, Info

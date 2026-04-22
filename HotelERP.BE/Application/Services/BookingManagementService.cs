@@ -5,6 +5,10 @@ using HotelERP.BE.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.SignalR;
 using HotelERP.BE.DTOs.Hubs;
+using HotelERP.BE.Services;
+using HotelERP.BE.DTOs.Notifications;
+using HotelERP.BE.Models.Enums;
+using HotelERP.BE.Models;
 
 namespace HotelERP.BE.Application.Services;
 
@@ -12,6 +16,8 @@ public class BookingManagementService : IBookingManagementService
 {
     private readonly HotelDbContext _context;
     private readonly IHubContext<RoomHub>? _hubContext;
+    private readonly INotificationService _notificationService;
+
     private static readonly Dictionary<string, List<string>> _allowedTransitions = new()
     {
         { BookingStatus.Pending,    new List<string> { BookingStatus.Confirmed, BookingStatus.Cancelled } },
@@ -20,10 +26,14 @@ public class BookingManagementService : IBookingManagementService
         { BookingStatus.Holding,    new List<string> { BookingStatus.Confirmed, BookingStatus.Cancelled } },
     };
 
-    public BookingManagementService(HotelDbContext context, IHubContext<RoomHub> hubContext)
+    public BookingManagementService(
+        HotelDbContext context, 
+        IHubContext<RoomHub> hubContext,
+        INotificationService notificationService)
     {
         _context = context;
         _hubContext = hubContext;
+        _notificationService = notificationService;
     }
 
     // ==============================================================
@@ -176,6 +186,34 @@ public class BookingManagementService : IBookingManagementService
 
         await _context.SaveChangesAsync();
 
+        // ✅ Gửi thông báo hệ thống (Cả đoàn)
+        var msg = new NotificationMessage
+        {
+            Title = "Cập nhật Booking",
+            Content = $"Booking #{bookingId} của {booking.GuestName} vừa chuyển sang '{newStatus}'.",
+            Type = "Info",
+            Action = newStatus switch
+            {
+                BookingStatus.CheckedIn => NotificationAction.CheckIn,
+                BookingStatus.CheckedOut => NotificationAction.CheckOut,
+                BookingStatus.Cancelled => NotificationAction.CancelBooking,
+                _ => NotificationAction.SystemUpdate
+            }
+        };
+
+        var dbNotif = new Notification
+        {
+            Title = msg.Title,
+            Content = msg.Content,
+            Type = msg.Type,
+            IsRead = false,
+            CreatedAt = DateTime.UtcNow
+        };
+        _context.Notifications.Add(dbNotif);
+        await _context.SaveChangesAsync();
+        msg.Id = dbNotif.Id; // ✅ Cập nhật ID sau khi save DB
+        await _notificationService.SendToRoleAsync("Admin", msg);
+
         // Bắn SignalR realtime → cập nhật cột Kinh doanh trên trang Quản lý Quỹ phòng
         if (_hubContext != null)
         {
@@ -271,12 +309,38 @@ public class BookingManagementService : IBookingManagementService
 
         await _context.SaveChangesAsync();
 
-        // Bắn SignalR realtime cho trang Quản lý Quỹ phòng
+        // 3. Bắn SignalR realtime cho trang Quản lý Quỹ phòng
         if (_hubContext != null && detail.Room != null)
         {
             await _hubContext.Clients.All.SendAsync("ReceiveRoomStatusUpdate",
                 detail.Room.Id, detail.Room.Status, detail.Room.CleaningStatus);
         }
+
+        // ✅ Gửi thông báo hệ thống (Phòng lẻ)
+        var detailMsg = new NotificationMessage
+        {
+            Title = "Cập nhật phòng",
+            Content = $"Phòng {detail.Room?.RoomNumber} vừa cập nhật trạng thái: {newStatus}.",
+            Type = "Info",
+            Action = newStatus switch
+            {
+                BookingStatus.CheckedIn => NotificationAction.CheckIn,
+                BookingStatus.CheckedOut => NotificationAction.CheckOut,
+                _ => NotificationAction.SystemUpdate
+            }
+        };
+        var dbNotif = new Notification
+        {
+            Title = detailMsg.Title,
+            Content = detailMsg.Content,
+            Type = detailMsg.Type,
+            IsRead = false,
+            CreatedAt = DateTime.UtcNow
+        };
+        _context.Notifications.Add(dbNotif);
+        await _context.SaveChangesAsync();
+        detailMsg.Id = dbNotif.Id; // ✅ Cập nhật ID sau khi save DB
+        await _notificationService.SendToRoleAsync("Admin", detailMsg);
 
         return (true, $"Đã cập nhật trạng thái phòng lẻ #{detailId} sang '{newStatus}' thành công.");
     }
@@ -445,6 +509,27 @@ public class BookingManagementService : IBookingManagementService
 
         await _context.SaveChangesAsync();
 
+        // ✅ Thông báo đổi phòng
+        var changeRoomMsg = new NotificationMessage
+        {
+            Title = "Đổi phòng",
+            Content = $"Phòng {oldRoomNumber} đã được chuyển sang {newRoom.RoomNumber}.",
+            Type = "Info",
+            Action = NotificationAction.ChangeRoom
+        };
+        var dbNotif = new Notification
+        {
+            Title = changeRoomMsg.Title,
+            Content = changeRoomMsg.Content,
+            Type = changeRoomMsg.Type,
+            IsRead = false,
+            CreatedAt = DateTime.UtcNow
+        };
+        _context.Notifications.Add(dbNotif);
+        await _context.SaveChangesAsync();
+        changeRoomMsg.Id = dbNotif.Id; // ✅ Cập nhật ID sau khi save DB
+        await _notificationService.SendToRoleAsync("Admin", changeRoomMsg);
+
         return (true, $"Đã đổi từ phòng {oldRoomNumber} sang phòng {newRoom.RoomNumber} thành công.");
     }
 
@@ -514,6 +599,27 @@ public class BookingManagementService : IBookingManagementService
         }
 
         await _context.SaveChangesAsync();
+
+        // ✅ Thông báo nạp cọc
+        var depositMsg = new NotificationMessage
+        {
+            Title = "Nạp cọc",
+            Content = $"Booking #{bookingId} vừa nhận cọc: {amount:N0}đ. Tổng cọc: {booking.DepositAmount:N0}đ.",
+            Type = "Success",
+            Action = NotificationAction.AddDeposit
+        };
+        var dbNotif = new Notification
+        {
+            Title = depositMsg.Title,
+            Content = depositMsg.Content,
+            Type = depositMsg.Type,
+            IsRead = false,
+            CreatedAt = DateTime.UtcNow
+        };
+        _context.Notifications.Add(dbNotif);
+        await _context.SaveChangesAsync();
+        depositMsg.Id = dbNotif.Id; // ✅ Cập nhật ID sau khi save DB
+        await _notificationService.SendToRoleAsync("Admin", depositMsg);
         
         return (true, "Nạp cọc thành công!", booking.DepositAmount);
     }

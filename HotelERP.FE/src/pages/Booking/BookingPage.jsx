@@ -483,7 +483,7 @@ const SelectRoom = () => {
 
                         let cardStyle = {
                           padding: '20px 10px', textAlign: 'center', borderRadius: 8,
-                          border: '1px solid #d9d9d9', backgroundColor: '#ffffff',
+                          borderWidth: '1px', borderStyle: 'solid', borderColor: '#d9d9d9', backgroundColor: '#ffffff',
                           cursor: 'pointer', transition: 'all 0.3s ease',
                         };
 
@@ -531,7 +531,7 @@ const SelectRoom = () => {
         confirmLoading={isSubmitting}
         width={700}
         centered
-        maskClosable={false} // Chống bấm ra ngoài tắt nhầm
+        mask={{ closable: false }} // Chống bấm ra ngoài tắt nhầm
       >
         <div style={{ padding: '20px 0 0 0' }}>
           <Form 

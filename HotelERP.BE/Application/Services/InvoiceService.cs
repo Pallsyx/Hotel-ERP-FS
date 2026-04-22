@@ -7,6 +7,10 @@ using HotelERP.BE.Infrastructure.Data;
 using HotelERP.BE.Application.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using HotelERP.BE.Services;
+using HotelERP.BE.DTOs.Notifications;
+using HotelERP.BE.Models.Enums;
+using HotelERP.BE.Models;
 
 namespace HotelERP.BE.Application.Services
 {
@@ -16,10 +20,12 @@ namespace HotelERP.BE.Application.Services
         private const string DamageOverrideTokenPrefix = "[[DAMAGE_OVERRIDE:";
 
         private readonly HotelDbContext _dbContext;
+        private readonly INotificationService _notificationService;
 
-        public InvoiceService(HotelDbContext dbContext)
+        public InvoiceService(HotelDbContext dbContext, INotificationService notificationService)
         {
             _dbContext = dbContext;
+            _notificationService = notificationService;
         }
 
         private sealed class DetailChargeSummary
@@ -354,23 +360,31 @@ namespace HotelERP.BE.Application.Services
             (string.IsNullOrWhiteSpace(request.Reason) ? string.Empty : $" | Lý do: {request.Reason}"));
         invoice.UpdatedAt = DateTime.UtcNow;
 
-        RecalculateInvoice(booking, invoice);
-
         await _dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         var after = MapResponse(booking, invoice);
 
-        AddAuditLog(
-            performedByUserId,
-            "ADD_EXTRA_FEE_INVOICE",
-            "Invoices",
-            invoice.Id,
-            before,
-            after,
-            request.Reason);
-
+        // ✅ Thông báo Phụ phí
+        var extraFeeMsg = new NotificationMessage
+        {
+            Title = "Phụ phí mới",
+            Content = $"Hóa đơn #{invoice.InvoiceCode} nhận thêm phụ phí: {request.Amount:N0}đ.",
+            Type = "Info",
+            Action = NotificationAction.AddExtraFee
+        };
+        var dbNotif = new Notification
+        {
+            Title = extraFeeMsg.Title,
+            Content = extraFeeMsg.Content,
+            Type = extraFeeMsg.Type,
+            IsRead = false,
+            CreatedAt = DateTime.UtcNow
+        };
+        _dbContext.Notifications.Add(dbNotif);
         await _dbContext.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
+        extraFeeMsg.Id = dbNotif.Id; // ✅ Cập nhật ID sau khi save DB
+        await _notificationService.SendToRoleAsync("Admin", extraFeeMsg);
 
         return ApiResult<InvoiceActionResponseDto>.Ok(
             after,
@@ -564,19 +578,31 @@ namespace HotelERP.BE.Application.Services
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        var after = MapResponse(booking, invoice);
-
-        AddAuditLog(
-            performedByUserId,
-            "FINALIZE_INVOICE_PARTIAL",
-            "Invoices",
-            invoice.Id,
-            before,
-            after,
-            request.Note);
-
         await _dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+
+        var after = MapResponse(booking, invoice);
+
+        // ✅ Thông báo Thanh toán thành công
+        var payMsg = new NotificationMessage
+        {
+            Title = "Thanh toán thành công",
+            Content = $"Hóa đơn #{invoice.InvoiceCode} đã được thanh toán: {invoice.FinalTotal:N0}đ.",
+            Type = "Success",
+            Action = NotificationAction.ConfirmPayment
+        };
+        var dbNotif = new Notification
+        {
+            Title = payMsg.Title,
+            Content = payMsg.Content,
+            Type = payMsg.Type,
+            IsRead = false,
+            CreatedAt = DateTime.UtcNow
+        };
+        _dbContext.Notifications.Add(dbNotif);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        payMsg.Id = dbNotif.Id; // ✅ Cập nhật ID sau khi save DB
+        await _notificationService.SendToRoleAsync("Admin", payMsg);
 
         return ApiResult<InvoiceActionResponseDto>.Ok(
             after,
