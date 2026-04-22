@@ -1,0 +1,115 @@
+import React, { useState } from 'react';
+import { Table, Button, Space, Modal, Input, Tag, message } from 'antd';
+import { CheckOutlined, EyeInvisibleOutlined } from '@ant-design/icons';
+// import axiosClient from '../../api/axiosClient';
+
+const { TextArea } = Input;
+
+export default function ReviewManagement() {
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [selectedReview, setSelectedReview] = useState(null);
+  const [hideReason, setHideReason] = useState('');
+  
+  // Mock Data
+  const [reviews, setReviews] = useState([
+    { id: 1, guestName: 'Nguyễn Văn A', rating: 5, comment: 'Khách sạn rất tuyệt!', status: 'Pending' },
+    { id: 2, guestName: 'Trần Thị B', rating: 1, comment: 'Phòng ồn ào.', status: 'Pending' }
+  ]);
+
+  const handleApprove = async (reviewId) => {
+    try {
+      // await axiosClient.post('/api/reviews/moderate', { reviewId, action: 'Approve' });
+      message.success('Đã duyệt đánh giá!');
+      setReviews(reviews.map(r => r.id === reviewId ? { ...r, status: 'Approved' } : r));
+    } catch (error) {
+      message.error('Lỗi khi duyệt.');
+    }
+  };
+
+  const showHideModal = (review) => {
+    setSelectedReview(review);
+    setHideReason('');
+    setIsModalVisible(true);
+  };
+
+  const handleConfirmHide = async () => {
+    if (!hideReason.trim()) {
+      message.warning('Vui lòng nhập lý do ẩn!');
+      return;
+    }
+    try {
+      // await axiosClient.post('/api/reviews/moderate', { reviewId: selectedReview.id, action: 'Hide', reason: hideReason });
+      message.success('Đã ẩn đánh giá!');
+      setReviews(reviews.map(r => r.id === selectedReview.id ? { ...r, status: 'Hidden' } : r));
+      setIsModalVisible(false);
+    } catch (error) {
+      message.error('Lỗi khi ẩn đánh giá.');
+    }
+  };
+
+  const columns = [
+    { title: 'ID', dataIndex: 'id', key: 'id' },
+    { title: 'Khách Hàng', dataIndex: 'guestName', key: 'guestName' },
+    { title: 'Rating', dataIndex: 'rating', key: 'rating', render: val => `${val} Sao` },
+    { title: 'Nội dung', dataIndex: 'comment', key: 'comment' },
+    { 
+      title: 'Trạng thái', 
+      dataIndex: 'status', 
+      key: 'status',
+      render: status => {
+        if(status === 'Approved') return <Tag color="success">Đã Duyệt</Tag>;
+        if(status === 'Hidden') return <Tag color="error">Đã Ẩn</Tag>;
+        return <Tag color="warning">Chờ Duyệt</Tag>;
+      }
+    },
+    {
+      title: 'Thao tác',
+      key: 'action',
+      render: (_, record) => (
+        <Space size="middle">
+          {record.status === 'Pending' && (
+            <>
+              <Button 
+                type="text" 
+                icon={<CheckOutlined style={{ color: 'green' }}/>} 
+                onClick={() => handleApprove(record.id)}
+              >Duyệt</Button>
+              <Button 
+                type="text" 
+                danger 
+                icon={<EyeInvisibleOutlined />} 
+                onClick={() => showHideModal(record)}
+              >Ẩn</Button>
+            </>
+          )}
+        </Space>
+      )
+    }
+  ];
+
+  return (
+    <div style={{ padding: 24, background: '#fff' }}>
+      <h2>Quản lý Đánh giá Khách hàng</h2>
+      <Table columns={columns} dataSource={reviews} rowKey="id" />
+
+      {/* Modal nhập lý do ẩn */}
+      <Modal 
+        title="Xác nhận ẩn đánh giá" 
+        open={isModalVisible} 
+        onOk={handleConfirmHide} 
+        onCancel={() => setIsModalVisible(false)}
+        okText="Xác nhận Ẩn"
+        okButtonProps={{ danger: true }}
+      >
+        <p>Bạn đang ẩn đánh giá của khách <b>{selectedReview?.guestName}</b>.</p>
+        <p>Vui lòng cung cấp lý do (Bắt buộc):</p>
+        <TextArea 
+          rows={4} 
+          value={hideReason} 
+          onChange={(e) => setHideReason(e.target.value)} 
+          placeholder="Ví dụ: Nội dung chứa từ ngữ không phù hợp..."
+        />
+      </Modal>
+    </div>
+  );
+}

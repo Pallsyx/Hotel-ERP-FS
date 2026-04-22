@@ -353,6 +353,9 @@ namespace HotelERP.BE.Migrations
                         .HasColumnName("created_at")
                         .HasDefaultValueSql("(getdate())", "DF_Bookings_CreatedAt");
 
+                    b.Property<decimal>("DepositAmount")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<decimal>("DiscountAmount")
                         .HasColumnType("decimal(18, 2)")
                         .HasColumnName("discount_amount");
@@ -516,6 +519,18 @@ namespace HotelERP.BE.Migrations
                         .HasColumnType("int")
                         .HasColumnName("room_type_id");
 
+                    b.Property<DateTime?>("SettledAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("settled_at");
+
+                    b.Property<string>("SettlementStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("settlement_status")
+                        .HasDefaultValue("UNPAID", "DF_BookingDetails_SettlementStatus");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -540,6 +555,80 @@ namespace HotelERP.BE.Migrations
                     b.ToTable("Booking_Details", (string)null);
                 });
 
+            modelBuilder.Entity("HotelERP.BE.Domain.Models.Equipment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("Id");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("BasePrice")
+                        .HasColumnType("decimal(18, 2)");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("datetime");
+
+                    b.Property<int>("DamagedQuantity")
+                        .HasColumnType("int")
+                        .HasColumnName("DamagedQuantity");
+
+                    b.Property<decimal>("DefaultPriceIfLost")
+                        .HasColumnType("decimal(18, 2)");
+
+                    b.Property<string>("ImageUrl")
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ImageUrl");
+
+                    b.Property<int>("InUseQuantity")
+                        .HasColumnType("int")
+                        .HasColumnName("InUseQuantity");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit")
+                        .HasColumnName("IsActive");
+
+                    b.Property<string>("ItemCode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("LiquidatedQuantity")
+                        .HasColumnType("int")
+                        .HasColumnName("LiquidatedQuantity");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("Supplier")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<int>("TotalQuantity")
+                        .HasColumnType("int")
+                        .HasColumnName("TotalQuantity");
+
+                    b.Property<string>("Unit")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Equipments", (string)null);
+                });
+
             modelBuilder.Entity("HotelERP.BE.Domain.Models.Invoice", b =>
                 {
                     b.Property<int>("Id")
@@ -553,22 +642,21 @@ namespace HotelERP.BE.Migrations
                         .HasColumnType("int")
                         .HasColumnName("booking_id");
 
-                    b.Property<DateTime>("CreatedAt")
+                    b.Property<DateTime?>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime")
                         .HasColumnName("created_at")
                         .HasDefaultValueSql("(getdate())", "DF_Invoices_CreatedAt");
 
-                    b.Property<decimal>("DiscountAmount")
+                    b.Property<decimal?>("DiscountAmount")
                         .HasColumnType("decimal(18, 2)")
                         .HasColumnName("discount_amount");
 
-                    b.Property<decimal>("FinalTotal")
+                    b.Property<decimal?>("FinalTotal")
                         .HasColumnType("decimal(18, 2)")
                         .HasColumnName("final_total");
 
                     b.Property<string>("InvoiceCode")
-                        .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)")
                         .HasColumnName("invoice_code");
@@ -577,7 +665,7 @@ namespace HotelERP.BE.Migrations
                         .HasColumnType("datetime")
                         .HasColumnName("issued_at");
 
-                    b.Property<decimal>("ManualAdjustmentAmount")
+                    b.Property<decimal?>("ManualAdjustmentAmount")
                         .HasColumnType("decimal(18, 2)")
                         .HasColumnName("manual_adjustment_amount");
 
@@ -590,31 +678,30 @@ namespace HotelERP.BE.Migrations
                         .HasColumnType("datetime")
                         .HasColumnName("paid_at");
 
-                    b.Property<decimal>("RefundAmount")
+                    b.Property<decimal?>("RefundAmount")
                         .HasColumnType("decimal(18, 2)")
                         .HasColumnName("refund_amount");
 
                     b.Property<string>("Status")
-                        .IsRequired()
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)")
                         .HasColumnName("status")
                         .HasDefaultValue("Draft", "DF_Invoices_Status");
 
-                    b.Property<decimal>("TaxAmount")
+                    b.Property<decimal?>("TaxAmount")
                         .HasColumnType("decimal(18, 2)")
                         .HasColumnName("tax_amount");
 
-                    b.Property<decimal>("TotalDamageAmount")
+                    b.Property<decimal?>("TotalDamageAmount")
                         .HasColumnType("decimal(18, 2)")
                         .HasColumnName("total_damage_amount");
 
-                    b.Property<decimal>("TotalRoomAmount")
+                    b.Property<decimal?>("TotalRoomAmount")
                         .HasColumnType("decimal(18, 2)")
                         .HasColumnName("total_room_amount");
 
-                    b.Property<decimal>("TotalServiceAmount")
+                    b.Property<decimal?>("TotalServiceAmount")
                         .HasColumnType("decimal(18, 2)")
                         .HasColumnName("total_service_amount");
 
@@ -628,9 +715,72 @@ namespace HotelERP.BE.Migrations
                     b.HasIndex("BookingId");
 
                     b.HasIndex(new[] { "InvoiceCode" }, "UQ_Invoices_Code")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[invoice_code] IS NOT NULL");
 
                     b.ToTable("Invoices");
+                });
+
+            modelBuilder.Entity("HotelERP.BE.Domain.Models.InvoiceBookingDetail", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("id");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BookingDetailId")
+                        .HasColumnType("int")
+                        .HasColumnName("booking_detail_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("(getdate())", "DF_InvoiceBookingDetails_CreatedAt");
+
+                    b.Property<decimal>("DamageCharge")
+                        .HasColumnType("decimal(18, 2)")
+                        .HasColumnName("damage_charge");
+
+                    b.Property<decimal>("DiscountAmount")
+                        .HasColumnType("decimal(18, 2)")
+                        .HasColumnName("discount_amount");
+
+                    b.Property<decimal>("ExtraFeeAmount")
+                        .HasColumnType("decimal(18, 2)")
+                        .HasColumnName("extra_fee_amount");
+
+                    b.Property<int>("InvoiceId")
+                        .HasColumnType("int")
+                        .HasColumnName("invoice_id");
+
+                    b.Property<decimal>("LineTotal")
+                        .HasColumnType("decimal(18, 2)")
+                        .HasColumnName("line_total");
+
+                    b.Property<decimal>("RoomCharge")
+                        .HasColumnType("decimal(18, 2)")
+                        .HasColumnName("room_charge");
+
+                    b.Property<decimal>("ServiceCharge")
+                        .HasColumnType("decimal(18, 2)")
+                        .HasColumnName("service_charge");
+
+                    b.Property<decimal>("TaxAmount")
+                        .HasColumnType("decimal(18, 2)")
+                        .HasColumnName("tax_amount");
+
+                    b.HasKey("Id")
+                        .HasName("PK__InvoiceBookingDetails__3213E83F");
+
+                    b.HasIndex(new[] { "BookingDetailId" }, "IX_InvoiceBookingDetails_BookingDetail");
+
+                    b.HasIndex(new[] { "InvoiceId", "BookingDetailId" }, "UQ_InvoiceBookingDetails_InvoiceDetail")
+                        .IsUnique();
+
+                    b.ToTable("Invoice_Booking_Details", (string)null);
                 });
 
             modelBuilder.Entity("HotelERP.BE.Domain.Models.LossAndDamage", b =>
@@ -1358,25 +1508,28 @@ namespace HotelERP.BE.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("datetime")
-                        .HasColumnName("created_at")
-                        .HasDefaultValueSql("(getdate())", "DF_RoomInventory_CreatedAt");
+                    b.Property<int>("EquipmentId")
+                        .HasColumnType("int")
+                        .HasColumnName("EquipmentId");
 
-                    b.Property<string>("ItemName")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)")
-                        .HasColumnName("item_name");
+                    b.Property<bool?>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
 
                     b.Property<string>("ItemType")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)")
-                        .HasColumnName("item_type")
-                        .HasDefaultValue("ASSET", "DF_RoomInventory_ItemType");
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasDefaultValue("Asset")
+                        .HasColumnName("item_type");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("note");
 
                     b.Property<decimal>("PriceIfLost")
                         .HasColumnType("decimal(18, 2)")
@@ -1385,32 +1538,17 @@ namespace HotelERP.BE.Migrations
                     b.Property<int>("Quantity")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int")
-                        .HasColumnName("quantity")
-                        .HasDefaultValue(1, "DF_RoomInventory_Quantity");
+                        .HasDefaultValue(1)
+                        .HasColumnName("quantity");
 
                     b.Property<int?>("RoomId")
                         .HasColumnType("int")
                         .HasColumnName("room_id");
 
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)")
-                        .HasColumnName("status")
-                        .HasDefaultValue("ACTIVE", "DF_RoomInventory_Status");
-
-                    b.Property<string>("Unit")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)")
-                        .HasColumnName("unit");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime")
-                        .HasColumnName("updated_at");
-
                     b.HasKey("Id")
-                        .HasName("PK__Room_Inv__3213E83F11FADD17");
+                        .HasName("PKRoom_Inv3213E83F11FADD17");
+
+                    b.HasIndex("EquipmentId");
 
                     b.HasIndex("RoomId");
 
@@ -1514,12 +1652,6 @@ namespace HotelERP.BE.Migrations
                     b.Property<int>("AmenityId")
                         .HasColumnType("int")
                         .HasColumnName("amenity_id");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("datetime")
-                        .HasColumnName("created_at")
-                        .HasDefaultValueSql("(getdate())", "DF_RoomTypeAmenities_CreatedAt");
 
                     b.HasKey("RoomTypeId", "AmenityId");
 
@@ -1730,12 +1862,6 @@ namespace HotelERP.BE.Migrations
                         .HasColumnType("nvarchar(50)")
                         .HasColumnName("code");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("datetime")
-                        .HasColumnName("created_at")
-                        .HasDefaultValueSql("(getdate())", "DF_Vouchers_CreatedAt");
-
                     b.Property<string>("DiscountType")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -1746,33 +1872,13 @@ namespace HotelERP.BE.Migrations
                         .HasColumnType("decimal(18, 2)")
                         .HasColumnName("discount_value");
 
-                    b.Property<decimal>("MinBookingAmount")
-                        .HasColumnType("decimal(18, 2)")
-                        .HasColumnName("min_booking_amount");
-
-                    b.Property<decimal>("MinBookingValue")
+                    b.Property<decimal?>("MinBookingValue")
                         .HasColumnType("decimal(18, 2)")
                         .HasColumnName("min_booking_value");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)")
-                        .HasColumnName("status")
-                        .HasDefaultValue("ACTIVE", "DF_Vouchers_Status");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime")
-                        .HasColumnName("updated_at");
 
                     b.Property<int?>("UsageLimit")
                         .HasColumnType("int")
                         .HasColumnName("usage_limit");
-
-                    b.Property<int>("UsedCount")
-                        .HasColumnType("int")
-                        .HasColumnName("used_count");
 
                     b.Property<DateTime?>("ValidFrom")
                         .HasColumnType("datetime")
@@ -1785,8 +1891,6 @@ namespace HotelERP.BE.Migrations
                     b.HasKey("Id")
                         .HasName("PK__Vouchers__3213E83FF1D19D35");
 
-                    b.HasIndex(new[] { "Status", "ValidFrom", "ValidTo" }, "IX_Vouchers_StatusDates");
-
                     b.HasIndex(new[] { "Code" }, "UQ_Vouchers_Code")
                         .IsUnique();
 
@@ -1797,41 +1901,70 @@ namespace HotelERP.BE.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("id");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<string>("Content")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("content");
 
                     b.Property<DateTime?>("CreatedAt")
-                        .HasColumnType("datetime2");
+                        .HasColumnType("datetime2")
+                        .HasColumnName("created_at");
 
                     b.Property<bool>("IsRead")
-                        .HasColumnType("bit");
+                        .HasColumnType("bit")
+                        .HasColumnName("is_read");
 
                     b.Property<string>("ReferenceLink")
                         .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)");
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("reference_link");
 
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)");
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("title");
 
                     b.Property<string>("Type")
                         .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("type");
 
                     b.Property<int?>("UserId")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("user_id");
 
                     b.HasKey("Id");
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("Notifications");
+                    b.ToTable("Notifications", (string)null);
+                });
+
+            modelBuilder.Entity("HotelERP.BE.Models.UserPermission", b =>
+                {
+                    b.Property<int>("UserId")
+                        .HasColumnType("int")
+                        .HasColumnName("user_id");
+
+                    b.Property<int>("PermissionId")
+                        .HasColumnType("int")
+                        .HasColumnName("permission_id");
+
+                    b.Property<bool>("IsGranted")
+                        .HasColumnType("bit")
+                        .HasColumnName("is_granted");
+
+                    b.HasKey("UserId", "PermissionId");
+
+                    b.HasIndex("PermissionId");
+
+                    b.ToTable("User_Permissions");
                 });
 
             modelBuilder.Entity("HotelERP.BE.Domain.Models.Article", b =>
@@ -1910,6 +2043,27 @@ namespace HotelERP.BE.Migrations
                         .HasConstraintName("FK_Invoices_Bookings");
 
                     b.Navigation("Booking");
+                });
+
+            modelBuilder.Entity("HotelERP.BE.Domain.Models.InvoiceBookingDetail", b =>
+                {
+                    b.HasOne("HotelERP.BE.Domain.Models.BookingDetail", "BookingDetail")
+                        .WithMany("InvoiceBookingDetails")
+                        .HasForeignKey("BookingDetailId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_InvoiceBookingDetails_BookingDetails");
+
+                    b.HasOne("HotelERP.BE.Domain.Models.Invoice", "Invoice")
+                        .WithMany("InvoiceBookingDetails")
+                        .HasForeignKey("InvoiceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_InvoiceBookingDetails_Invoices");
+
+                    b.Navigation("BookingDetail");
+
+                    b.Navigation("Invoice");
                 });
 
             modelBuilder.Entity("HotelERP.BE.Domain.Models.LossAndDamage", b =>
@@ -2063,10 +2217,18 @@ namespace HotelERP.BE.Migrations
 
             modelBuilder.Entity("HotelERP.BE.Domain.Models.RoomInventory", b =>
                 {
+                    b.HasOne("HotelERP.BE.Domain.Models.Equipment", "Equipment")
+                        .WithMany()
+                        .HasForeignKey("EquipmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("HotelERP.BE.Domain.Models.Room", "Room")
                         .WithMany("RoomInventories")
                         .HasForeignKey("RoomId")
                         .HasConstraintName("FK_RoomInventory_Rooms");
+
+                    b.Navigation("Equipment");
 
                     b.Navigation("Room");
                 });
@@ -2126,6 +2288,25 @@ namespace HotelERP.BE.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("HotelERP.BE.Models.UserPermission", b =>
+                {
+                    b.HasOne("HotelERP.BE.Domain.Models.Permission", "Permission")
+                        .WithMany()
+                        .HasForeignKey("PermissionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("HotelERP.BE.Domain.Models.User", "User")
+                        .WithMany("UserPermissions")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Permission");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("HotelERP.BE.Domain.Models.Amenity", b =>
                 {
                     b.Navigation("RoomTypeAmenities");
@@ -2145,6 +2326,8 @@ namespace HotelERP.BE.Migrations
 
             modelBuilder.Entity("HotelERP.BE.Domain.Models.BookingDetail", b =>
                 {
+                    b.Navigation("InvoiceBookingDetails");
+
                     b.Navigation("LossAndDamages");
 
                     b.Navigation("OrderServices");
@@ -2152,6 +2335,8 @@ namespace HotelERP.BE.Migrations
 
             modelBuilder.Entity("HotelERP.BE.Domain.Models.Invoice", b =>
                 {
+                    b.Navigation("InvoiceBookingDetails");
+
                     b.Navigation("Payments");
                 });
 
@@ -2223,6 +2408,8 @@ namespace HotelERP.BE.Migrations
                     b.Navigation("Bookings");
 
                     b.Navigation("Reviews");
+
+                    b.Navigation("UserPermissions");
                 });
 
             modelBuilder.Entity("HotelERP.BE.Domain.Models.Voucher", b =>
