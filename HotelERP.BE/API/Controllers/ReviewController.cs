@@ -4,6 +4,7 @@ using System.Net;
 using HotelERP.BE.Domain.Models;
 using HotelERP.BE.Services;
 using HotelERP.BE.Infrastructure.Data;
+using HotelERP.BE.Helpers.AuditLogs;
 using HotelERP.BE.Utils; // Bổ sung để gọi HotelDbContext
 
 namespace HotelERP.BE.Controllers;
@@ -72,19 +73,15 @@ public class ReviewController(HotelDbContext context, ICloudinaryService cloudin
             decodedReason = WebUtility.UrlDecode(reasonValues.ToString());
         }
 
-        // 3. Ghi Audit Log với Target-typed new()
-        AuditLog auditLog = new()
-        {
-            Action = "HIDE_REVIEW",
-            TableName = "Reviews",
-            RecordId = id,
-            Reason = decodedReason,
-            CreatedAt = DateTime.UtcNow
-        };
+        // 3. Ghi Audit Log (dùng extension method, bên trong vẫn là _context.AuditLogs.Add)
+        await context.AddAuditLogAsync(
+            userId: 0, // TODO: Lấy userId thật từ JWT
+            roleName: "System",
+            actionType: "HIDE_REVIEW",
+            entityType: "Reviews",
+            message: decodedReason
+        );
 
-        context.AuditLogs.Add(auditLog);
-        
-        await context.SaveChangesAsync();
 
         return Ok(new { message = "Đã ẩn đánh giá và ghi log thành công." });
     }

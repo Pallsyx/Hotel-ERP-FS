@@ -208,7 +208,7 @@ builder.Services.AddScoped<IBookingManagementService, BookingManagementService>(
 builder.Services.AddScoped<IInvoiceService, InvoiceService>();
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(Program).Assembly));
 builder.Services.AddScoped<IEmailService, EmailService>();
-
+builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 
 
 builder.Services.AddHttpContextAccessor();

@@ -7,6 +7,7 @@ using HotelERP.BE.Infrastructure.Data;
 using HotelERP.BE.Application.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using HotelERP.BE.Helpers.AuditLogs;
 
 namespace HotelERP.BE.Application.Services
 {
@@ -1490,7 +1491,7 @@ namespace HotelERP.BE.Application.Services
         return string.IsNullOrWhiteSpace(cleaned) ? null : cleaned;
     }
 
-    private void AddAuditLog(
+    private async Task AddAuditLog(
         int? userId,
         string action,
         string tableName,
@@ -1499,17 +1500,15 @@ namespace HotelERP.BE.Application.Services
         object? newValue,
         string? reason)
     {
-        _dbContext.AuditLogs.Add(new AuditLog
-        {
-            UserId = userId,
-            Action = action,
-            TableName = tableName,
-            RecordId = recordId,
-            OldValue = oldValue is null ? null : JsonSerializer.Serialize(oldValue),
-            NewValue = newValue is null ? null : JsonSerializer.Serialize(newValue),
-            Reason = reason,
-            CreatedAt = DateTime.UtcNow
-        });
+        // Dùng extension method, bên trong vẫn là _dbContext.AuditLogs.Add(new AuditLog {...})
+        await _dbContext.AddAuditLogAsync(
+            userId: userId ?? 0,
+            roleName: "System",
+            actionType: action,
+            entityType: tableName,
+            message: reason ?? "No reason provided",
+            changes: new { Old = oldValue, New = newValue }
+        );
     }
 
     private static string BuildInvoiceCode(string bookingCode, int sequence)

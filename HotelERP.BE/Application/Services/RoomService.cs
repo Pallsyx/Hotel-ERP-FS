@@ -4,6 +4,7 @@ using HotelERP.BE.Application.DTOs;
 using HotelERP.BE.Infrastructure.Data;
 using HotelERP.BE.Domain.Models;
 using HotelERP.BE.Utils;
+using HotelERP.BE.Helpers.AuditLogs;
 using Microsoft.AspNetCore.SignalR;
 using HotelERP.BE.DTOs.Hubs;
 
@@ -111,7 +112,7 @@ public class RoomService : IRoomService
         return true;
     }
 
-    public async Task<bool> ReportDamageAsync(int userId, ReportDamageRequest request)
+    public async Task<bool> ReportDamageAsync(int userId, string roleName, ReportDamageRequest request)
     {
         var room = await _context!.Rooms.FindAsync(request.RoomId);
         if (room == null || room.DeletedAt != null)
@@ -187,17 +188,14 @@ public class RoomService : IRoomService
         _context.LossAndDamages.Add(damage);
         await _context.SaveChangesAsync();
 
-        _context.AuditLogs.Add(new AuditLog
-        {
-            UserId = userId,
-            Action = "REPORT_DAMAGE",
-            TableName = "Loss_And_Damages",
-            RecordId = damage.Id,
-            Reason = request.Reason,
-            CreatedAt = DateTime.UtcNow
-        });
-
-        await _context.SaveChangesAsync();
+        // Dùng extension method, bên trong vẫn là _context.AuditLogs.Add(new AuditLog {...})
+        await _context.AddAuditLogAsync(
+            userId: userId,
+            roleName: roleName,
+            actionType: "REPORT_DAMAGE",
+            entityType: "Loss_And_Damages",
+            message: request.Reason ?? "Ghi nhận hỏng hóc/mất mát vật tư"
+        );
         return true;
     }
 

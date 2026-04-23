@@ -13,6 +13,7 @@ import MainLayout from '../layouts/MainLayout';
 import { useAuthStore } from '../store/authStore';
 import UserManagement from '../pages/Users/UserManagement';
 import RoleManagement from '../pages/Users/RoleManagement';
+import AuditLogs from '../pages/Admin/AuditLogs';
 import LossAndDamages from '../pages/LossAndDamages.jsx';
 import UserProfile from '../pages/Profile/UserProfile';
 import BookingSystem from '../pages/Booking/BookingPage';
@@ -50,7 +51,7 @@ const AdminRoutes = () => {
 
         <Route path='users' element={<UserManagement />} />
         <Route path='roles' element={<RoleManagement />} />
-        <Route path='audit-logs' element={<Placeholder title='Truy vết hệ thống (Audit Logs)' />} />
+        <Route path='audit-logs' element={<AuditLogs />} />
         <Route path='profile' element={<UserProfile />} />
 
         <Route path='room-types' element={<RoomTypeManagement />} />
