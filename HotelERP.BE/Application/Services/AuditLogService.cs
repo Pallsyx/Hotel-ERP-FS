@@ -40,7 +40,10 @@ public class AuditLogService : IAuditLogService
             {
                 try
                 {
-                    var parsedData = JsonSerializer.Deserialize<RawLogDataDto>(log.LogData);
+                    // CaseInsensitive bắt buộc: JSON trong DB được ghi bằng camelCase (AuditLogExtensions)
+                    // nhưng RawLogDataDto dùng PascalCase properties
+                    var jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                    var parsedData = JsonSerializer.Deserialize<RawLogDataDto>(log.LogData, jsonOptions);
                     if (parsedData != null && parsedData.Events != null)
                     {
                         var events = new List<AuditEventDto>();

@@ -29,7 +29,7 @@ public class AuditLogsController : ControllerBase
         var role = User.FindFirst(ClaimTypes.Role)?.Value ?? string.Empty;
 
         var logs = await _auditLogService.GetAuditLogsAsync(query, userId, role);
-        return Ok(new { Message = "Success", Data = logs });
+        return Ok(new { success = true, message = "Success", data = logs });
     }
 
     [HttpGet("export")]

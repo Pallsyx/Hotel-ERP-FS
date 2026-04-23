@@ -75,8 +75,9 @@ public static class AuditLogExtensions
         {
             // ĐÃ CÓ → Parse JSON cũ, nối thêm event, update lại
             var parsed = JsonSerializer.Deserialize<JsonElement>(existingLog.LogData);
-            var currentEvents = parsed.GetProperty("Events").EnumerateArray().ToList();
-            var totalEvents = parsed.GetProperty("TotalEvents").GetInt32();
+            // Dùng camelCase vì JSON được ghi bởi JsonNamingPolicy.CamelCase ở trên
+            var currentEvents = parsed.GetProperty("events").EnumerateArray().ToList();
+            var totalEvents   = parsed.GetProperty("totalEvents").GetInt32();
 
             // Thêm event mới vào cuối danh sách
             var allEventsJson = new System.Collections.Generic.List<object>();
