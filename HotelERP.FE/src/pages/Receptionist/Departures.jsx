@@ -4,11 +4,12 @@ import {
   Tooltip, message, Popconfirm, Tag, Badge
 } from 'antd';
 import {
-  SearchOutlined, CopyOutlined, ExportOutlined, ReloadOutlined, ClockCircleOutlined
+  SearchOutlined, CopyOutlined, ExportOutlined, ReloadOutlined,
+  ClockCircleOutlined, EyeOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useNavigate } from 'react-router-dom';
-import axiosClient from '../../api/axiosClient';
+import bookingManagementApi from '../../api/bookingManagementApi';
 
 const { Title, Text } = Typography;
 
@@ -28,7 +29,7 @@ const Departures = () => {
         // Gửi ngày theo chuẩn ISO, backend sẽ lọc theo ngày đó
         params.checkOutDate = date.format('YYYY-MM-DD');
       }
-      const res = await axiosClient.get('/booking-management/departures', { params });
+      const res = await bookingManagementApi.getDepartures(params);
       const raw = res.data?.data ?? [];
 
       // Flatten: mỗi BookingDetail → 1 dòng trong bảng
@@ -73,11 +74,12 @@ const Departures = () => {
 
   const handleCheckOut = async (record) => {
     try {
-      await axiosClient.put(`/booking-management/details/${record.detailId}/status`, {
-        newStatus: 'CheckedOut',
-      });
-      message.success(`✅ Đã Check-out phòng ${record.roomNumber} thành công!`);
-      fetchDepartures(selectedDate); // Refresh bảng
+      const res = await bookingManagementApi.updateDetailStatus(record.detailId, 'CheckedOut');
+      if (res.data?.success) {
+        message.success(`✅ Đã Check-out phòng ${record.roomNumber} thành công! Vui lòng lập hóa đơn thanh toán.`);
+        // Refresh danh sách sau khi check-out
+        fetchDepartures(selectedDate);
+      }
     } catch (err) {
       const msg = err.response?.data?.message ?? 'Check-out thất bại. Vui lòng thử lại.';
       message.error(msg);
@@ -158,8 +160,8 @@ const Departures = () => {
       title: 'Dự kiến Check-out',
       dataIndex: 'checkOutDate',
       key: 'checkOutDate',
-      width: 160,
-      render: (val, record) => {
+      width: 170,
+      render: (val) => {
         const over = isOverdue(val);
         return (
           <Space>
@@ -184,24 +186,33 @@ const Departures = () => {
     {
       title: 'Thao tác',
       key: 'action',
-      width: 130,
+      width: 160,
       render: (_, record) => (
-        <Popconfirm
-          title={
-            <Space direction="vertical" size={2}>
-              <Text strong>Xác nhận trả phòng?</Text>
-              <Text>Phòng {record.roomNumber} – {record.guestName}</Text>
-            </Space>
-          }
-          onConfirm={() => handleCheckOut(record)}
-          okText="Check-out ngay"
-          cancelText="Hủy"
-          okButtonProps={{ danger: true }}
-        >
-          <Button danger type="primary" icon={<ExportOutlined />} size="small">
-            Trả phòng
-          </Button>
-        </Popconfirm>
+        <Space size="small">
+          <Tooltip title="Xem hóa đơn">
+            <Button
+              icon={<EyeOutlined />}
+              size="small"
+              onClick={() => navigate('/admin/invoices')}
+            />
+          </Tooltip>
+          <Popconfirm
+            title={
+              <Space direction="vertical" size={2}>
+                <Text strong>Xác nhận trả phòng?</Text>
+                <Text>Phòng {record.roomNumber} – {record.guestName}</Text>
+              </Space>
+            }
+            onConfirm={() => handleCheckOut(record)}
+            okText="Check-out ngay"
+            cancelText="Hủy"
+            okButtonProps={{ danger: true }}
+          >
+            <Button danger type="primary" icon={<ExportOutlined />} size="small">
+              Trả phòng
+            </Button>
+          </Popconfirm>
+        </Space>
       ),
     },
   ];
@@ -243,7 +254,7 @@ const Departures = () => {
         />
         <Text type="secondary">
           Hiển thị <Text strong>{filteredData.length}</Text> phòng
-          {isOverdue && filteredData.some(r => isOverdue(r.checkOutDate)) && (
+          {filteredData.some((r) => isOverdue(r.checkOutDate)) && (
             <Text type="danger"> (có phòng quá hạn)</Text>
           )}
         </Text>

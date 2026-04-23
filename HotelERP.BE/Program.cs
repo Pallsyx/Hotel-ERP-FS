@@ -15,12 +15,10 @@ using RedLockNet.SERedis.Configuration;
 using Hangfire;
 using HotelERP.BE.Utils;
 using HotelERP.BE.Services;
-using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc;
 using HotelERP.BE.DTOs.Configurations;
 using HotelERP.BE.DTOs.Common;
 using HotelERP.BE.Helpers.AuditLogs;
-using HotelERP.BE.DTOs.Hubs;
 using HotelERP.BE.Services.Bookings;
 using HotelERP.BE.Services.Loyalty;
 using HotelERP.BE.Services.RoomTypes;
@@ -194,6 +192,7 @@ builder.Services.AddScoped<ArticleService>();
 builder.Services.AddScoped<ILoyaltyPointService, LoyaltyPointService>();
 builder.Services.AddScoped<IVoucherService, VoucherService>();
 builder.Services.AddScoped<IVoucherAuditLogHelper, VoucherAuditLogHelper>();
+builder.Services.AddScoped<IInvoiceService, InvoiceService>();
 builder.Services.AddScoped<IRoomTypeService, RoomTypeService>();
 builder.Services.AddScoped<IRoomTypeQueryService, RoomTypeQueryService>();
 builder.Services.AddScoped<IBookingVoucherService, BookingVoucherService>();
@@ -206,8 +205,10 @@ builder.Services.AddSignalR();
 builder.Services.AddScoped<IRoomTypeAmenityService, RoomTypeAmenityService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IBookingManagementService, BookingManagementService>();
+builder.Services.AddScoped<IInvoiceService, InvoiceService>();
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(Program).Assembly));
-
+builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 
 
 builder.Services.AddHttpContextAccessor();
@@ -267,9 +268,17 @@ app.UseSwaggerUI(c =>
 using (var scope = app.Services.CreateScope())
 {
     var recurringJobManager = scope.ServiceProvider.GetRequiredService<IRecurringJobManager>();
+    
+    // Job giải phóng booking hết hạn - chạy mỗi phút
     recurringJobManager.AddOrUpdate("ReleaseExpiredBookings", 
         () => scope.ServiceProvider.GetRequiredService<IBookingEngineService>().ReleaseExpiredBookingsAsync(), 
         Cron.Minutely);
+    
+    // Job 9h sáng giờ Việt Nam (UTC+7) = 02:00 UTC
+    // Tự động chuyển tất cả phòng OCCUPIED + CLEAN → DIRTY (phòng có khách cần dọn lại)
+    recurringJobManager.AddOrUpdate("MarkOccupiedRoomsDirtyAt9AM",
+        () => scope.ServiceProvider.GetRequiredService<IRoomService>().MarkOccupiedRoomsDirtyAsync(),
+        "0 2 * * *"); // 02:00 UTC = 09:00 Vietnam (UTC+7)
 }
 
 app.UseHttpsRedirection(); 

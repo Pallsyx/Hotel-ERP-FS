@@ -5,15 +5,17 @@ using HotelERP.BE.Domain.Models;
 
 namespace HotelERP.BE.Models 
 {
+    // Tên cột DB thực tế (xác nhận từ INFORMATION_SCHEMA.COLUMNS):
+    // id, user_id, title, content, type, reference_link, is_read, created_at
     [Table("Notifications")]
     public class Notification
     {
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
-        [Column("id")] // Map với cột id
+        [Column("id")]
         public int Id { get; set; }
 
-        [Column("user_id")] // Map với cột user_id
+        [Column("user_id")]
         public int? UserId { get; set; } 
         
         [ForeignKey("UserId")]
@@ -21,24 +23,25 @@ namespace HotelERP.BE.Models
 
         [Required]
         [MaxLength(255)]
-        [Column("title")] // Map với cột title
+        [Column("title")]
         public string Title { get; set; } = string.Empty;
 
         [Required]
-        [Column("content")] // Map với cột content
+        [Column("content")]
         public string Content { get; set; } = string.Empty;
 
-        // ⚠️ 2 thuộc tính này KHÔNG CÓ trong bảng SQL, phải dùng [NotMapped] để EF Core bỏ qua truy vấn
-        [NotMapped]
+        [MaxLength(50)]
+        [Column("type")]
         public string? Type { get; set; } 
 
-        [NotMapped]
+        [MaxLength(255)]
+        [Column("reference_link")]
         public string? ReferenceLink { get; set; }
 
-        [Column("is_read")] // 👉 Đây chính là nguyên nhân gây lỗi IsRead
+        [Column("is_read")]
         public bool IsRead { get; set; } = false; 
 
-        [Column("created_at")] // 👉 Đây chính là nguyên nhân gây lỗi CreatedAt
+        [Column("created_at")]
         public DateTime? CreatedAt { get; set; } = DateTime.UtcNow;
     }
 }

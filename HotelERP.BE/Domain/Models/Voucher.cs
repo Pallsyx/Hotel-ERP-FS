@@ -1,5 +1,6 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace HotelERP.BE.Domain.Models;
 
@@ -13,9 +14,15 @@ public partial class Voucher
 
     public decimal DiscountValue { get; set; }
 
-    public decimal MinBookingValue { get; set; }
+    // Giữ nguyên có dấu ? để map với DB cho an toàn
+    public decimal? MinBookingValue { get; set; }
 
-    public decimal MinBookingAmount { get; set; }
+    [NotMapped]
+    public decimal MinBookingAmount 
+    { 
+        get => MinBookingValue ?? 0; 
+        set => MinBookingValue = value; 
+    }
 
     public DateTime? ValidFrom { get; set; }
 
@@ -23,12 +30,16 @@ public partial class Voucher
 
     public int? UsageLimit { get; set; }
 
+    [NotMapped]
     public int UsedCount { get; set; }
 
-    public string Status { get; set; } = null!;
+    [NotMapped]
+    public string Status { get; set; } = "ACTIVE";
 
+    [NotMapped]
     public DateTime CreatedAt { get; set; }
 
+    [NotMapped]
     public DateTime? UpdatedAt { get; set; }
 
     public virtual ICollection<Booking> Bookings { get; set; } = new List<Booking>();

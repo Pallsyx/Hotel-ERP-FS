@@ -14,5 +14,8 @@ public interface IAuthService
     Task<bool> ResetPasswordWithTokenAsync(ChangePasswordWithTokenRequest request);
     Task<bool> RegisterAsync(RegisterRequest request);
     Task<UserProfileResponse> GetCurrentUserProfileAsync(int userId);
+
+    Task<bool> ForgotPasswordAsync(ForgotPasswordRequest request);
+    Task<bool> ResetPasswordWithOtpAsync(ResetPasswordOtpRequest request);
 }
 

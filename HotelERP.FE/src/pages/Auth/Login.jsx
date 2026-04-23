@@ -3,7 +3,7 @@ import { Form, Input, Button, Card, message } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import authApi from '../../api/authApi';
 import { useAuthStore } from '../../store/authStore';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 
 // 👉 HÀM MỚI: Dùng để giải mã Token lấy thông tin mà không cần thư viện ngoài
 const parseJwt = (token) => {
@@ -79,6 +79,14 @@ const Login = () => {
               Đăng nhập
             </Button>
           </Form.Item>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10 }}>
+            <Link to="/forgot-password" style={{ color: '#1890ff' }}>Quên mật khẩu?</Link>
+            <span>
+              Chưa có tài khoản? <Link to="/register" style={{ fontWeight: 'bold' }}>Đăng ký</Link>
+            </span>
+          </div>
+
         </Form>
       </Card> 
     </div>

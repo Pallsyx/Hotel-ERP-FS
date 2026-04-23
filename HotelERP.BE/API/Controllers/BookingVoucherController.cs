@@ -2,11 +2,14 @@ using HotelERP.BE.DTOs.Vouchers;
 using HotelERP.BE.Services.Bookings;
 using Microsoft.AspNetCore.Mvc;
 using System.Threading.Tasks;
+using HotelERP.BE.Constants;
+using Microsoft.AspNetCore.Authorization;
 
 namespace HotelERP.BE.Controllers
 {
     [ApiController]
     [Route("api/bookings")]
+    [Authorize(Policy = PermissionKeys.ManageBookings)]
     public class BookingVoucherController : ControllerBase
     {
         private readonly IBookingVoucherService _voucherService;

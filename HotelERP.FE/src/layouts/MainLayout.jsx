@@ -100,16 +100,16 @@ const MainLayout = () => {
       ],
     },
     {
-      key: '/admin/invoices',
-      icon: <FileTextOutlined />,
-      label: 'Quản lý hóa đơn',
-      requiredPermission: 'MANAGE_INVOICES',
-    },
-    {
       key: '/admin/vouchers',
       icon: <GiftOutlined />,
       label: 'Quản lý Voucher',
       requiredPermission: 'MANAGE_SERVICES',
+    },
+    {
+      key: '/admin/invoices',
+      icon: <FileTextOutlined />,
+      label: 'Quản lý hóa đơn',
+      requiredPermission: 'MANAGE_INVOICES',
     },
     {
       key: '/admin/users',
@@ -121,6 +121,12 @@ const MainLayout = () => {
       key: '/admin/roles',
       icon: <SafetyCertificateOutlined />,
       label: 'Vai trò & Phân quyền',
+      requiredPermission: 'MANAGE_ROLES',
+    },
+    {
+      key: '/admin/audit-logs',
+      icon: <SafetyCertificateOutlined />,
+      label: 'Nhật ký hoạt động',
       requiredPermission: 'MANAGE_ROLES',
     }
   ];
@@ -162,15 +168,7 @@ const MainLayout = () => {
         key: 'logout',
         icon: <LogoutOutlined />,
         label: 'Đăng xuất',
-<<<<<<< HEAD
-<<<<<<< HEAD
         danger: true,
-=======
-        danger: true, // Thêm màu đỏ cho nút đăng xuất nhìn đẹp hơn
->>>>>>> 8d9308d (Minor changes)
-=======
-        danger: true,
->>>>>>> 7dde12c (Add rawMenu For FE :)
         onClick: handleLogout,
       },
     ],

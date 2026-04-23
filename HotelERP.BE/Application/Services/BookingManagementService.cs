@@ -3,13 +3,15 @@ using HotelERP.BE.Application.Interfaces;
 using HotelERP.BE.Domain.Constants;
 using HotelERP.BE.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.SignalR;
+using HotelERP.BE.DTOs.Hubs;
 
 namespace HotelERP.BE.Application.Services;
 
 public class BookingManagementService : IBookingManagementService
 {
     private readonly HotelDbContext _context;
-
+    private readonly IHubContext<RoomHub>? _hubContext;
     private static readonly Dictionary<string, List<string>> _allowedTransitions = new()
     {
         { BookingStatus.Pending,    new List<string> { BookingStatus.Confirmed, BookingStatus.Cancelled } },
@@ -18,9 +20,10 @@ public class BookingManagementService : IBookingManagementService
         { BookingStatus.Holding,    new List<string> { BookingStatus.Confirmed, BookingStatus.Cancelled } },
     };
 
-    public BookingManagementService(HotelDbContext context)
+    public BookingManagementService(HotelDbContext context, IHubContext<RoomHub> hubContext)
     {
         _context = context;
+        _hubContext = hubContext;
     }
 
     // ==============================================================
@@ -172,6 +175,18 @@ public class BookingManagementService : IBookingManagementService
         }
 
         await _context.SaveChangesAsync();
+
+        // Bắn SignalR realtime → cập nhật cột Kinh doanh trên trang Quản lý Quỹ phòng
+        if (_hubContext != null)
+        {
+            foreach (var detail in booking.BookingDetails)
+            {
+                if (detail.Room != null)
+                    await _hubContext.Clients.All.SendAsync("ReceiveRoomStatusUpdate",
+                        detail.Room.Id, detail.Room.Status, detail.Room.CleaningStatus);
+            }
+        }
+
         return (true, $"Đã chuyển trạng thái booking #{bookingId} từ '{oldStatus}' sang '{newStatus}' thành công.");
     }
 
@@ -183,7 +198,7 @@ public class BookingManagementService : IBookingManagementService
         var detail = await _context.BookingDetails
             .Include(bd => bd.Room)
             .Include(bd => bd.Booking)
-                .ThenInclude(b => b.BookingDetails)
+                .ThenInclude(b => b!.BookingDetails)
             .FirstOrDefaultAsync(bd => bd.Id == detailId);
 
         if (detail == null) return (false, "Không tìm thấy chi tiết đặt phòng.");
@@ -255,6 +270,14 @@ public class BookingManagementService : IBookingManagementService
         }
 
         await _context.SaveChangesAsync();
+
+        // Bắn SignalR realtime cho trang Quản lý Quỹ phòng
+        if (_hubContext != null && detail.Room != null)
+        {
+            await _hubContext.Clients.All.SendAsync("ReceiveRoomStatusUpdate",
+                detail.Room.Id, detail.Room.Status, detail.Room.CleaningStatus);
+        }
+
         return (true, $"Đã cập nhật trạng thái phòng lẻ #{detailId} sang '{newStatus}' thành công.");
     }
 
@@ -274,6 +297,7 @@ public class BookingManagementService : IBookingManagementService
             .Where(bd => bd.CheckInDate >= today && bd.CheckInDate < tomorrow &&
                         bd.Status != BookingStatus.CheckedIn && 
                         bd.Status != BookingStatus.Cancelled &&
+                        bd.Status != BookingStatus.CancelledByAdmin &&
                         bd.Status != BookingStatus.Completed)
             .OrderBy(bd => bd.CheckInDate)
             .ToListAsync();
@@ -289,6 +313,7 @@ public class BookingManagementService : IBookingManagementService
             Status = bd.Booking?.Status ?? "N/A",
             BookedAt = bd.Booking?.BookedAt ?? DateTime.MinValue,
             FinalAmount = bd.Booking?.FinalAmount ?? 0,
+            DepositAmount = bd.Booking?.DepositAmount ?? 0,
             PaymentStatus = bd.Booking?.PaymentStatus ?? "N/A",
             Notes = bd.Booking?.Notes,
             CreatedAt = bd.Booking?.CreatedAt ?? DateTime.MinValue,
@@ -321,6 +346,7 @@ public class BookingManagementService : IBookingManagementService
             Status = bd.Booking?.Status ?? "N/A",
             BookedAt = bd.Booking?.BookedAt ?? DateTime.MinValue,
             FinalAmount = bd.Booking?.FinalAmount ?? 0,
+            DepositAmount = bd.Booking?.DepositAmount ?? 0,
             PaymentStatus = bd.Booking?.PaymentStatus ?? "N/A",
             Notes = bd.Booking?.Notes,
             CreatedAt = bd.Booking?.CreatedAt ?? DateTime.MinValue,
@@ -461,11 +487,36 @@ public class BookingManagementService : IBookingManagementService
             Status = b.Status,
             BookedAt = b.BookedAt,
             FinalAmount = b.FinalAmount,
+            DepositAmount = b.DepositAmount,
             PaymentStatus = b.PaymentStatus,
             Notes = b.Notes,
             CreatedAt = b.CreatedAt,
             UpdatedAt = b.UpdatedAt,
             Details = b.BookingDetails.Select(MapDetailToDto).ToList()
         };
+    }
+
+    // ==============================================================
+    // API 8: NẠP CỌC (DEPOSIT)
+    // ==============================================================
+    public async Task<(bool Success, string Message, decimal NewDeposit)> AddDepositAsync(int bookingId, decimal amount)
+    {
+        var booking = await _context.Bookings.FindAsync(bookingId);
+        if (booking == null) return (false, "Không tìm thấy booking.", 0);
+
+        if (booking.Status == BookingStatus.Cancelled || booking.Status == BookingStatus.CancelledByAdmin)
+            return (false, "Không thể nạp cọc cho booking đã hủy.", 0);
+
+        booking.DepositAmount += amount;
+        
+        // (Tuỳ chọn) Nếu tổng cọc >= FinalAmount thì chuyển PaymentStatus = Paid
+        if (booking.DepositAmount >= booking.FinalAmount && booking.FinalAmount > 0)
+        {
+            booking.PaymentStatus = "Paid";
+        }
+
+        await _context.SaveChangesAsync();
+        
+        return (true, "Nạp cọc thành công!", booking.DepositAmount);
     }
 }

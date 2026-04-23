@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Badge, Popover, List, Typography, Button, Space, Avatar, message } from 'antd';
+import { Badge, Popover, Typography, Button, Space, Avatar, message, Spin, Empty } from 'antd';
 import { BellOutlined, InfoCircleOutlined, CheckCircleOutlined, WarningOutlined, CloseCircleOutlined, CheckOutlined } from '@ant-design/icons';
 import notificationApi from '../api/notificationApi'; 
 import { useSignalR } from '../hooks/useSignalR'; // 👉 Import hook SignalR của bạn vào đây
@@ -22,8 +22,7 @@ const NotificationBell = () => {
       const res = await notificationApi.getAll();
       const data = res.data?.data || res.data; 
       setNotifications(data);
-      
-      // Đếm số lượng chưa đọc
+      // Đếm số chưa đọc từ liịch sử trả về
       const unread = data.filter(n => !n.isRead).length;
       setUnreadCount(unread);
     } catch (error) {
@@ -56,14 +55,12 @@ const NotificationBell = () => {
     };
   }, [fetchNotifications, connection]);
 
-  // 3. XỬ LÝ CLICK ĐỌC THÔNG BÁO
+  // 3. XỬ LÝ CLICK ĐỌC THÔNG BÁO - giữ trong list, chỉ bỏ highlight chưa đọc
   const handleItemClick = async (item) => {
-    if (item.isRead) return; 
-    
+    if (item.isRead) return; // Đã đọc rồi không cần gọi API
     try {
       await notificationApi.markAsRead(item.id);
-      
-      // Cập nhật state UI ngay lập tức cho mượt
+      // Cập nhật isRead trong list (không xóa)
       setNotifications(prev => prev.map(n => n.id === item.id ? { ...n, isRead: true } : n));
       setUnreadCount(prev => Math.max(0, prev - 1));
     } catch (error) {
@@ -71,11 +68,12 @@ const NotificationBell = () => {
     }
   };
 
-  // 4. ĐÁNH DẤU TẤT CẢ ĐÃ ĐỌC
+  // 4. ĐÁNH DẤU TẤT CẢ ĐÃ ĐỌC - giữ liịch sử, chỉ bỏ số đỏ badge
   const handleMarkAllAsRead = async () => {
     if (unreadCount === 0) return;
     try {
       await notificationApi.markAllAsRead();
+      // Cập nhật tất cả isRead = true trong list (giữ hiển thị)
       setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
       setUnreadCount(0);
     } catch (error) {
@@ -103,37 +101,49 @@ const NotificationBell = () => {
         </Button>
       </div>
 
-      <List
-        loading={loading}
-        itemLayout="horizontal"
-        dataSource={notifications}
-        locale={{ emptyText: 'Chưa có thông báo nào' }}
-        renderItem={(item) => (
-          <List.Item 
-            style={{ 
-              padding: '12px 15px', 
-              cursor: 'pointer', 
-              backgroundColor: item.isRead ? '#fff' : '#e6f7ff', 
-              transition: 'all 0.3s'
-            }}
-            onClick={() => handleItemClick(item)}
-            className="notification-item-hover"
-          >
-            <List.Item.Meta
-              avatar={getIconByType(item.type)}
-              title={<Text strong={!item.isRead}>{item.title}</Text>}
-              description={
-                <Space orientation="vertical" size={0}>
-                  <Text type="secondary" style={{ fontSize: '13px' }}>{item.content}</Text>
-                  <Text type="secondary" style={{ fontSize: '11px' }}>
-                    {new Date(item.createdAt).toLocaleString('vi-VN')}
-                  </Text>
-                </Space>
-              }
-            />
-          </List.Item>
-        )}
-      />
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '30px 0' }}>
+          <Spin />
+        </div>
+      ) : notifications.length === 0 ? (
+        <div style={{ padding: '30px 0' }}>
+          <Empty description="Chưa có thông báo nào" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+        </div>
+      ) : (
+        <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
+          {notifications.map((item) => (
+            <li
+              key={item.id}
+              onClick={() => handleItemClick(item)}
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '12px',
+                padding: '12px 15px',
+                cursor: 'pointer',
+                backgroundColor: item.isRead ? '#fff' : '#e6f7ff',
+                transition: 'background-color 0.3s',
+                borderBottom: '1px solid #f5f5f5',
+              }}
+              onMouseEnter={e => { if (item.isRead) e.currentTarget.style.backgroundColor = '#fafafa'; }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = item.isRead ? '#fff' : '#e6f7ff'; }}
+            >
+              <div style={{ flexShrink: 0, marginTop: 2 }}>{getIconByType(item.type)}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <Text strong={!item.isRead} style={{ display: 'block', fontSize: '14px' }}>
+                  {item.title}
+                </Text>
+                <Text type="secondary" style={{ display: 'block', fontSize: '13px', wordBreak: 'break-word' }}>
+                  {item.content}
+                </Text>
+                <Text type="secondary" style={{ fontSize: '11px' }}>
+                  {new Date(item.createdAt).toLocaleString('vi-VN')}
+                </Text>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 

@@ -3,64 +3,91 @@ import * as signalR from '@microsoft/signalr';
 import { notification } from 'antd';
 import { useAuthStore } from '../store/authStore';
 
+const API_ROOT = (import.meta.env.VITE_API_BASE_URL || 'https://localhost:7100/api').replace(/\/api\/?$/, '');
+
 export const useSignalR = () => {
-  // 👉 1. Dùng useState thay vì useRef để Component biết khi nào đã kết nối xong
   const [connection, setConnection] = useState(null);
-  
-  // Theo dõi trạng thái đăng nhập
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   useEffect(() => {
-    // Nếu chưa đăng nhập thì không mở kết nối WebSocket
-    if (!isAuthenticated) return;
+    if (!isAuthenticated) {
+      setConnection(null);
+      return undefined;
+    }
 
-    // Lấy token từ LocalStorage để đính kèm vào WebSocket
-    const token = localStorage.getItem('token');
+    let isDisposed = false;
+    let hubConnection = null;
 
-    const newConnection = new signalR.HubConnectionBuilder()
-      .withUrl('https://localhost:7100/notificationHub', {
-        accessTokenFactory: () => token
-      })
-      .withAutomaticReconnect()
-      .build();
+    const startConnection = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
 
-    // Lắng nghe sự kiện để bắn Popup nhỏ ở góc màn hình
-    newConnection.on("ReceiveNotification", (data) => {
-      // 👉 1. In thẳng ra Console xem C# đang giấu cái gì bên trong
-      console.log("📥 Dữ liệu từ Backend gửi về:", data);
+      hubConnection = new signalR.HubConnectionBuilder()
+        .withUrl(`${API_ROOT}/notificationHub`, {
+          accessTokenFactory: () => localStorage.getItem('token') || '',
+        })
+        .withAutomaticReconnect([0, 2000, 5000, 10000])
+        .configureLogging(signalR.LogLevel.Warning)
+        .build();
 
-      // 👉 2. Bắt lỗi chữ Hoa/Chữ Thường từ C# (JSON Serialization)
-      const title = data.title || data.Title || "Thông báo mới";
-      const content = data.content || data.Content || data.message || data.Message || "";
-      const type = (data.type || data.Type)?.toLowerCase() || 'info';
-      
-      // Bắn Toast thông báo của Ant Design
-      notification[type]({  
-        title: title, // 👉 ĐỔI TỪ 'message' THÀNH 'title' ĐỂ HẾT BÁO VÀNG
-        description: content,
-        placement: 'topRight',
-        duration: 5,
+      hubConnection.on('ReceiveNotification', (data) => {
+        const title = data?.title || data?.Title || 'Thông báo mới';
+        const content = data?.content || data?.Content || data?.message || data?.Message || '';
+        const type = (data?.type || data?.Type || 'info').toLowerCase();
+        const safeType = ['success', 'info', 'warning', 'error'].includes(type) ? type : 'info';
+
+        notification[safeType]({
+          message: title,
+          description: content,
+          placement: 'topRight',
+          duration: 5,
+        });
       });
-    });
 
-    // Bắt đầu kết nối
-    newConnection.start()
-      .then(() => {
-        console.log("🟢 Đã kết nối SignalR thành công!");
-        setConnection(newConnection); // 👉 2. Lưu vào State sau khi kết nối thành công
-      })
-      .catch(err => console.error("🔴 Lỗi kết nối SignalR:", err));
+      hubConnection.onreconnecting(() => {
+        console.warn('SignalR đang reconnect...');
+      });
 
-    // Cleanup: Ngắt kết nối khi đăng xuất
-    return () => {
-      if (newConnection) {
-        newConnection.stop();
+      hubConnection.onreconnected(() => {
+        console.log('SignalR reconnect thành công.');
+      });
+
+      hubConnection.onclose((error) => {
+        if (error) {
+          console.warn('SignalR đã đóng kết nối:', error.message || error);
+        }
+        if (!isDisposed) {
+          setConnection(null);
+        }
+      });
+
+      try {
+        await hubConnection.start();
+        if (!isDisposed) {
+          console.log('🟢 Đã kết nối SignalR thành công!');
+          setConnection(hubConnection);
+        }
+      } catch (err) {
+        console.warn('SignalR hiện chưa khả dụng:', err?.message || err);
+        if (!isDisposed) {
+          setConnection(null);
+        }
       }
+    };
+
+    startConnection();
+
+    return () => {
+      isDisposed = true;
+      if (hubConnection) {
+        hubConnection.off('ReceiveNotification');
+        hubConnection.stop().catch(() => {});
+      }
+      setConnection(null);
     };
   }, [isAuthenticated]);
 
-  // 👉 3. BẮT BUỘC PHẢI CÓ DÒNG NÀY ĐỂ FIX LỖI UNDEFINED
-  return { connection }; 
+  return { connection };
 };
 
 export default useSignalR;

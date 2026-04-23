@@ -35,36 +35,23 @@ public class VoucherService : IVoucherService
 
         IQueryable<Voucher> query = _dbContext.Vouchers.AsNoTracking();
 
-        if (!string.IsNullOrWhiteSpace(normalizedStatus))
-        {
-            query = query.Where(x => x.Status == normalizedStatus);
-        }
-
         if (!string.IsNullOrWhiteSpace(search))
         {
             var keyword = search.Trim();
             query = query.Where(x => x.Code.Contains(keyword));
         }
 
-        var items = await query
-            .OrderByDescending(x => x.CreatedAt)
+        var vouchers = await query
+            .OrderByDescending(x => x.ValidFrom ?? DateTime.MinValue)
             .ThenByDescending(x => x.Id)
-            .Select(x => new VoucherResponseDto
-            {
-                Id = x.Id,
-                Code = x.Code,
-                DiscountType = x.DiscountType,
-                DiscountValue = x.DiscountValue,
-                MinBookingAmount = x.MinBookingAmount,
-                ValidFrom = x.ValidFrom,
-                ValidTo = x.ValidTo,
-                UsageLimit = x.UsageLimit,
-                UsedCount = x.UsedCount,
-                Status = x.Status,
-                CreatedAt = x.CreatedAt,
-                UpdatedAt = x.UpdatedAt
-            })
             .ToListAsync(cancellationToken);
+
+        var usedCountMap = await GetUsedCountMapAsync(cancellationToken);
+
+        var items = vouchers
+            .Select(x => MapToResponse(x, usedCountMap))
+            .Where(x => string.IsNullOrWhiteSpace(normalizedStatus) || x.Status == normalizedStatus)
+            .ToList();
 
         return ApiResult<List<VoucherResponseDto>>.Ok(items, "Lấy danh sách voucher thành công.", "VOUCHER_LIST_SUCCESS");
     }
@@ -83,7 +70,8 @@ public class VoucherService : IVoucherService
                 $"Không tìm thấy voucher id = {id}.");
         }
 
-        return ApiResult<VoucherResponseDto>.Ok(MapToResponse(voucher), "Lấy chi tiết voucher thành công.", "VOUCHER_DETAIL_SUCCESS");
+        var usedCountMap = await GetUsedCountMapAsync(cancellationToken);
+        return ApiResult<VoucherResponseDto>.Ok(MapToResponse(voucher, usedCountMap), "Lấy chi tiết voucher thành công.", "VOUCHER_DETAIL_SUCCESS");
     }
 
     public async Task<ApiResult<VoucherResponseDto>> CreateAsync(CreateVoucherRequestDto request, int? performedByUserId, CancellationToken cancellationToken = default)
@@ -111,27 +99,26 @@ public class VoucherService : IVoucherService
         var normalizedCode = Normalize(request.Code);
         var normalizedDiscountType = Normalize(request.DiscountType);
         var normalizedStatus = Normalize(request.Status);
+        var validTo = normalizedStatus == StatusInactive && (!request.ValidTo.HasValue || request.ValidTo.Value > now)
+            ? now.AddSeconds(-1)
+            : request.ValidTo;
 
         var voucher = new Voucher
         {
             Code = normalizedCode!,
             DiscountType = normalizedDiscountType!,
             DiscountValue = request.DiscountValue,
-            MinBookingAmount = request.MinBookingAmount,
             MinBookingValue = request.MinBookingAmount,
             ValidFrom = request.ValidFrom,
-            ValidTo = request.ValidTo,
-            UsageLimit = request.UsageLimit,
-            UsedCount = 0,
-            Status = normalizedStatus!,
-            CreatedAt = now,
-            UpdatedAt = null
+            ValidTo = validTo,
+            UsageLimit = request.UsageLimit
         };
 
         _dbContext.Vouchers.Add(voucher);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        return ApiResult<VoucherResponseDto>.Created(MapToResponse(voucher), "Tạo voucher thành công.", "CREATE_VOUCHER_SUCCESS");
+        var usedCountMap = await GetUsedCountMapAsync(cancellationToken);
+        return ApiResult<VoucherResponseDto>.Created(MapToResponse(voucher, usedCountMap), "Tạo voucher thành công.", "CREATE_VOUCHER_SUCCESS");
     }
 
     public async Task<ApiResult<VoucherResponseDto>> UpdateAsync(int id, UpdateVoucherRequestDto request, int? performedByUserId, CancellationToken cancellationToken = default)
@@ -164,20 +151,23 @@ public class VoucherService : IVoucherService
             return validationResult;
         }
 
+        var now = DateTime.UtcNow;
+        var normalizedStatus = Normalize(request.Status);
+
         voucher.Code = Normalize(request.Code)!;
         voucher.DiscountType = Normalize(request.DiscountType)!;
         voucher.DiscountValue = request.DiscountValue;
-        voucher.MinBookingAmount = request.MinBookingAmount;
         voucher.MinBookingValue = request.MinBookingAmount;
         voucher.ValidFrom = request.ValidFrom;
-        voucher.ValidTo = request.ValidTo;
+        voucher.ValidTo = normalizedStatus == StatusInactive && (!request.ValidTo.HasValue || request.ValidTo.Value > now)
+            ? now.AddSeconds(-1)
+            : request.ValidTo;
         voucher.UsageLimit = request.UsageLimit;
-        voucher.Status = Normalize(request.Status)!;
-        voucher.UpdatedAt = DateTime.UtcNow;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        return ApiResult<VoucherResponseDto>.Ok(MapToResponse(voucher), "Cập nhật voucher thành công.", "UPDATE_VOUCHER_SUCCESS");
+        var usedCountMap = await GetUsedCountMapAsync(cancellationToken);
+        return ApiResult<VoucherResponseDto>.Ok(MapToResponse(voucher, usedCountMap), "Cập nhật voucher thành công.", "UPDATE_VOUCHER_SUCCESS");
     }
 
     public async Task<ApiResult<object>> DisableAsync(int id, DisableVoucherRequestDto request, int? performedByUserId, CancellationToken cancellationToken = default)
@@ -197,7 +187,10 @@ public class VoucherService : IVoucherService
                 $"Không tìm thấy voucher id = {id}.");
         }
 
-        if (voucher.Status == StatusInactive)
+        var now = DateTime.UtcNow;
+        var usedCount = await _dbContext.Bookings.CountAsync(x => x.VoucherId == voucher.Id, cancellationToken);
+        var currentStatus = ResolveVoucherStatus(voucher, usedCount, now);
+        if (currentStatus == StatusInactive)
         {
             return ApiResult<object>.Fail(
                 StatusCodes.Status400BadRequest,
@@ -205,16 +198,14 @@ public class VoucherService : IVoucherService
                 "Voucher đã ở trạng thái INACTIVE.");
         }
 
-        voucher.Status = StatusInactive;
-        voucher.UpdatedAt = DateTime.UtcNow;
-
+        voucher.ValidTo = now.AddSeconds(-1);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         return ApiResult<object>.Ok(new
         {
             voucherId = voucher.Id,
-            status = voucher.Status,
-            updatedAt = voucher.UpdatedAt
+            status = StatusInactive,
+            updatedAt = now
         }, "Vô hiệu hóa voucher thành công.", "DISABLE_VOUCHER_SUCCESS");
     }
 
@@ -351,6 +342,36 @@ public class VoucherService : IVoucherService
         return null;
     }
 
+    private async Task<Dictionary<int, int>> GetUsedCountMapAsync(CancellationToken cancellationToken)
+    {
+        return await _dbContext.Bookings
+            .AsNoTracking()
+            .Where(x => x.VoucherId.HasValue)
+            .GroupBy(x => x.VoucherId!.Value)
+            .Select(g => new { VoucherId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.VoucherId, x => x.Count, cancellationToken);
+    }
+
+    private static string ResolveVoucherStatus(Voucher voucher, int usedCount, DateTime now)
+    {
+        if (voucher.ValidFrom.HasValue && voucher.ValidFrom.Value > now)
+        {
+            return StatusInactive;
+        }
+
+        if (voucher.ValidTo.HasValue && voucher.ValidTo.Value < now)
+        {
+            return StatusInactive;
+        }
+
+        if (voucher.UsageLimit.HasValue && usedCount >= voucher.UsageLimit.Value)
+        {
+            return StatusInactive;
+        }
+
+        return StatusActive;
+    }
+
     private static bool IsValidStatus(string? status)
     {
         return status == StatusActive || status == StatusInactive;
@@ -368,8 +389,12 @@ public class VoucherService : IVoucherService
             : value.Trim().ToUpperInvariant();
     }
 
-    private static VoucherResponseDto MapToResponse(Voucher voucher)
+    private static VoucherResponseDto MapToResponse(Voucher voucher, IReadOnlyDictionary<int, int> usedCountMap)
     {
+        usedCountMap.TryGetValue(voucher.Id, out var usedCount);
+        var now = DateTime.UtcNow;
+        var status = ResolveVoucherStatus(voucher, usedCount, now);
+
         return new VoucherResponseDto
         {
             Id = voucher.Id,
@@ -380,10 +405,10 @@ public class VoucherService : IVoucherService
             ValidFrom = voucher.ValidFrom,
             ValidTo = voucher.ValidTo,
             UsageLimit = voucher.UsageLimit,
-            UsedCount = voucher.UsedCount,
-            Status = voucher.Status,
-            CreatedAt = voucher.CreatedAt,
-            UpdatedAt = voucher.UpdatedAt
+            UsedCount = usedCount,
+            Status = status,
+            CreatedAt = voucher.ValidFrom ?? now,
+            UpdatedAt = null
         };
     }
 }

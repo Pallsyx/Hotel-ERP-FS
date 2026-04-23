@@ -46,6 +46,14 @@ public class UpdateBookingStatusRequest
 }
 
 /// <summary>
+/// Body cho API nạp cọc
+/// </summary>
+public class DepositRequest
+{
+    public decimal Amount { get; set; }
+}
+
+/// <summary>
 /// Body cho API đổi phòng
 /// PUT /api/booking-management/details/{id}/change-room
 /// </summary>
@@ -71,6 +79,7 @@ public class BookingListItemDto
     public string Status { get; set; } = null!;
     public DateTime BookedAt { get; set; }
     public decimal FinalAmount { get; set; }
+    public decimal DepositAmount { get; set; }
     public string PaymentStatus { get; set; } = null!;
     public string? Notes { get; set; }
     public DateTime CreatedAt { get; set; }

@@ -46,20 +46,15 @@ public class VoucherAuditLogHelper : IVoucherAuditLogHelper
         string reason,
         CancellationToken cancellationToken = default)
     {
-        var auditLog = new AuditLog
-        {
-            UserId = userId,
-            Action = action,
-            TableName = "Vouchers",
-            RecordId = recordId,
-            OldValue = Serialize(oldValue),
-            NewValue = Serialize(newValue),
-            Reason = reason?.Trim(),
-            CreatedAt = DateTime.UtcNow
-        };
-
-        _dbContext.AuditLogs.Add(auditLog);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        // Dùng extension method, bên trong vẫn là _dbContext.AuditLogs.Add(new AuditLog {...})
+        await _dbContext.AddAuditLogAsync(
+            userId: userId ?? 0,
+            roleName: "System",
+            actionType: action,
+            entityType: "Vouchers",
+            message: reason?.Trim() ?? "No reason provided",
+            changes: new { Old = oldValue, New = newValue }
+        );
     }
 
     private static string? Serialize(object? value)

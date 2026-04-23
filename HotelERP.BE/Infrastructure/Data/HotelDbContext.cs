@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using HotelERP.BE.Domain.Models;
 using HotelERP.BE.Models;
@@ -22,7 +22,7 @@ public partial class HotelDbContext : DbContext
     }
 
     public virtual DbSet<RefreshToken> RefreshTokens { get; set; }
-    
+
     public virtual DbSet<LoyaltyPointHistory> LoyaltyPointHistories { get; set; }
 
     public virtual DbSet<Amenity> Amenities { get; set; }
@@ -40,6 +40,8 @@ public partial class HotelDbContext : DbContext
     public virtual DbSet<BookingDetail> BookingDetails { get; set; }
 
     public virtual DbSet<Invoice> Invoices { get; set; }
+
+    public virtual DbSet<InvoiceBookingDetail> InvoiceBookingDetails { get; set; }
 
     public virtual DbSet<LossAndDamage> LossAndDamages { get; set; }
 
@@ -81,135 +83,38 @@ public partial class HotelDbContext : DbContext
     public virtual DbSet<Notification> Notifications { get; set; }
     public virtual DbSet<UserPermission> UserPermissions { get; set; }
 
-    // 3. GHI ĐÈ PHƯƠNG THỨC LƯU THAY ĐỔI ĐỂ TỰ ĐỘNG GHI LOG VÀO BẢNG Audit_Logs MỖI KHI CÓ THAO TÁC THÊM/SỬA/XÓA DỮ LIỆU
-    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
-{
-    var httpContext = _httpContextAccessor?.HttpContext;
-    var reason = httpContext?.Items["AuditReason"]?.ToString();
-    var actionName = httpContext?.Items["AuditAction"]?.ToString();
-    
-    var userIdClaim = httpContext?.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-    int? userId = int.TryParse(userIdClaim, out int id) ? id : null;
-
-    // Dùng Tuple để lưu tạm Entry, đối tượng Log và danh sách giá trị mới chưa có ID thật
-    var pendingAuditEntries = new List<(Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry Entry, AuditLog Log, Dictionary<string, object?> NewValues)>();
-
-    foreach (var entry in ChangeTracker.Entries())
-    {
-        // BỎ QUA CÁC BẢNG KHÔNG CẦN THEO DÕI
-        if (entry.Entity is AuditLog || 
-            entry.Entity is RefreshToken || 
-            entry.State == EntityState.Detached || 
-            entry.State == EntityState.Unchanged)
-            continue;
-
-        var tableName = entry.Metadata.GetTableName();
-        var oldValues = new Dictionary<string, object?>();
-        var newValues = new Dictionary<string, object?>();
-
-        foreach (var property in entry.Properties)
-        {
-            if (property.IsTemporary && entry.State != EntityState.Added) continue; 
-            
-            string propertyName = property.Metadata.Name;
-
-            // BỎ QUA CÁC CỘT THAY ĐỔI THƯỜNG XUYÊN NHƯNG KHÔNG QUAN TRỌNG
-            if (propertyName == "LastLoginAt" || propertyName == "UpdatedAt")
-                continue;
-
-            switch (entry.State)
-            {
-                case EntityState.Added:
-                    newValues[propertyName] = property.CurrentValue;
-                    break;
-                case EntityState.Deleted:
-                    oldValues[propertyName] = property.OriginalValue;
-                    break;
-                case EntityState.Modified:
-                    if (property.IsModified)
-                    {
-                        oldValues[propertyName] = property.OriginalValue;
-                        newValues[propertyName] = property.CurrentValue;
-                    }
-                    break;
-            }
-        }
-
-        if (oldValues.Count == 0 && newValues.Count == 0) continue;
-
-        string action = actionName ?? entry.State.ToString().ToUpper();
-
-        var auditLog = new AuditLog
-        {
-            UserId = userId,
-            Action = action,
-            TableName = tableName ?? "Unknown",
-            // CHƯA gán RecordId và NewValue vội vì SQL chưa cấp ID thật
-            OldValue = oldValues.Count > 0 ? System.Text.Json.JsonSerializer.Serialize(oldValues) : null,
-            Reason = reason,
-            CreatedAt = DateTime.UtcNow
-        };
-
-        // Gói lại và bỏ vào danh sách chờ
-        pendingAuditEntries.Add((entry, auditLog, newValues));
-    }
-
-    // Nếu không có gì thay đổi, lưu bình thường rồi thoát
-    if (pendingAuditEntries.Count == 0)
-    {
-        return await base.SaveChangesAsync(cancellationToken);
-    }
-
-    // =========================================================================
-    // NHỊP 1: Lưu các thay đổi chính xuống Database để SQL Server cấp ID thật
-    // =========================================================================
-    var result = await base.SaveChangesAsync(cancellationToken);
-
-    // =========================================================================
-    // NHỊP 2: Moi ID thật vừa được cấp phát gán ngược lại vào AuditLog
-    // =========================================================================
-    foreach (var item in pendingAuditEntries)
-    {
-        var primaryKey = item.Entry.Properties.FirstOrDefault(p => p.Metadata.IsPrimaryKey());
-        int recordId = primaryKey != null && primaryKey.CurrentValue is int pkValue ? pkValue : 0;
-        
-        // Gán RecordId dương chuẩn xịn
-        item.Log.RecordId = recordId;
-
-        // Nếu là hành động Tạo Mới, bổ sung ID thật vào trong chuỗi JSON NewValue
-        if ((item.Log.Action == "ADDED" || item.Log.Action.Contains("CREATE")) && primaryKey != null)
-        {
-            item.NewValues[primaryKey.Metadata.Name] = primaryKey.CurrentValue;
-        }
-
-        // Đóng gói JSON NewValue
-        item.Log.NewValue = item.NewValues.Count > 0 ? System.Text.Json.JsonSerializer.Serialize(item.NewValues) : null;
-
-        AuditLogs.Add(item.Log);
-    }
-
-    // =========================================================================
-    // NHỊP 3: Lưu toàn bộ AuditLogs chứa các ID thật
-    // =========================================================================
-    await base.SaveChangesAsync(cancellationToken);
-
-    return result;
-    }
+    // 3. (BỎ) ĐÃ BỎ GHI ĐÈ SAVECHANGES VÌ SỬ DỤNG STORED PROCEDURE CHO LOG GOM NHÓM JSON.
+    // public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) ...
 
     //protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-//#warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
-       // => optionsBuilder.UseSqlServer("Server=localhost,1433;Database=HotelManagementDB;User Id=sa;Password=HotelERP@2026!;TrustServerCertificate=True;");
+    //#warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
+    // => optionsBuilder.UseSqlServer("Server=localhost,1433;Database=HotelManagementDB;User Id=sa;Password=HotelERP@2026!;TrustServerCertificate=True;");
 
-   protected override void OnModelCreating(ModelBuilder modelBuilder)
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<UserPermission>().HasKey(up => new { up.UserId, up.PermissionId });
-        
+
         modelBuilder.Entity<ArticleCategory>().HasQueryFilter(c => c.Status == "ACTIVE");
-        
-        modelBuilder.Entity<Article>().HasQueryFilter(a => 
-            a.Status == "ACTIVE" && 
+
+        modelBuilder.Entity<Article>().HasQueryFilter(a =>
+            a.Status == "ACTIVE" &&
             (a.Category == null || a.Category.Status == "ACTIVE")
         );
+
+        // ✅ Map đúng tên cột DB thực tế (xác nhận từ INFORMATION_SCHEMA.COLUMNS)
+        modelBuilder.Entity<HotelERP.BE.Models.Notification>(entity =>
+        {
+            entity.ToTable("Notifications");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.UserId).HasColumnName("user_id");
+            entity.Property(e => e.Title).HasColumnName("title");
+            entity.Property(e => e.Content).HasColumnName("content");
+            entity.Property(e => e.Type).HasColumnName("type");
+            entity.Property(e => e.ReferenceLink).HasColumnName("reference_link");
+            entity.Property(e => e.IsRead).HasColumnName("is_read");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+        });
         modelBuilder.Entity<Amenity>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("PK__Amenitie__3213E83FF99261C0");
@@ -342,30 +247,15 @@ public partial class HotelDbContext : DbContext
 
         modelBuilder.Entity<AuditLog>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Audit_Lo__3213E83FFBFD106E");
-
+            entity.HasKey(e => e.Id).HasName("PK_Audit_Logs");
             entity.ToTable("Audit_Logs");
-
-            entity.HasIndex(e => new { e.TableName, e.RecordId, e.CreatedAt }, "IX_AuditLogs_Trace");
+            entity.HasIndex(e => new { e.UserId, e.RoleName, e.LogDate }, "UIX_Audit_Daily").IsUnique();
 
             entity.Property(e => e.Id).HasColumnName("id");
-            entity.Property(e => e.Action)
-                .HasMaxLength(100)
-                .HasColumnName("action");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getdate())", "DF_AuditLogs_CreatedAt")
-                .HasColumnType("datetime")
-                .HasColumnName("created_at");
-            entity.Property(e => e.NewValue).HasColumnName("new_value");
-            entity.Property(e => e.OldValue).HasColumnName("old_value");
-            entity.Property(e => e.Reason)
-                .HasMaxLength(1000)
-                .HasColumnName("reason");
-            entity.Property(e => e.RecordId).HasColumnName("record_id");
-            entity.Property(e => e.TableName)
-                .HasMaxLength(100)
-                .HasColumnName("table_name");
             entity.Property(e => e.UserId).HasColumnName("user_id");
+            entity.Property(e => e.RoleName).HasMaxLength(50).HasColumnName("role_name");
+            entity.Property(e => e.LogDate).HasColumnType("date").HasColumnName("log_date");
+            entity.Property(e => e.LogData).HasColumnName("log_data");
 
             entity.HasOne(d => d.User).WithMany(p => p.AuditLogs)
                 .HasForeignKey(d => d.UserId)
@@ -443,78 +333,87 @@ public partial class HotelDbContext : DbContext
         });
 
         modelBuilder.Entity<BookingDetail>(entity =>
-        {
-            entity.HasKey(e => e.Id).HasName("PK__Booking___3213E83FCD1B6048");
+    {
+        entity.HasKey(e => e.Id).HasName("PK__Booking___3213E83FCD1B6048");
 
-            entity.ToTable("Booking_Details");
+        entity.ToTable("Booking_Details");
 
-            entity.HasIndex(e => new { e.RoomId, e.CheckInDate, e.CheckOutDate }, "IX_BookingDetails_RoomDateRange");
+        entity.Property(e => e.SettlementStatus)
+       .HasMaxLength(50)
+       .HasDefaultValue("UNPAID", "DF_BookingDetails_SettlementStatus")
+       .HasColumnName("settlement_status");
 
-            entity.HasIndex(e => new { e.RoomTypeId, e.CheckInDate, e.CheckOutDate }, "IX_BookingDetails_RoomTypeDateRange");
+        entity.Property(e => e.SettledAt)
+            .HasColumnType("datetime")
+            .HasColumnName("settled_at");
 
-            entity.Property(e => e.Id).HasColumnName("id");
-            entity.Property(e => e.ActualCheckInAt)
-                .HasColumnType("datetime")
-                .HasColumnName("actual_check_in_at");
-            entity.Property(e => e.ActualCheckOutAt)
-                .HasColumnType("datetime")
-                .HasColumnName("actual_check_out_at");
-            entity.Property(e => e.AdultsCount)
-                .HasDefaultValue(1, "DF_BookingDetails_AdultsCount")
-                .HasColumnName("adults_count");
-            entity.Property(e => e.BookingId).HasColumnName("booking_id");
-            entity.Property(e => e.CheckInDate)
-                .HasColumnType("datetime")
-                .HasColumnName("check_in_date");
-            entity.Property(e => e.CheckOutDate)
-                .HasColumnType("datetime")
-                .HasColumnName("check_out_date");
-            entity.Property(e => e.ChildrenCount).HasColumnName("children_count");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getdate())", "DF_BookingDetails_CreatedAt")
-                .HasColumnType("datetime")
-                .HasColumnName("created_at");
-            entity.Property(e => e.EarlyCheckInFee)
-                .HasColumnType("decimal(18, 2)")
-                .HasColumnName("early_check_in_fee");
-            entity.Property(e => e.IdentityDocumentPublicId)
-                .HasMaxLength(255)
-                .HasColumnName("identity_document_public_id");
-            entity.Property(e => e.IdentityDocumentUrl).HasColumnName("identity_document_url");
-            entity.Property(e => e.LateCheckOutFee)
-                .HasColumnType("decimal(18, 2)")
-                .HasColumnName("late_check_out_fee");
-            entity.Property(e => e.LineTotal)
-                .HasColumnType("decimal(18, 2)")
-                .HasColumnName("line_total");
-            entity.Property(e => e.Nights)
-                .HasDefaultValue(1, "DF_BookingDetails_Nights")
-                .HasColumnName("nights");
-            entity.Property(e => e.PricePerNight)
-                .HasColumnType("decimal(18, 2)")
-                .HasColumnName("price_per_night");
-            entity.Property(e => e.RoomId).HasColumnName("room_id");
-            entity.Property(e => e.RoomTypeId).HasColumnName("room_type_id");
-            entity.Property(e => e.Status)
-                .HasMaxLength(50)
-                .HasDefaultValue("Booked", "DF_BookingDetails_Status")
-                .HasColumnName("status");
-            entity.Property(e => e.UpdatedAt)
-                .HasColumnType("datetime")
-                .HasColumnName("updated_at");
+        entity.HasIndex(e => new { e.RoomId, e.CheckInDate, e.CheckOutDate }, "IX_BookingDetails_RoomDateRange");
 
-            entity.HasOne(d => d.Booking).WithMany(p => p.BookingDetails)
-                .HasForeignKey(d => d.BookingId)
-                .HasConstraintName("FK_BookingDetails_Bookings");
+        entity.HasIndex(e => new { e.RoomTypeId, e.CheckInDate, e.CheckOutDate }, "IX_BookingDetails_RoomTypeDateRange");
 
-            entity.HasOne(d => d.Room).WithMany(p => p.BookingDetails)
-                .HasForeignKey(d => d.RoomId)
-                .HasConstraintName("FK_BookingDetails_Rooms");
+        entity.Property(e => e.Id).HasColumnName("id");
+        entity.Property(e => e.ActualCheckInAt)
+            .HasColumnType("datetime")
+            .HasColumnName("actual_check_in_at");
+        entity.Property(e => e.ActualCheckOutAt)
+            .HasColumnType("datetime")
+            .HasColumnName("actual_check_out_at");
+        entity.Property(e => e.AdultsCount)
+            .HasDefaultValue(1, "DF_BookingDetails_AdultsCount")
+            .HasColumnName("adults_count");
+        entity.Property(e => e.BookingId).HasColumnName("booking_id");
+        entity.Property(e => e.CheckInDate)
+            .HasColumnType("datetime")
+            .HasColumnName("check_in_date");
+        entity.Property(e => e.CheckOutDate)
+            .HasColumnType("datetime")
+            .HasColumnName("check_out_date");
+        entity.Property(e => e.ChildrenCount).HasColumnName("children_count");
+        entity.Property(e => e.CreatedAt)
+            .HasDefaultValueSql("(getdate())", "DF_BookingDetails_CreatedAt")
+            .HasColumnType("datetime")
+            .HasColumnName("created_at");
+        entity.Property(e => e.EarlyCheckInFee)
+            .HasColumnType("decimal(18, 2)")
+            .HasColumnName("early_check_in_fee");
+        entity.Property(e => e.IdentityDocumentPublicId)
+            .HasMaxLength(255)
+            .HasColumnName("identity_document_public_id");
+        entity.Property(e => e.IdentityDocumentUrl).HasColumnName("identity_document_url");
+        entity.Property(e => e.LateCheckOutFee)
+            .HasColumnType("decimal(18, 2)")
+            .HasColumnName("late_check_out_fee");
+        entity.Property(e => e.LineTotal)
+            .HasColumnType("decimal(18, 2)")
+            .HasColumnName("line_total");
+        entity.Property(e => e.Nights)
+            .HasDefaultValue(1, "DF_BookingDetails_Nights")
+            .HasColumnName("nights");
+        entity.Property(e => e.PricePerNight)
+            .HasColumnType("decimal(18, 2)")
+            .HasColumnName("price_per_night");
+        entity.Property(e => e.RoomId).HasColumnName("room_id");
+        entity.Property(e => e.RoomTypeId).HasColumnName("room_type_id");
+        entity.Property(e => e.Status)
+            .HasMaxLength(50)
+            .HasDefaultValue("Booked", "DF_BookingDetails_Status")
+            .HasColumnName("status");
+        entity.Property(e => e.UpdatedAt)
+            .HasColumnType("datetime")
+            .HasColumnName("updated_at");
 
-            entity.HasOne(d => d.RoomType).WithMany(p => p.BookingDetails)
-                .HasForeignKey(d => d.RoomTypeId)
-                .HasConstraintName("FK_BookingDetails_RoomTypes");
-        });
+        entity.HasOne(d => d.Booking).WithMany(p => p.BookingDetails)
+            .HasForeignKey(d => d.BookingId)
+            .HasConstraintName("FK_BookingDetails_Bookings");
+
+        entity.HasOne(d => d.Room).WithMany(p => p.BookingDetails)
+            .HasForeignKey(d => d.RoomId)
+            .HasConstraintName("FK_BookingDetails_Rooms");
+
+        entity.HasOne(d => d.RoomType).WithMany(p => p.BookingDetails)
+   .HasForeignKey(d => d.RoomTypeId)
+   .HasConstraintName("FK_BookingDetails_RoomTypes");
+    });
 
         modelBuilder.Entity<Invoice>(entity =>
         {
@@ -577,42 +476,91 @@ public partial class HotelDbContext : DbContext
                 .HasConstraintName("FK_Invoices_Bookings");
         });
 
+        modelBuilder.Entity<InvoiceBookingDetail>(entity =>
+{
+    entity.HasKey(e => e.Id).HasName("PK__InvoiceBookingDetails__3213E83F");
+
+    entity.ToTable("Invoice_Booking_Details");
+
+    entity.HasIndex(e => new { e.InvoiceId, e.BookingDetailId }, "UQ_InvoiceBookingDetails_InvoiceDetail")
+        .IsUnique();
+
+    entity.HasIndex(e => e.BookingDetailId, "IX_InvoiceBookingDetails_BookingDetail");
+
+    entity.Property(e => e.Id).HasColumnName("id");
+    entity.Property(e => e.InvoiceId).HasColumnName("invoice_id");
+    entity.Property(e => e.BookingDetailId).HasColumnName("booking_detail_id");
+    entity.Property(e => e.RoomCharge)
+        .HasColumnType("decimal(18, 2)")
+        .HasColumnName("room_charge");
+    entity.Property(e => e.ServiceCharge)
+        .HasColumnType("decimal(18, 2)")
+        .HasColumnName("service_charge");
+    entity.Property(e => e.DamageCharge)
+        .HasColumnType("decimal(18, 2)")
+        .HasColumnName("damage_charge");
+    entity.Property(e => e.DiscountAmount)
+        .HasColumnType("decimal(18, 2)")
+        .HasColumnName("discount_amount");
+    entity.Property(e => e.ExtraFeeAmount)
+        .HasColumnType("decimal(18, 2)")
+        .HasColumnName("extra_fee_amount");
+    entity.Property(e => e.TaxAmount)
+        .HasColumnType("decimal(18, 2)")
+        .HasColumnName("tax_amount");
+    entity.Property(e => e.LineTotal)
+        .HasColumnType("decimal(18, 2)")
+        .HasColumnName("line_total");
+    entity.Property(e => e.CreatedAt)
+        .HasDefaultValueSql("(getdate())", "DF_InvoiceBookingDetails_CreatedAt")
+        .HasColumnType("datetime")
+        .HasColumnName("created_at");
+
+    entity.HasOne(d => d.Invoice).WithMany(p => p.InvoiceBookingDetails)
+        .HasForeignKey(d => d.InvoiceId)
+        .HasConstraintName("FK_InvoiceBookingDetails_Invoices");
+
+    entity.HasOne(d => d.BookingDetail).WithMany(p => p.InvoiceBookingDetails)
+        .HasForeignKey(d => d.BookingDetailId)
+        .HasConstraintName("FK_InvoiceBookingDetails_BookingDetails");
+});
+
         modelBuilder.Entity<LossAndDamage>(entity =>
         {
-        entity.HasKey(e => e.Id).HasName("PKLoss_And3213E83FCAB03BE1");
-        entity.ToTable("Loss_And_Damages");
+            entity.HasKey(e => e.Id).HasName("PKLoss_And3213E83FCAB03BE1");
+            entity.ToTable("Loss_And_Damages");
 
-        entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.Id).HasColumnName("id");
 
-        // GIỮ NGUYÊN BẢN GỐC SQL
-        entity.Property(e => e.BookingDetailId).HasColumnName("booking_detail_id");
-        entity.Property(e => e.RoomInventoryId).HasColumnName("room_inventory_id");
-        entity.Property(e => e.Quantity).HasColumnName("quantity");
-        entity.Property(e => e.PenaltyAmount).HasColumnType("decimal(18, 2)").HasColumnName("penalty_amount");
-        entity.Property(e => e.Description).HasColumnName("description");
-        entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getdate())").HasColumnType("datetime").HasColumnName("created_at");
+            // GIỮ NGUYÊN BẢN GỐC SQL
+            entity.Property(e => e.BookingDetailId).HasColumnName("booking_detail_id");
+            entity.Property(e => e.RoomInventoryId).HasColumnName("room_inventory_id");
+            entity.Property(e => e.Quantity).HasColumnName("quantity");
+            entity.Property(e => e.PenaltyAmount).HasColumnType("decimal(18, 2)").HasColumnName("penalty_amount");
+            entity.Property(e => e.Description).HasColumnName("description");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getdate())").HasColumnType("datetime").HasColumnName("created_at");
 
-        // PHẦN THÊM VÀO (Không ảnh hưởng SQL gốc)
-        entity.Property(e => e.EvidenceImageUrl).HasColumnName("evidence_image_url");
-        entity.Property(e => e.EvidencePublicId).HasMaxLength(255).HasColumnName("evidence_public_id");
-        entity.Property(e => e.Status).HasMaxLength(20).HasDefaultValue("OPEN").HasColumnName("status");
-        entity.Property(e => e.UpdatedAt).HasColumnType("datetime").HasColumnName("updated_at");
-        entity.Property(e => e.RoomId).HasColumnName("room_id");
-        entity.Property(e => e.ReportedByUserId).HasColumnName("reported_by_user_id");
+            // PHẦN THÊM VÀO (Không ảnh hưởng SQL gốc)
+            entity.Property(e => e.EvidenceImageUrl).HasColumnName("evidence_image_url");
+            entity.Property(e => e.EvidencePublicId).HasMaxLength(255).HasColumnName("evidence_public_id");
+            entity.Property(e => e.Status).HasMaxLength(20).HasDefaultValue("OPEN").HasColumnName("status");
+            entity.Property(e => e.UpdatedAt).HasColumnType("datetime").HasColumnName("updated_at");
+            entity.Property(e => e.RoomId).HasColumnName("room_id");
+            entity.Property(e => e.ReportedByUserId).HasColumnName("reported_by_user_id");
 
-        entity.HasOne(d => d.BookingDetail).WithMany(p => p.LossAndDamages)
-        .HasForeignKey(d => d.BookingDetailId)
-        .HasConstraintName("FK_LossAndDamages_BookingDetails");
+            entity.HasOne(d => d.BookingDetail).WithMany(p => p.LossAndDamages)
+            .HasForeignKey(d => d.BookingDetailId)
+            .HasConstraintName("FK_LossAndDamages_BookingDetails");
 
-        entity.HasOne(d => d.RoomInventory).WithMany(p => p.LossAndDamages)
-        .HasForeignKey(d => d.RoomInventoryId)
-        .HasConstraintName("FK_LossAndDamages_RoomInventory");
+            entity.HasOne(d => d.RoomInventory).WithMany(p => p.LossAndDamages)
+            .HasForeignKey(d => d.RoomInventoryId)
+            .HasConstraintName("FK_LossAndDamages_RoomInventory");
 
-        entity.HasOne(d => d.Room).WithMany(p => p.LossAndDamages)
-        .HasForeignKey(d => d.RoomId)
-        .HasConstraintName("FK_LossAndDamages_Rooms");
+            entity.HasOne(d => d.Room).WithMany(p => p.LossAndDamages)
+            .HasForeignKey(d => d.RoomId)
+            .HasConstraintName("FK_LossAndDamages_Rooms");
         });
-        
+
 
         modelBuilder.Entity<LoyaltyPointHistory>(entity =>
         {
@@ -653,7 +601,7 @@ public partial class HotelDbContext : DbContext
                   .HasForeignKey(d => d.UserId)
                   .OnDelete(DeleteBehavior.Restrict)
                   .HasConstraintName("FK_LoyaltyPointHistories_Users");
-       });
+        });
 
         modelBuilder.Entity<Membership>(entity =>
         {
@@ -1001,43 +949,43 @@ public partial class HotelDbContext : DbContext
             entity.Property(e => e.ImageUrl).HasColumnName("ImageUrl");
         });
 
-            modelBuilder.Entity<RoomInventory>(entity =>
-        {
-            entity.HasKey(e => e.Id).HasName("PKRoom_Inv3213E83F11FADD17");
+        modelBuilder.Entity<RoomInventory>(entity =>
+    {
+        entity.HasKey(e => e.Id).HasName("PKRoom_Inv3213E83F11FADD17");
 
-            entity.ToTable("Room_Inventory");
+        entity.ToTable("Room_Inventory");
 
-            entity.Property(e => e.Id).HasColumnName("id");
-            entity.Property(e => e.RoomId).HasColumnName("room_id");
+        entity.Property(e => e.Id).HasColumnName("id");
+        entity.Property(e => e.RoomId).HasColumnName("room_id");
 
-            entity.Property(e => e.Quantity)
-                .HasDefaultValue(1)
-                .HasColumnName("quantity");
+        entity.Property(e => e.Quantity)
+            .HasDefaultValue(1)
+            .HasColumnName("quantity");
 
-            entity.Property(e => e.PriceIfLost)
-                .HasColumnType("decimal(18, 2)")
-                .HasColumnName("price_if_lost");
+        entity.Property(e => e.PriceIfLost)
+            .HasColumnType("decimal(18, 2)")
+            .HasColumnName("price_if_lost");
 
-            entity.Property(e => e.Note)
-                .HasMaxLength(255)
-                .HasColumnName("note");
+        entity.Property(e => e.Note)
+            .HasMaxLength(255)
+            .HasColumnName("note");
 
-            entity.Property(e => e.IsActive)
-                .HasDefaultValue(true)
-                .HasColumnName("is_active");
+        entity.Property(e => e.IsActive)
+            .HasDefaultValue(true)
+            .HasColumnName("is_active");
 
-            entity.Property(e => e.ItemType)
-                .HasMaxLength(50)
-                .HasDefaultValue("Asset")
-                .HasColumnName("item_type");
+        entity.Property(e => e.ItemType)
+            .HasMaxLength(50)
+            .HasDefaultValue("Asset")
+            .HasColumnName("item_type");
 
-            entity.Property(e => e.EquipmentId)
-                .HasColumnName("EquipmentId");
+        entity.Property(e => e.EquipmentId)
+            .HasColumnName("EquipmentId");
 
-            entity.HasOne(d => d.Room).WithMany(p => p.RoomInventories)
-                .HasForeignKey(d => d.RoomId)
-                .HasConstraintName("FK_RoomInventory_Rooms");
-        });
+        entity.HasOne(d => d.Room).WithMany(p => p.RoomInventories)
+            .HasForeignKey(d => d.RoomId)
+            .HasConstraintName("FK_RoomInventory_Rooms");
+    });
 
         modelBuilder.Entity<RoomType>(entity =>
         {
@@ -1228,11 +1176,9 @@ public partial class HotelDbContext : DbContext
                 .HasConstraintName("FK_Users_Roles");
         });
 
-        modelBuilder.Entity<Voucher>(entity =>
+                modelBuilder.Entity<Voucher>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("PK__Vouchers__3213E83FF1D19D35");
-
-            entity.HasIndex(e => new { e.Status, e.ValidFrom, e.ValidTo }, "IX_Vouchers_StatusDates");
 
             entity.HasIndex(e => e.Code, "UQ_Vouchers_Code").IsUnique();
 
@@ -1240,92 +1186,83 @@ public partial class HotelDbContext : DbContext
             entity.Property(e => e.Code)
                 .HasMaxLength(50)
                 .HasColumnName("code");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getdate())", "DF_Vouchers_CreatedAt")
-                .HasColumnType("datetime")
-                .HasColumnName("created_at");
             entity.Property(e => e.DiscountType)
                 .HasMaxLength(50)
                 .HasColumnName("discount_type");
             entity.Property(e => e.DiscountValue)
                 .HasColumnType("decimal(18, 2)")
                 .HasColumnName("discount_value");
-            entity.Property(e => e.MinBookingAmount)
-                .HasColumnType("decimal(18, 2)")
-                .HasColumnName("min_booking_amount");
             entity.Property(e => e.MinBookingValue)
                 .HasColumnType("decimal(18, 2)")
                 .HasColumnName("min_booking_value");
-            entity.Property(e => e.Status)
-                .HasMaxLength(20)
-                .HasDefaultValue("ACTIVE", "DF_Vouchers_Status")
-                .HasColumnName("status");
-            entity.Property(e => e.UpdatedAt)
-                .HasColumnType("datetime")
-                .HasColumnName("updated_at");
-            entity.Property(e => e.UsageLimit).HasColumnName("usage_limit");
-            entity.Property(e => e.UsedCount).HasColumnName("used_count");
             entity.Property(e => e.ValidFrom)
                 .HasColumnType("datetime")
                 .HasColumnName("valid_from");
             entity.Property(e => e.ValidTo)
                 .HasColumnType("datetime")
                 .HasColumnName("valid_to");
+            entity.Property(e => e.UsageLimit).HasColumnName("usage_limit");
+
+            entity.Ignore(e => e.MinBookingAmount);
+            entity.Ignore(e => e.UsedCount);
+            entity.Ignore(e => e.Status);
+            entity.Ignore(e => e.CreatedAt);
+            entity.Ignore(e => e.UpdatedAt);
         });
         modelBuilder.Entity<RefreshToken>(entity =>
         {
-        entity.HasKey(e => e.Id);
-        entity.ToTable("Refresh_Tokens");
+            entity.HasKey(e => e.Id);
+            entity.ToTable("Refresh_Tokens");
 
-        entity.Property(e => e.Id).HasColumnName("id");
-        entity.Property(e => e.UserId).HasColumnName("user_id");
-    
-        entity.Property(e => e.Token)
-        .HasMaxLength(500)
-        .HasColumnName("token");
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.UserId).HasColumnName("user_id");
 
-        entity.Property(e => e.JwtId)
-        .HasMaxLength(255)
-        .HasColumnName("jwt_id");
+            entity.Property(e => e.Token)
+            .HasMaxLength(500)
+            .HasColumnName("token");
 
-        entity.Property(e => e.IsUsed).HasColumnName("is_used");
-        entity.Property(e => e.IsRevoked).HasColumnName("is_revoked");
-    
-        entity.Property(e => e.CreatedAt)
-        .HasColumnType("datetime")
-        .HasDefaultValueSql("(getdate())")
-        .HasColumnName("created_at");
+            entity.Property(e => e.JwtId)
+            .HasMaxLength(255)
+            .HasColumnName("jwt_id");
 
-        entity.Property(e => e.ExpireAt)
-        .HasColumnType("datetime")
-        .HasColumnName("expire_at");
+            entity.Property(e => e.IsUsed).HasColumnName("is_used");
+            entity.Property(e => e.IsRevoked).HasColumnName("is_revoked");
 
-        entity.HasOne(d => d.User)
-        .WithMany() // Liên kết 1 chiều từ RefreshToken về User
-        .HasForeignKey(d => d.UserId)
+            entity.Property(e => e.CreatedAt)
+            .HasColumnType("datetime")
+            .HasDefaultValueSql("(getdate())")
+            .HasColumnName("created_at");
+
+            entity.Property(e => e.ExpireAt)
+            .HasColumnType("datetime")
+            .HasColumnName("expire_at");
+
+            entity.HasOne(d => d.User)
+            .WithMany() // Liên kết 1 chiều từ RefreshToken về User
+            .HasForeignKey(d => d.UserId)
+            .OnDelete(DeleteBehavior.ClientSetNull)
+            .HasConstraintName("FK_RefreshTokens_Users");
+        });
+
+        modelBuilder.Entity<RoomTypeAmenity>(entity =>
+{
+    entity.HasKey(e => new { e.RoomTypeId, e.AmenityId });
+
+    entity.ToTable("RoomType_Amenities");
+
+    entity.Property(e => e.RoomTypeId).HasColumnName("room_type_id");
+    entity.Property(e => e.AmenityId).HasColumnName("amenity_id");
+
+    entity.HasOne(d => d.Amenity).WithMany(p => p.RoomTypeAmenities)
+        .HasForeignKey(d => d.AmenityId)
         .OnDelete(DeleteBehavior.ClientSetNull)
-        .HasConstraintName("FK_RefreshTokens_Users");
-        });
+        .HasConstraintName("FK_RoomTypeAmenities_Amenities");
 
-                modelBuilder.Entity<RoomTypeAmenity>(entity =>
-        {
-            entity.HasKey(e => new { e.RoomTypeId, e.AmenityId });
-
-            entity.ToTable("RoomType_Amenities");
-
-            entity.Property(e => e.RoomTypeId).HasColumnName("room_type_id");
-            entity.Property(e => e.AmenityId).HasColumnName("amenity_id");
-
-            entity.HasOne(d => d.Amenity).WithMany(p => p.RoomTypeAmenities)
-                .HasForeignKey(d => d.AmenityId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_RoomTypeAmenities_Amenities");
-
-            entity.HasOne(d => d.RoomType).WithMany(p => p.RoomTypeAmenities)
-                .HasForeignKey(d => d.RoomTypeId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_RoomTypeAmenities_RoomTypes");
-        });
+    entity.HasOne(d => d.RoomType).WithMany(p => p.RoomTypeAmenities)
+        .HasForeignKey(d => d.RoomTypeId)
+        .OnDelete(DeleteBehavior.ClientSetNull)
+        .HasConstraintName("FK_RoomTypeAmenities_RoomTypes");
+});
         modelBuilder.Entity<Room>().HasQueryFilter(r => r.DeletedAt == null);
         modelBuilder.Entity<RoomType>().HasQueryFilter(rt => rt.DeletedAt == null);
 

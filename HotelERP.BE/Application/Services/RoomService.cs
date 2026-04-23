@@ -4,6 +4,7 @@ using HotelERP.BE.Application.DTOs;
 using HotelERP.BE.Infrastructure.Data;
 using HotelERP.BE.Domain.Models;
 using HotelERP.BE.Utils;
+using HotelERP.BE.Helpers.AuditLogs;
 using Microsoft.AspNetCore.SignalR;
 using HotelERP.BE.DTOs.Hubs;
 
@@ -111,49 +112,92 @@ public class RoomService : IRoomService
         return true;
     }
 
-    public async Task<bool> ReportDamageAsync(int userId, ReportDamageRequest request)
-{
-    var room = await _context!.Rooms.FindAsync(request.RoomId);
-    if (room == null || room.DeletedAt != null)
-        throw new InvalidOperationException("Phòng không tồn tại.");
-
-    // NGHIÊP VỤ: Chỉ cho phép báo hỏng khi phòng đang có khách (Occupied)
-    if (room.Status.ToUpper() != "OCCUPIED")
-        throw new InvalidOperationException($"Không thể báo hỏng cho phòng đang ở trạng thái '{room.Status}'. Tính năng này chỉ dành cho phòng đang có khách lưu trú.");
-
-    var damage = new LossAndDamage
+    public async Task<bool> ReportDamageAsync(int userId, string roleName, ReportDamageRequest request)
     {
-        RoomId = request.RoomId,
-        BookingDetailId = request.BookingDetailId, 
-        RoomInventoryId = request.RoomInventoryId, 
-        ReportedByUserId = userId,
-        Description = request.Description,
-        PenaltyAmount = request.PenaltyAmount,     
-        Quantity = request.Quantity,               
-        CreatedAt = DateTime.UtcNow
-    };
+        var room = await _context!.Rooms.FindAsync(request.RoomId);
+        if (room == null || room.DeletedAt != null)
+            throw new InvalidOperationException("Phòng không tồn tại.");
 
-    if (request.EvidenceImage != null && request.EvidenceImage.Length > 0) {
-        var res = await _cloudinary.UploadImageAsync(request.EvidenceImage, "damages");
-        damage.EvidenceImageUrl = res.Url;
-        damage.EvidencePublicId = res.PublicId; // Khớp với trường DB
+        // NGHIỆP VỤ: Cho phép báo hỏng bất kể trạng thái phòng (để nhân viên dọn phòng báo hỏng sau khi khách checkout)
+        // Bỏ check "OCCUPIED" cũ ở đây
+        // if (room.Status.ToUpper() != "OCCUPIED")
+        //     throw new InvalidOperationException($"Không thể báo hỏng cho phòng đang ở trạng thái '{room.Status}'. Tính năng này chỉ dành cho phòng đang có khách lưu trú.");
+
+        var activeBookingDetailId = request.BookingDetailId;
+        if (!activeBookingDetailId.HasValue || activeBookingDetailId.Value <= 0)
+        {
+            activeBookingDetailId = await _context.BookingDetails
+                .Include(bd => bd.Booking)
+                .Where(bd => bd.RoomId == request.RoomId
+                             && bd.ActualCheckOutAt == null
+                             && bd.BookingId != null
+                             && bd.Booking != null
+                             && bd.Booking.Status != "Cancelled")
+                .OrderByDescending(bd => bd.ActualCheckInAt ?? bd.CheckInDate)
+                .Select(bd => (int?)bd.Id)
+                .FirstOrDefaultAsync();
+        }
+
+        var damage = new LossAndDamage
+        {
+            RoomId = request.RoomId,
+            BookingDetailId = activeBookingDetailId,
+            RoomInventoryId = request.RoomInventoryId,
+            ReportedByUserId = userId,
+            Description = request.Description,
+            PenaltyAmount = request.PenaltyAmount,
+            Quantity = request.Quantity,
+            Status = "OPEN",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        if (request.EvidenceImage != null && request.EvidenceImage.Length > 0)
+        {
+            var res = await _cloudinary.UploadImageAsync(request.EvidenceImage, "damages");
+            damage.EvidenceImageUrl = res.Url;
+            damage.EvidencePublicId = res.PublicId;
+        }
+
+        if (request.RoomInventoryId.HasValue)
+        {
+            var roomInventory = await _context.RoomInventories
+                .Include(ri => ri.Equipment)
+                .FirstOrDefaultAsync(ri => ri.Id == request.RoomInventoryId.Value);
+
+            if (roomInventory != null)
+            {
+                roomInventory.Quantity -= request.Quantity;
+
+                if (roomInventory.Equipment != null)
+                {
+                    var equipName = roomInventory.Equipment.Name;
+                    var activeEquipmentsToSync = await _context.Equipments
+                        .Where(e => e.Name == equipName && e.IsActive)
+                        .ToListAsync();
+
+                    foreach (var eq in activeEquipmentsToSync)
+                    {
+                        eq.DamagedQuantity += request.Quantity;
+                        eq.InUseQuantity -= request.Quantity;
+                    }
+                }
+            }
+        }
+
+        _context.LossAndDamages.Add(damage);
+        await _context.SaveChangesAsync();
+
+        // Dùng extension method, bên trong vẫn là _context.AuditLogs.Add(new AuditLog {...})
+        await _context.AddAuditLogAsync(
+            userId: userId,
+            roleName: roleName,
+            actionType: "REPORT_DAMAGE",
+            entityType: "Loss_And_Damages",
+            message: request.Reason ?? "Ghi nhận hỏng hóc/mất mát vật tư"
+        );
+        return true;
     }
-
-    _context!.LossAndDamages.Add(damage);
-    await _context!.SaveChangesAsync(); 
-
-    _context!.AuditLogs.Add(new AuditLog {
-        UserId = userId,
-        Action = "REPORT_DAMAGE",
-        TableName = "Loss_And_Damages",
-        RecordId = damage.Id,
-        Reason = request.Reason,
-        CreatedAt = DateTime.UtcNow
-    });
-
-    await _context!.SaveChangesAsync();
-    return true;
-}
 
 public async Task<IEnumerable<DamageReportResponseDto>> GetRoomDamagesAsync(int roomId)
 {
@@ -188,5 +232,38 @@ public async Task<List<Room>> GetAvailableRoomsForCheckInAsync(int roomTypeId)
             await _hubContext!.Clients.All.SendAsync("ReceiveRoomStatusUpdate", roomId, status, cleaningStatus);
 
             return true;
+        }
+
+        // ================================================================
+        // HANGFIRE JOB: Chạy lúc 9h sáng giờ Việt Nam (UTC+7 = 02:00 UTC)
+        // Tất cả phòng OCCUPIED + CLEAN → chuyển sang DIRTY
+        // ================================================================
+        public async Task MarkOccupiedRoomsDirtyAsync()
+        {
+            var occupiedCleanRooms = await _context!.Rooms
+                .Where(r => r.Status == "OCCUPIED" && r.CleaningStatus == "CLEAN" && r.DeletedAt == null)
+                .ToListAsync();
+
+            if (!occupiedCleanRooms.Any()) return;
+
+            foreach (var room in occupiedCleanRooms)
+            {
+                room.CleaningStatus = "DIRTY";
+                room.UpdatedAt = DateTime.UtcNow;
+            }
+
+            await _context!.SaveChangesAsync();
+
+            // Bắn SignalR cho mỗi phòng đã đổi trạng thái
+            if (_hubContext != null)
+            {
+                foreach (var room in occupiedCleanRooms)
+                {
+                    await _hubContext.Clients.All.SendAsync(
+                        "ReceiveRoomStatusUpdate", room.Id, room.Status, "DIRTY");
+                }
+            }
+
+            Console.WriteLine($"[9AM Job] Đã đổi {occupiedCleanRooms.Count} phòng OCCUPIED+CLEAN → DIRTY lúc {DateTime.UtcNow:HH:mm} UTC");
         }
 }

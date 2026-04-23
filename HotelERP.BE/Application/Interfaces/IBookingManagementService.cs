@@ -42,4 +42,9 @@ public interface IBookingManagementService
     /// API 7: Đổi phòng cho khách (Room Change)
     /// </summary>
     Task<(bool Success, string Message)> ChangeRoomAsync(int detailId, int newRoomId);
+
+    /// <summary>
+    /// API 8: Nạp cọc cho Booking
+    /// </summary>
+    Task<(bool Success, string Message, decimal NewDeposit)> AddDepositAsync(int bookingId, decimal amount);
 }

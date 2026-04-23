@@ -136,7 +136,8 @@ private readonly IDistributedLockFactory _lockFactory;
                 TotalPhysicalRooms = _context.Rooms.Count(r => r.RoomTypeId == rt.Id && r.Status == RoomPhysicalStatus.Available),
                 OccupiedRooms = _context.BookingDetails.Count(bd => 
                         bd.RoomTypeId == rt.Id &&
-                        bd.Status != "Cancelled" && 
+                        bd.Status != BookingStatus.Cancelled && 
+                        bd.Status != BookingStatus.CancelledByAdmin && 
                         bd.Booking!.Status != BookingStatus.Expired && 
                         bd.CheckInDate < request.CheckOutDate && 
                         bd.CheckOutDate > request.CheckInDate)
@@ -179,21 +180,62 @@ private readonly IDistributedLockFactory _lockFactory;
             await _context.SaveChangesAsync();
 
             var db = _redis.GetDatabase(); // Fix Redis Call
+            decimal finalTotalAmount = 0; // NEW: Biến cộng dồn tổng tiền
+
             foreach (var item in request.Items) {
+                // NEW: Lấy giá BasePrice từ CSDL cho hạng phòng này
+                var roomTypeInfo = await _context.RoomTypes.FindAsync(item.RoomTypeId);
+                var basePrice = roomTypeInfo?.BasePrice ?? 0;
+                var nightsCount = (int)(item.CheckOutDate.Date - item.CheckInDate.Date).TotalDays;
+                if (nightsCount <= 0) nightsCount = 1;
+
                 for (int i = 0; i < item.Quantity; i++) {
+                    var lineTotal = basePrice * nightsCount;
+                    finalTotalAmount += lineTotal;
+
+                    var specificRoomId = (item.RoomIds != null && item.RoomIds.Count > i && item.RoomIds[i] > 0) ? item.RoomIds[i] : (int?)null;
+
+                    // NEW: Kiểm tra xem phòng vật lý này đã bị ai đó chiếm trùng ngày chưa (Tuyệt chiêu chống Overbooking)
+                    if (specificRoomId.HasValue)
+                    {
+                        bool isConflict = await _context.BookingDetails.AnyAsync(bd => 
+                            bd.RoomId == specificRoomId.Value &&
+                            bd.Status != BookingStatus.Cancelled && 
+                            bd.Status != BookingStatus.CancelledByAdmin && 
+                            bd.Booking!.Status != BookingStatus.Expired && 
+                            bd.CheckInDate < item.CheckOutDate && 
+                            bd.CheckOutDate > item.CheckInDate);
+
+                        if (isConflict)
+                        {
+                            throw new Exception($"Thất bại! Phòng vật lý (ID: {specificRoomId.Value}) bạn định chọn đã có người giữ chỗ trong khoảng thời gian này rồi. Vui lòng F5 và chọn phòng khác.");
+                        }
+                    }
+
                     var detail = new BookingDetail {
                         BookingId = booking.Id,
                         RoomTypeId = item.RoomTypeId,
+                        RoomId = specificRoomId, // Gán số phòng vật lý cụ thể nếu có
                         CheckInDate = item.CheckInDate,
                         CheckOutDate = item.CheckOutDate,
-                        Status = BookingStatus.Holding
+                        Status = BookingStatus.Holding,
+                        PricePerNight = basePrice,   // NEW
+                        Nights = nightsCount,        // NEW
+                        LineTotal = lineTotal        // NEW
                     };
                     _context.BookingDetails.Add(detail);
+                    
+                    // KHÔNG cập nhật trạng thái physicalRoom.Status ở đây (lúc Booking)
+                    // Vì Booking có thể nằm ở tương lai. 
+                    // physicalRoom.Status chỉ lấy làm hiển thị ở hiện tại.
                 }
                 
                 await db.StringSetAsync($"hold:{booking.Id}:{item.RoomTypeId}", "HOLDING", TimeSpan.FromMinutes(15));
             }
 
+            // Gán lại tổng tiền cuối cho mảng Booking cha
+            booking.FinalAmount = finalTotalAmount;
+            
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
             return booking.Id;
@@ -214,6 +256,14 @@ private readonly IDistributedLockFactory _lockFactory;
 
         foreach (var detail in booking.BookingDetails) {
             detail.Status = BookingStatus.CancelledByAdmin;
+            if (detail.RoomId.HasValue) 
+            {
+                var room = await _context.Rooms.FindAsync(detail.RoomId.Value);
+                if (room != null && room.Status != RoomPhysicalStatus.Available)
+                {
+                    room.Status = RoomPhysicalStatus.Available;
+                }
+            }
             await db.KeyDeleteAsync($"hold:{bookingId}:{detail.RoomTypeId}");
         }
 

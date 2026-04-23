@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace HotelERP.BE.Domain.Models;
@@ -30,6 +30,8 @@ public partial class Booking
     public decimal DiscountAmount { get; set; }
 
     public decimal FinalAmount { get; set; }
+
+    public decimal DepositAmount { get; set; }
 
     public string PaymentStatus { get; set; } = null!;
 
