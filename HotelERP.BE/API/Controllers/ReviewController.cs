@@ -1,11 +1,13 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore; // Bổ sung để dùng ToListAsync() và FirstOrDefaultAsync()
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
 using System.Net;
+using System.Security.Claims;
 using HotelERP.BE.Domain.Models;
 using HotelERP.BE.Services;
 using HotelERP.BE.Infrastructure.Data;
 using HotelERP.BE.Helpers.AuditLogs;
-using HotelERP.BE.Utils; // Bổ sung để gọi HotelDbContext
+using HotelERP.BE.Utils;
 
 namespace HotelERP.BE.Controllers;
 
@@ -66,17 +68,24 @@ public class ReviewController(HotelDbContext context, ICloudinaryService cloudin
         review.IsApproved = false;
         review.Status = "Hidden";
 
-        // 2. Lấy và Decode header X-Audit-Reason an toàn
+        // 2. Lấy userId và role thật từ JWT token
+        var userIdRaw = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        int.TryParse(userIdRaw, out int actingUserId);
+        var actingRole = User.FindFirstValue(ClaimTypes.Role) ?? "System";
+
+        // 3. Lấy và Decode header X-Audit-Reason an toàn
         string decodedReason = "Không có lý do";
         if (Request.Headers.TryGetValue("X-Audit-Reason", out var reasonValues))
         {
             decodedReason = WebUtility.UrlDecode(reasonValues.ToString());
         }
 
-        // 3. Ghi Audit Log (dùng extension method, bên trong vẫn là _context.AuditLogs.Add)
+        await context.SaveChangesAsync();
+
+        // 4. Ghi Audit Log với userId và role thật
         await context.AddAuditLogAsync(
-            userId: 0, // TODO: Lấy userId thật từ JWT
-            roleName: "System",
+            userId: actingUserId,
+            roleName: actingRole,
             actionType: "HIDE_REVIEW",
             entityType: "Reviews",
             message: decodedReason

@@ -15,10 +15,12 @@ public class VoucherService : IVoucherService
     private const string DiscountTypeFixedAmount = "FIXED_AMOUNT";
 
     private readonly HotelDbContext _dbContext;
+    private readonly IVoucherAuditLogHelper _auditLogHelper;
 
     public VoucherService(HotelDbContext dbContext, IVoucherAuditLogHelper voucherAuditLogHelper)
     {
         _dbContext = dbContext;
+        _auditLogHelper = voucherAuditLogHelper; // ← lưu lại để dùng khi ghi audit log
     }
 
     public async Task<ApiResult<List<VoucherResponseDto>>> GetAllAsync(string? status, string? search, CancellationToken cancellationToken = default)
@@ -74,7 +76,7 @@ public class VoucherService : IVoucherService
         return ApiResult<VoucherResponseDto>.Ok(MapToResponse(voucher, usedCountMap), "Lấy chi tiết voucher thành công.", "VOUCHER_DETAIL_SUCCESS");
     }
 
-    public async Task<ApiResult<VoucherResponseDto>> CreateAsync(CreateVoucherRequestDto request, int? performedByUserId, CancellationToken cancellationToken = default)
+    public async Task<ApiResult<VoucherResponseDto>> CreateAsync(CreateVoucherRequestDto request, int? performedByUserId, string? performedByRole = null, CancellationToken cancellationToken = default)
     {
         var validationResult = await ValidateUpsertRequestAsync(
             request.Code,
@@ -118,10 +120,23 @@ public class VoucherService : IVoucherService
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         var usedCountMap = await GetUsedCountMapAsync(cancellationToken);
-        return ApiResult<VoucherResponseDto>.Created(MapToResponse(voucher, usedCountMap), "Tạo voucher thành công.", "CREATE_VOUCHER_SUCCESS");
+        var response = MapToResponse(voucher, usedCountMap);
+
+        // Ghi audit log với role thật của người thực hiện
+        await _auditLogHelper.WriteAsync(
+            userId: performedByUserId,
+            roleName: performedByRole ?? "System",
+            action: "CREATE",
+            recordId: voucher.Id,
+            oldValue: null,
+            newValue: _auditLogHelper.BuildSnapshot(voucher),
+            reason: request.Reason ?? "Tạo voucher mới",
+            cancellationToken: cancellationToken);
+
+        return ApiResult<VoucherResponseDto>.Created(response, "Tạo voucher thành công.", "CREATE_VOUCHER_SUCCESS");
     }
 
-    public async Task<ApiResult<VoucherResponseDto>> UpdateAsync(int id, UpdateVoucherRequestDto request, int? performedByUserId, CancellationToken cancellationToken = default)
+    public async Task<ApiResult<VoucherResponseDto>> UpdateAsync(int id, UpdateVoucherRequestDto request, int? performedByUserId, string? performedByRole = null, CancellationToken cancellationToken = default)
     {
         var voucher = await _dbContext.Vouchers.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         if (voucher is null)
@@ -167,10 +182,23 @@ public class VoucherService : IVoucherService
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         var usedCountMap = await GetUsedCountMapAsync(cancellationToken);
-        return ApiResult<VoucherResponseDto>.Ok(MapToResponse(voucher, usedCountMap), "Cập nhật voucher thành công.", "UPDATE_VOUCHER_SUCCESS");
+        var response = MapToResponse(voucher, usedCountMap);
+
+        // Ghi audit log với role thật của người thực hiện
+        await _auditLogHelper.WriteAsync(
+            userId: performedByUserId,
+            roleName: performedByRole ?? "System",
+            action: "UPDATE",
+            recordId: voucher.Id,
+            oldValue: null,
+            newValue: _auditLogHelper.BuildSnapshot(voucher),
+            reason: request.Reason ?? "Cập nhật voucher",
+            cancellationToken: cancellationToken);
+
+        return ApiResult<VoucherResponseDto>.Ok(response, "Cập nhật voucher thành công.", "UPDATE_VOUCHER_SUCCESS");
     }
 
-    public async Task<ApiResult<object>> DisableAsync(int id, DisableVoucherRequestDto request, int? performedByUserId, CancellationToken cancellationToken = default)
+    public async Task<ApiResult<object>> DisableAsync(int id, DisableVoucherRequestDto request, int? performedByUserId, string? performedByRole = null, CancellationToken cancellationToken = default)
     {
         var actorValidation = await ValidateActorAndReasonAsync(performedByUserId, request.Reason, cancellationToken);
         if (actorValidation is not null)
@@ -200,6 +228,17 @@ public class VoucherService : IVoucherService
 
         voucher.ValidTo = now.AddSeconds(-1);
         await _dbContext.SaveChangesAsync(cancellationToken);
+
+        // Ghi audit log với role thật của người thực hiện
+        await _auditLogHelper.WriteAsync(
+            userId: performedByUserId,
+            roleName: performedByRole ?? "System",
+            action: "DELETE",
+            recordId: voucher.Id,
+            oldValue: _auditLogHelper.BuildSnapshot(voucher),
+            newValue: null,
+            reason: request.Reason ?? "Vô hiệu hóa voucher",
+            cancellationToken: cancellationToken);
 
         return ApiResult<object>.Ok(new
         {

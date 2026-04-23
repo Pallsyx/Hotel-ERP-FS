@@ -101,6 +101,7 @@ namespace HotelERP.BE.Application.Services
     public async Task<ApiResult<InvoiceActionResponseDto>> CreateDraftAsync(
         CreateDraftInvoiceRequestDto request,
         int? performedByUserId,
+        string? performedByRole = null,
         CancellationToken cancellationToken = default)
     {
         var detailIds = request.BookingDetailIds
@@ -256,6 +257,7 @@ namespace HotelERP.BE.Application.Services
 
         AddAuditLog(
             performedByUserId,
+            performedByRole,
             "CREATE_DRAFT_INVOICE_PARTIAL",
             "Invoices",
             invoice.Id,
@@ -302,6 +304,7 @@ namespace HotelERP.BE.Application.Services
         int invoiceId,
         AddExtraFeeRequestDto request,
         int? performedByUserId,
+        string? performedByRole = null,
         CancellationToken cancellationToken = default)
     {
         if (request.Amount <= 0)
@@ -363,6 +366,7 @@ namespace HotelERP.BE.Application.Services
 
         AddAuditLog(
             performedByUserId,
+            performedByRole,
             "ADD_EXTRA_FEE_INVOICE",
             "Invoices",
             invoice.Id,
@@ -383,6 +387,7 @@ namespace HotelERP.BE.Application.Services
         int invoiceId,
         UpdateDamageChargeRequestDto request,
         int? performedByUserId,
+        string? performedByRole = null,
         CancellationToken cancellationToken = default)
     {
         if (request.Amount < 0)
@@ -444,6 +449,7 @@ namespace HotelERP.BE.Application.Services
 
         AddAuditLog(
             performedByUserId,
+            performedByRole,
             "UPDATE_DAMAGE_CHARGE_INVOICE",
             "Invoices",
             invoice.Id,
@@ -464,6 +470,7 @@ namespace HotelERP.BE.Application.Services
         int invoiceId,
         FinalizeInvoiceRequestDto request,
         int? performedByUserId,
+        string? performedByRole = null,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(request.PaymentMethod))
@@ -569,6 +576,7 @@ namespace HotelERP.BE.Application.Services
 
         AddAuditLog(
             performedByUserId,
+            performedByRole,
             "FINALIZE_INVOICE_PARTIAL",
             "Invoices",
             invoice.Id,
@@ -1493,6 +1501,7 @@ namespace HotelERP.BE.Application.Services
 
     private async Task AddAuditLog(
         int? userId,
+        string? roleName,
         string action,
         string tableName,
         int recordId,
@@ -1500,10 +1509,9 @@ namespace HotelERP.BE.Application.Services
         object? newValue,
         string? reason)
     {
-        // Dùng extension method, bên trong vẫn là _dbContext.AuditLogs.Add(new AuditLog {...})
         await _dbContext.AddAuditLogAsync(
             userId: userId ?? 0,
-            roleName: "System",
+            roleName: roleName ?? "System", // fallback chỉ khi không có role thật
             actionType: action,
             entityType: tableName,
             message: reason ?? "No reason provided",

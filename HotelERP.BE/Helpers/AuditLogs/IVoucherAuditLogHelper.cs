@@ -6,6 +6,7 @@ public interface IVoucherAuditLogHelper
 {
     Task WriteAsync(
         int? userId,
+        string roleName,
         string action,
         int recordId,
         object? oldValue,

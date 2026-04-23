@@ -39,6 +39,7 @@ public class VoucherAuditLogHelper : IVoucherAuditLogHelper
 
     public async Task WriteAsync(
         int? userId,
+        string roleName,
         string action,
         int recordId,
         object? oldValue,
@@ -46,10 +47,9 @@ public class VoucherAuditLogHelper : IVoucherAuditLogHelper
         string reason,
         CancellationToken cancellationToken = default)
     {
-        // Dùng extension method, bên trong vẫn là _dbContext.AuditLogs.Add(new AuditLog {...})
         await _dbContext.AddAuditLogAsync(
             userId: userId ?? 0,
-            roleName: "System",
+            roleName: roleName,   // dùng role thật thay vì hardcode "System"
             actionType: action,
             entityType: "Vouchers",
             message: reason?.Trim() ?? "No reason provided",
