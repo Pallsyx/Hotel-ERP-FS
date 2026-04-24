@@ -27,6 +27,7 @@ public class BookingEngineService : IBookingEngineService
         HotelDbContext context, 
         IDistributedLockFactory lockFactory, 
         IConnectionMultiplexer redis,
+        INotificationService notificationService,
         IBookingVoucherService voucherService)
     {
         _context = context;

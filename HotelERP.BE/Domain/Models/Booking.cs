@@ -6,6 +6,7 @@ namespace HotelERP.BE.Domain.Models;
 
 public partial class Booking
 {
+    public static bool HasValue { get; internal set; }
     public int Id { get; set; }
 
     [Column("user_id")]

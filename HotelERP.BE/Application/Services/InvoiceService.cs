@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Security.Claims;
 using HotelERP.BE.DTOs.Common;
@@ -753,6 +753,7 @@ namespace HotelERP.BE.Application.Services
         DateTime? fromDate,
         DateTime? toDate,
         string? status,
+        int? bookingId = null,
         CancellationToken cancellationToken = default)
     {
         await RefreshOpenInvoicesAsync(cancellationToken);
@@ -892,7 +893,7 @@ namespace HotelERP.BE.Application.Services
                 .OrderByDescending(x => x.CreatedAt)
                 .ToListAsync(cancellationToken);
 
-            var normalizedStatus = Normalize(status);
+
             var rows = new List<InvoiceListDto>();
 
             foreach (var booking in bookings)
@@ -970,11 +971,14 @@ namespace HotelERP.BE.Application.Services
                 });
             }
 
-            return rows
-                .OrderByDescending(x => x.CreatedAt ?? DateTime.MinValue)
-                .ThenByDescending(x => x.BookingId)
-                .ToList();
+            results.AddRange(rows);
         }
+
+        return results
+            .OrderByDescending(x => x.CreatedAt ?? DateTime.MinValue)
+            .ThenByDescending(x => x.BookingId)
+            .ToList();
+    }
 
         public async Task<DraftInvoiceDto> GetDraftInvoiceAsync(
             int bookingId,
@@ -1798,14 +1802,13 @@ namespace HotelERP.BE.Application.Services
             return (uid, roleName);
         }
 
+
+
         public Task<ApiResult<object>> ApplyVoucherToBookingAsync(int bookingId, ApplyInvoiceVoucherRequestDto request, int? performedByUserId, CancellationToken cancellationToken = default)
         {
             throw new NotImplementedException();
         }
 
-        public Task FinalizeAsync(int invoiceId, FinalizeInvoiceRequestDto request, int? userId, CancellationToken cancellationToken)
-        {
-            throw new NotImplementedException();
-        }
+
     }
 }
