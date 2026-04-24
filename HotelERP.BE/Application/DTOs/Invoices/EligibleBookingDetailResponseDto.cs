@@ -23,4 +23,7 @@ public class EligibleBookingDetailResponseDto
 
     public bool CanCreateInvoice { get; set; }
     public string? BlockReason { get; set; }
+
+    public int? OpenInvoiceId { get; set; }
+    public string? OpenInvoiceCode { get; set; }
 }

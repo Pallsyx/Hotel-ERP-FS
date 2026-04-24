@@ -49,9 +49,8 @@ const Departures = () => {
     try {
       const res = await bookingManagementApi.updateDetailStatus(detailId, 'CheckedOut');
       if (res.data && res.data.success) {
-        message.success(`Đã Check-out phòng ${record.details[0].roomNumber}. Vui lòng lập hóa đơn thanh toán.`);
-        // Tùy chọn: gọi fetchDepartures() để load lại hoặc chuyển luôn sang trang in hóa đơn
-        navigate('/admin/invoices');
+        message.success(`Đã Check-out phòng ${record.details[0].roomNumber}. Đang chuyển sang danh sách hóa đơn của booking #${record.id}.`);
+        navigate(`/admin/invoices?bookingId=${record.id}`);
       }
     } catch (error) {
       console.error('Lỗi check-out:', error);

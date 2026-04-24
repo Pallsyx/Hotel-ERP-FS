@@ -17,6 +17,8 @@ public class InvoiceListDto
 
     public decimal? FinalTotal { get; set; }
     public string? Status { get; set; }
+    public string? BookingStatus { get; set; }
+    public string? PaymentStatus { get; set; }
     public DateTime? CreatedAt { get; set; }
 
     public bool IsDraftPreview { get; set; }
