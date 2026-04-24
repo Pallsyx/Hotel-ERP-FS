@@ -182,6 +182,9 @@ const RoomInventory = () => {
                 onChange={(v) => setCategory(v)}
                 options={[
                   { value: 'Trang thiết bị', label: 'Trang thiết bị' },
+                  { value: 'Nội thất', label: 'Nội thất' },
+                  { value: 'Điện tử', label: 'Điện tử' },
+                  { value: 'Minibar', label: 'Minibar' },
                   { value: 'Đồ uống', label: 'Đồ uống' },
                   { value: 'Đồ ăn', label: 'Đồ ăn' },
                   { value: 'Khác', label: 'Khác' },
@@ -284,6 +287,7 @@ const RoomInventory = () => {
             dataSource={equipments}
             rowKey="id"
             loading={loading}
+            scroll={{ x: 1000, y: 'calc(100vh - 280px)' }}
             pagination={{
               current: pagination.current,
               pageSize: pagination.pageSize,

@@ -19,6 +19,7 @@ public class RoomInventoryService(HotelDbContext context) : IRoomInventoryServic
                 ri.Id,
                 ri.EquipmentId,
                 e.Name,
+                e.Category,
                 ri.Quantity,
                 e.Unit,
                 string.IsNullOrWhiteSpace(ri.Note) ? "Tốt" : ri.Note!,

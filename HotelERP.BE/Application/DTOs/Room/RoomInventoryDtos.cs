@@ -4,6 +4,7 @@ public record RoomInventoryResponseDto(
     int Id,
     int EquipmentId,
     string ItemName,
+    string Category,
     int Quantity,
     string Unit,
     string Status,

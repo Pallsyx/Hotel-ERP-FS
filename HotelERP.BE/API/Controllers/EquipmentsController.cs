@@ -40,6 +40,7 @@ public class EquipmentsController(HotelDbContext context) : ControllerBase
                 Math.Max(0, e.TotalQuantity - e.InUseQuantity - e.DamagedQuantity - e.LiquidatedQuantity),
                 e.InUseQuantity,
                 e.DamagedQuantity,
+                e.BasePrice,
                 e.DefaultPriceIfLost
             ))
             .ToListAsync();

@@ -11,6 +11,7 @@ public record EquipmentResponseDto(
     int InStockQuantity,
     int InUseQuantity,
     int DamagedQuantity,
+    decimal BasePrice,
     decimal DefaultPriceIfLost
 );
 

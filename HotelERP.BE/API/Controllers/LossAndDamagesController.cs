@@ -48,6 +48,7 @@ public class LossAndDamagesController : ControllerBase
             Quantity = ld.Quantity,
             PenaltyAmount = ld.PenaltyAmount,
             PriceIfLost = ld.RoomInventory != null ? ld.RoomInventory.PriceIfLost : 0,
+            Category = ld.RoomInventory != null && ld.RoomInventory.Equipment != null ? ld.RoomInventory.Equipment.Category : "Khác",
             Description = ld.Description,
             CreatedAt = ld.CreatedAt,
             EvidenceImageUrl = ld.EvidenceImageUrl,

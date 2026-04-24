@@ -68,6 +68,8 @@ export default function LossAndDamages() {
   const [selectedInventory, setSelectedInventory] = useState(null);
   const [compensationType, setCompensationType] = useState('percentage'); // 'percentage', 'custom'
   const [editCompensationType, setEditCompensationType] = useState('percentage'); 
+  const [isFixed100Pct, setIsFixed100Pct] = useState(false);
+  const [isEditFixed100Pct, setIsEditFixed100Pct] = useState(false);
   const [createForm] = Form.useForm();
   // ------------------------------
 
@@ -153,6 +155,24 @@ export default function LossAndDamages() {
   const handleInventoryChange = (inventoryId) => {
     const item = roomInventories.find(ri => ri.id === inventoryId);
     setSelectedInventory(item);
+    
+    // Nếu là đồ ăn, thức uống, minibar, hoặc sản phẩm giá trị nhỏ hơn 100k
+    const isConsumable = item && (
+      item.category === 'Đồ ăn' || 
+      item.category === 'Đồ uống' || 
+      item.category === 'Minibar' ||
+      item.priceIfLost <= 50000
+    );
+
+    if (isConsumable) {
+      setIsFixed100Pct(true);
+      setCompensationType('percentage');
+      createForm.setFieldsValue({ percentageValue: 100 });
+    } else {
+      setIsFixed100Pct(false);
+      setCompensationType('percentage');
+      createForm.setFieldsValue({ percentageValue: 100 });
+    }
   };
 
   const handleCreate = async () => {
@@ -223,13 +243,34 @@ export default function LossAndDamages() {
     setEditingRecord(record);
     setUploadFile(null);
     setPreviewUrl(record.evidenceImageUrl || null);
+    
+    // Tính toán xem có bị khóa cứng không dựa vào category và priceIfLost
+    const isConsumable = record.category === 'Đồ ăn' || 
+                         record.category === 'Đồ uống' || 
+                         record.category === 'Minibar' || 
+                         (record.priceIfLost && record.priceIfLost <= 50000);
+    setIsEditFixed100Pct(isConsumable);
+
+    let pct = 100;
+    if (record.priceIfLost && record.quantity && record.penaltyAmount > 0) {
+      pct = Math.round((record.penaltyAmount / (record.priceIfLost * record.quantity)) * 100);
+    } else if (record.penaltyAmount === 0) {
+      pct = 0;
+    }
+    
+    // Khóa cứng thì ép về 100%
+    if (isConsumable) {
+      pct = 100;
+    }
+
+    setEditCompensationType('percentage');
+
     form.setFieldsValue({
       quantity: record.quantity,
       description: record.description,
       penaltyAmount: record.penaltyAmount,
-      editPercentageValue: 100
+      editPercentageValue: pct
     });
-    setEditCompensationType('percentage'); // Mặc định khi sửa là dùng phần trăm cho tiện
     setIsEditModalVisible(true);
   };
 
@@ -538,17 +579,18 @@ export default function LossAndDamages() {
                 </Col>
                 <Col span={16}>
                    <Form.Item label="Hình thức đền bù">
-                    <Radio.Group value={editCompensationType} onChange={e => setEditCompensationType(e.target.value)}>
+                    <Radio.Group value={editCompensationType} onChange={e => setEditCompensationType(e.target.value)} disabled={isEditFixed100Pct}>
                       <Radio value="percentage">% Giá trị</Radio>
                       <Radio value="custom">Nhập tiền</Radio>
                     </Radio.Group>
+                    {isEditFixed100Pct && <div className="text-orange-500 text-xs mt-1">Sản phẩm tiêu hao phạt cố định 100%</div>}
                   </Form.Item>
                 </Col>
               </Row>
 
               {editCompensationType === 'percentage' && (
                 <Form.Item name="editPercentageValue" label="Phần trăm phạt (%)" rules={[{ required: true }]} initialValue={100}>
-                  <InputNumber min={0} max={200} step={5} className="w-full" formatter={value => `${value}%`} parser={value => value.replace('%', '')} />
+                  <InputNumber min={isEditFixed100Pct ? 100 : 8} max={200} step={5} className="w-full" disabled={isEditFixed100Pct} formatter={value => `${value}%`} parser={value => value.replace('%', '')} />
                 </Form.Item>
               )}
 
@@ -652,17 +694,18 @@ export default function LossAndDamages() {
                 </Col>
                 <Col span={16}>
                   <Form.Item label="Hình thức đền bù">
-                    <Radio.Group value={compensationType} onChange={e => setCompensationType(e.target.value)}>
+                    <Radio.Group value={compensationType} onChange={e => setCompensationType(e.target.value)} disabled={isFixed100Pct}>
                       <Radio value="percentage">% Giá trị</Radio>
                       <Radio value="custom">Nhập tiền</Radio>
                     </Radio.Group>
+                    {isFixed100Pct && <div className="text-orange-500 text-xs mt-1">Sản phẩm tiêu hao phạt cố định 100%</div>}
                   </Form.Item>
                 </Col>
               </Row>
 
               {compensationType === 'percentage' && (
                 <Form.Item name="percentageValue" label="Phần trăm phạt (%)" rules={[{ required: true }]}>
-                  <InputNumber min={0} max={200} step={5} className="w-full" formatter={value => `${value}%`} parser={value => value.replace('%', '')} />
+                  <InputNumber min={isFixed100Pct ? 100 : 8} max={200} step={5} className="w-full" disabled={isFixed100Pct} formatter={value => `${value}%`} parser={value => value.replace('%', '')} />
                 </Form.Item>
               )}
 
