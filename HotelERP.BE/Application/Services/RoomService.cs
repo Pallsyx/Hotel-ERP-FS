@@ -4,7 +4,10 @@ using HotelERP.BE.Application.DTOs;
 using HotelERP.BE.Infrastructure.Data;
 using HotelERP.BE.Domain.Models;
 using HotelERP.BE.Utils;
+using HotelERP.BE.Helpers.AuditLogs;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.AspNetCore.Http;
+using System.Security.Claims;
 using HotelERP.BE.DTOs.Hubs;
 
 namespace HotelERP.BE.Application.Services;
@@ -14,12 +17,50 @@ public class RoomService : IRoomService
     private readonly HotelDbContext? _context;
     private readonly IHubContext<RoomHub>? _hubContext;
     private readonly ICloudinaryService _cloudinary;
-    public RoomService(HotelDbContext context, ICloudinaryService cloudinary, IHubContext<RoomHub> hubContext)
+    private readonly IHttpContextAccessor _httpContextAccessor;
+
+    public RoomService(HotelDbContext context, ICloudinaryService cloudinary, IHubContext<RoomHub> hubContext, IHttpContextAccessor httpContextAccessor)
     {
-            _context = context;
-            _hubContext = hubContext; // Tiêm SignalR vào đây để bắn data
-            _cloudinary = cloudinary;
+        _context = context;
+        _hubContext = hubContext;
+        _cloudinary = cloudinary;
+        _httpContextAccessor = httpContextAccessor;
     }
+
+    private (int userId, string roleName) ResolveUser()
+    {
+        var user = _httpContextAccessor.HttpContext?.User;
+        if (user == null) return (0, "System");
+
+        var userIdClaim = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var roleClaim = user.FindFirst(ClaimTypes.Role)?.Value ?? "User";
+
+        return (int.TryParse(userIdClaim, out var id) ? id : 0, roleClaim);
+    }
+
+    private string TranslateRoomStatus(string status)
+    {
+        return status.ToUpper() switch
+        {
+            "AVAILABLE" => "Trống",
+            "OCCUPIED" => "Đang có khách",
+            "MAINTENANCE" => "Bảo trì",
+            "OUT_OF_ORDER" => "Hỏng",
+            _ => status
+        };
+    }
+
+    private string TranslateCleaningStatus(string status)
+    {
+        return status.ToUpper() switch
+        {
+            "CLEAN" => "Đã dọn",
+            "DIRTY" => "Chưa dọn",
+            "INSPECTING" => "Chờ kiểm tra",
+            _ => status
+        };
+    }
+
     public async Task<IEnumerable<RoomResponseDto>> GetRoomsAsync(RoomFilterRequest filter)
     {
         var query = _context!.Rooms.Include(r => r.RoomType).Where(r => r.DeletedAt == null).AsQueryable();
@@ -85,8 +126,23 @@ public class RoomService : IRoomService
     {
         var room = await _context!.Rooms.FindAsync(roomId);
         if (room == null) return false;
+        var oldStatus = room.CleaningStatus;
         room.CleaningStatus = request.NewCleaningStatus.ToUpper();
         await _context!.SaveChangesAsync();
+
+        // Ghi Audit Log
+        var (userId, roleName) = ResolveUser();
+        var translatedNewStatus = TranslateCleaningStatus(room.CleaningStatus);
+        
+        await _context.AddAuditLogAsync(
+            userId: userId,
+            roleName: roleName,
+            actionType: "UPDATE",
+            entityType: "Room",
+            message: $"Cập nhật trạng thái dọn dẹp phòng {room.RoomNumber} thành '{translatedNewStatus}'.",
+            contextParams: new { roomId, roomNumber = room.RoomNumber },
+            changes: new { oldData = new { CleaningStatus = oldStatus }, newData = new { room.CleaningStatus } }
+        );
 
         if (_hubContext != null) 
         {
@@ -100,8 +156,23 @@ public class RoomService : IRoomService
     {
         var room = await _context!.Rooms.FindAsync(roomId);
         if (room == null) return false;
+        var oldStatus = room.Status;
         room.Status = request.NewStatus.ToUpper();
         await _context!.SaveChangesAsync();
+
+        // Ghi Audit Log
+        var (userId, roleName) = ResolveUser();
+        var translatedNewStatus = TranslateRoomStatus(room.Status);
+
+        await _context.AddAuditLogAsync(
+            userId: userId,
+            roleName: roleName,
+            actionType: "UPDATE",
+            entityType: "Room",
+            message: $"Cập nhật trạng thái kinh doanh phòng {room.RoomNumber} thành '{translatedNewStatus}'.",
+            contextParams: new { roomId, roomNumber = room.RoomNumber },
+            changes: new { oldData = new { Status = oldStatus }, newData = new { Status = room.Status } }
+        );
 
         if (_hubContext != null) 
         {
@@ -111,7 +182,7 @@ public class RoomService : IRoomService
         return true;
     }
 
-    public async Task<bool> ReportDamageAsync(int userId, ReportDamageRequest request)
+    public async Task<bool> ReportDamageAsync(int userId, string roleName, ReportDamageRequest request)
     {
         var room = await _context!.Rooms.FindAsync(request.RoomId);
         if (room == null || room.DeletedAt != null)
@@ -187,17 +258,16 @@ public class RoomService : IRoomService
         _context.LossAndDamages.Add(damage);
         await _context.SaveChangesAsync();
 
-        _context.AuditLogs.Add(new AuditLog
-        {
-            UserId = userId,
-            Action = "REPORT_DAMAGE",
-            TableName = "Loss_And_Damages",
-            RecordId = damage.Id,
-            Reason = request.Reason,
-            CreatedAt = DateTime.UtcNow
-        });
-
-        await _context.SaveChangesAsync();
+        // Dùng extension method, bên trong vẫn là _context.AuditLogs.Add(new AuditLog {...})
+        await _context.AddAuditLogAsync(
+            userId: userId,
+            roleName: roleName,
+            actionType: "CREATE",
+            entityType: "LossAndDamage",
+            message: $"Ghi nhận hỏng {request.ItemName} tại phòng {room.RoomNumber}.",
+            contextParams: new { damageId = damage.Id, roomNumber = room.RoomNumber, targetItem = request.ItemName },
+            changes: new { oldData = (object)null, newData = new { request.Quantity, request.PenaltyAmount, Description = request.Description ?? request.Reason } }
+        );
         return true;
     }
 

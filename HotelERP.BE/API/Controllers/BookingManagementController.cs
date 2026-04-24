@@ -114,16 +114,18 @@ public class BookingManagementController : ControllerBase
     }
 
     // ==============================================================
-    // API 6: GET /api/booking-management/today-departures
-    // Danh sách "Khách dự kiến trả phòng hôm nay"
+    // API 6: GET /api/booking-management/departures
+    // Danh sách phòng có thể trả (tất cả đang Checked_in, filter ngày tùy chọn)
     // ==============================================================
     /// <summary>
-    /// Lấy danh sách khách dự kiến trả phòng hôm nay (CheckOutDate <= Today, Status = Checked_in).
+    /// Lấy danh sách phòng có thể check-out.
+    /// Không có date → trả về TẤT CẢ phòng đang Checked_in (hỗ trợ trả phòng sớm).
+    /// Có date → lọc theo ngày dự kiến trả phòng.
     /// </summary>
-    [HttpGet("today-departures")]
-    public async Task<IActionResult> GetTodayDepartures()
+    [HttpGet("departures")]
+    public async Task<IActionResult> GetDepartures([FromQuery] DateTime? checkOutDate)
     {
-        var result = await _bookingService.GetTodayDeparturesAsync();
+        var result = await _bookingService.GetTodayDeparturesAsync(checkOutDate);
         return Ok(new { success = true, count = result.Count, data = result });
     }
 

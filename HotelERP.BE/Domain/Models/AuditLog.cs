@@ -1,27 +1,19 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace HotelERP.BE.Domain.Models;
 
 public partial class AuditLog
 {
-    public int Id { get; set; }
+    public long Id { get; set; } // Changed to long (bigint)
 
-    public int? UserId { get; set; }
+    public int UserId { get; set; } // It is NOT NULL now
 
-    public string Action { get; set; } = null!;
+    public string? RoleName { get; set; } // Added RoleName
 
-    public string TableName { get; set; } = null!;
+    public DateTime LogDate { get; set; } // Added LogDate
 
-    public int RecordId { get; set; }
-
-    public string? OldValue { get; set; }
-
-    public string? NewValue { get; set; }
-
-    public string? Reason { get; set; }
-
-    public DateTime CreatedAt { get; set; }
+    public string LogData { get; set; } = null!; // Replaces OldValue, NewValue, Reason, etc.
 
     public virtual User? User { get; set; }
 }

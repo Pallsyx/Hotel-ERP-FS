@@ -122,6 +122,12 @@ const MainLayout = () => {
       icon: <SafetyCertificateOutlined />,
       label: 'Vai trò & Phân quyền',
       requiredPermission: 'MANAGE_ROLES',
+    },
+    {
+      key: '/admin/audit-logs',
+      icon: <SafetyCertificateOutlined />,
+      label: 'Nhật ký hoạt động',
+      requiredPermission: 'MANAGE_ROLES',
     }
   ];
 
@@ -162,7 +168,7 @@ const MainLayout = () => {
         key: 'logout',
         icon: <LogoutOutlined />,
         label: 'Đăng xuất',
-        danger: true, 
+        danger: true,
         onClick: handleLogout,
       },
     ],

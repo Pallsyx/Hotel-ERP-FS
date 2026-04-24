@@ -2,8 +2,11 @@ using HotelERP.BE.Application.DTOs.BookingManagement;
 using HotelERP.BE.Application.Interfaces;
 using HotelERP.BE.Domain.Constants;
 using HotelERP.BE.Infrastructure.Data;
+using HotelERP.BE.Helpers.AuditLogs;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.AspNetCore.Http;
+using System.Security.Claims;
 using HotelERP.BE.DTOs.Hubs;
 using HotelERP.BE.Services;
 using HotelERP.BE.DTOs.Notifications;
@@ -18,6 +21,7 @@ public class BookingManagementService : IBookingManagementService
     private readonly IHubContext<RoomHub>? _hubContext;
     private readonly INotificationService _notificationService;
 
+    private readonly IHttpContextAccessor _httpContextAccessor;
     private static readonly Dictionary<string, List<string>> _allowedTransitions = new()
     {
         { BookingStatus.Pending,    new List<string> { BookingStatus.Confirmed, BookingStatus.Cancelled } },
@@ -29,11 +33,12 @@ public class BookingManagementService : IBookingManagementService
     public BookingManagementService(
         HotelDbContext context, 
         IHubContext<RoomHub> hubContext,
-        INotificationService notificationService)
+        INotificationService notificationService, IHttpContextAccessor httpContextAccessor)
     {
         _context = context;
         _hubContext = hubContext;
         _notificationService = notificationService;
+        _httpContextAccessor = httpContextAccessor;
     }
 
     // ==============================================================
@@ -186,6 +191,21 @@ public class BookingManagementService : IBookingManagementService
 
         await _context.SaveChangesAsync();
 
+        // Ghi Audit Log
+        var (userId, roleName) = ResolveUser();
+        var roomNumbers = string.Join(", ", booking.BookingDetails
+            .Where(d => d.Room != null)
+            .Select(d => d.Room!.RoomNumber));
+        await _context.AddAuditLogAsync(
+            userId: userId,
+            roleName: roleName,
+            actionType: newStatus == BookingStatus.Cancelled ? "DELETE" : "UPDATE",
+            entityType: "Booking",
+            message: $"Chuyển trạng thái booking #{booking.BookingCode} từ '{oldStatus}' sang '{newStatus}' (phòng: {roomNumbers}).",
+            contextParams: new { bookingId, bookingCode = booking.BookingCode, roomNumbers },
+            changes: new { oldData = new { Status = oldStatus }, newData = new { Status = newStatus } }
+        );
+
         // ✅ Gửi thông báo hệ thống (Cả đoàn)
         var msg = new NotificationMessage
         {
@@ -309,7 +329,24 @@ public class BookingManagementService : IBookingManagementService
 
         await _context.SaveChangesAsync();
 
-        // 3. Bắn SignalR realtime cho trang Quản lý Quỹ phòng
+        // Ghi Audit Log
+        var (userId, roleName) = ResolveUser();
+        var roomNum = detail.Room?.RoomNumber ?? "N/A";
+        await _context.AddAuditLogAsync(
+            userId: userId,
+            roleName: roleName,
+            actionType: newStatus == BookingStatus.Cancelled ? "DELETE" : "UPDATE",
+            entityType: "Booking",
+            message: newStatus == BookingStatus.CheckedIn
+                ? $"Check-in phòng {roomNum} (mã: {detail.Booking?.BookingCode ?? "N/A"})."
+                : newStatus == BookingStatus.CheckedOut || newStatus == BookingStatus.Completed
+                    ? $"Check-out phòng {roomNum} (mã: {detail.Booking?.BookingCode ?? "N/A"})."
+                    : $"Cập nhật trạng thái phòng {roomNum} sang '{newStatus}' (mã: {detail.Booking?.BookingCode ?? "N/A"}).",
+            contextParams: new { detailId, roomNumber = roomNum, bookingCode = detail.Booking?.BookingCode ?? "N/A" },
+            changes: new { oldData = new { Status = oldDetailStatus }, newData = new { Status = newStatus } }
+        );
+
+        // Bắn SignalR realtime cho trang Quản lý Quỹ phòng
         if (_hubContext != null && detail.Room != null)
         {
             await _hubContext.Clients.All.SendAsync("ReceiveRoomStatusUpdate",
@@ -419,7 +456,9 @@ public class BookingManagementService : IBookingManagementService
     }
 
     // ==============================================================
-    // API 6: KHÁCH RỜI ĐI HÔM NAY (HIỂN THỊ THEO PHÒNG LẺ CẦN TRẢ)
+    // API 6: DANH SÁCH PHÒNG CÓ THỂ TRẢ (TẤT CẢ ĐANG Ở, LỌC TÙY CHỌN THEO NGÀY)
+    // - Không date: hiển thị toàn bộ phòng Checked_in (cho phép trả sớm)
+    // - Có date: chỉ hiện phòng có checkOutDate = ngày đó
     // ==============================================================
     public async Task<List<BookingListItemDto>> GetTodayDeparturesAsync(DateTime? checkOutDate = null)
     {
@@ -530,6 +569,18 @@ public class BookingManagementService : IBookingManagementService
         changeRoomMsg.Id = dbNotif.Id; // ✅ Cập nhật ID sau khi save DB
         await _notificationService.SendToRoleAsync("Admin", changeRoomMsg);
 
+        // Ghi Audit Log
+        var (userId, roleName) = ResolveUser();
+        await _context.AddAuditLogAsync(
+            userId: userId,
+            roleName: roleName,
+            actionType: "UPDATE",
+            entityType: "Booking",
+            message: $"Đổi phòng từ {oldRoomNumber} sang {newRoom.RoomNumber} (mã: {detail.Booking?.BookingCode ?? "N/A"}).",
+            contextParams: new { detailId, oldRoomNumber, newRoomNumber = newRoom.RoomNumber, bookingCode = detail.Booking?.BookingCode ?? "N/A" },
+            changes: new { oldData = new { RoomNumber = oldRoomNumber }, newData = new { RoomNumber = newRoom.RoomNumber } }
+        );
+
         return (true, $"Đã đổi từ phòng {oldRoomNumber} sang phòng {newRoom.RoomNumber} thành công.");
     }
 
@@ -620,7 +671,28 @@ public class BookingManagementService : IBookingManagementService
         await _context.SaveChangesAsync();
         depositMsg.Id = dbNotif.Id; // ✅ Cập nhật ID sau khi save DB
         await _notificationService.SendToRoleAsync("Admin", depositMsg);
+
+        // Ghi Audit Log
+        var (userId, roleName) = ResolveUser();
+        await _context.AddAuditLogAsync(
+            userId: userId,
+            roleName: roleName,
+            actionType: "UPDATE",
+            entityType: "Booking",
+            message: $"Nạp cọc {amount:N0}đ cho booking #{booking.BookingCode}.",
+            contextParams: new { bookingId, bookingCode = booking.BookingCode },
+            changes: new { oldData = new { DepositAmount = booking.DepositAmount - amount }, newData = new { booking.DepositAmount } }
+        );
         
         return (true, "Nạp cọc thành công!", booking.DepositAmount);
+    }
+
+    private (int UserId, string RoleName) ResolveUser()
+    {
+        var user = _httpContextAccessor.HttpContext?.User;
+        var userIdClaim = user?.FindFirst("UserId")?.Value ?? user?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        int userId = int.TryParse(userIdClaim, out int id) ? id : 0;
+        var roleName = user?.FindFirst(ClaimTypes.Role)?.Value ?? "User";
+        return (userId, roleName);
     }
 }

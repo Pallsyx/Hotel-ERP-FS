@@ -12,7 +12,7 @@ public interface IRoomService
     Task<bool> DeleteRoomAsync(int roomId);
     Task<bool> UpdateCleaningStatusAsync(int roomId, UpdateCleaningStatusRequest request);
     Task<bool> UpdateRoomStatusAsync(int roomId, UpdateRoomStatusRequest request);
-    Task<bool> ReportDamageAsync(int userId, ReportDamageRequest request);
+    Task<bool> ReportDamageAsync(int userId, string roleName, ReportDamageRequest request);
     Task<IEnumerable<DamageReportResponseDto>> GetRoomDamagesAsync(int roomId);
     // Thuật toán lấy phòng Check-in
     Task<List<Room>> GetAvailableRoomsForCheckInAsync(int roomTypeId);

@@ -12,6 +12,7 @@ namespace HotelERP.BE.Application.Interfaces
         Task<ApiResult<InvoiceActionResponseDto>> CreateDraftAsync(
             CreateDraftInvoiceRequestDto request,
             int? performedByUserId,
+            string? performedByRole = null,
             CancellationToken cancellationToken = default);
 
         Task<ApiResult<InvoiceActionResponseDto>> GetInvoiceAsync(
@@ -22,18 +23,21 @@ namespace HotelERP.BE.Application.Interfaces
             int invoiceId,
             AddExtraFeeRequestDto request,
             int? performedByUserId,
+            string? performedByRole = null,
             CancellationToken cancellationToken = default);
 
     Task<ApiResult<InvoiceActionResponseDto>> SetDamageChargeAsync(
         int invoiceId,
         UpdateDamageChargeRequestDto request,
         int? performedByUserId,
+        string? performedByRole = null,
         CancellationToken cancellationToken = default);
 
     Task<ApiResult<InvoiceActionResponseDto>> FinalizeAsync(
         int invoiceId,
         FinalizeInvoiceRequestDto request,
         int? performedByUserId,
+        string? performedByRole = null,
         CancellationToken cancellationToken = default);
 
         Task<List<InvoiceListDto>> GetAllInvoicesAsync(

@@ -83,10 +83,11 @@ public class RoomsController(IRoomService roomService) : ControllerBase
     {
         try 
         {
-            var userIdClaim = User.FindFirst("UserId")?.Value;
-            int userId = int.TryParse(userIdClaim, out int id) ? id : 1; 
+            var userIdClaim = User.FindFirst("UserId")?.Value ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            int userId = int.TryParse(userIdClaim, out int id) ? id : 0;
+            var roleName = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "User";
 
-            var result = await roomService.ReportDamageAsync(userId, request);
+            var result = await roomService.ReportDamageAsync(userId, roleName, request);
             if (!result) return BadRequest("Có lỗi xảy ra khi lưu trữ báo cáo.");
 
             return Ok(new { success = true, message = "Đã ghi nhận báo cáo hư hỏng kèm hình ảnh." });

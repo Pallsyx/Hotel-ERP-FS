@@ -1,5 +1,6 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Security.Claims;
 using HotelERP.BE.DTOs.Common;
 using HotelERP.BE.DTOs.Invoices;
 using HotelERP.BE.Domain.Models;
@@ -11,6 +12,7 @@ using HotelERP.BE.Services;
 using HotelERP.BE.DTOs.Notifications;
 using HotelERP.BE.Models.Enums;
 using HotelERP.BE.Models;
+using HotelERP.BE.Helpers.AuditLogs;
 
 namespace HotelERP.BE.Application.Services
 {
@@ -21,11 +23,16 @@ namespace HotelERP.BE.Application.Services
 
         private readonly HotelDbContext _dbContext;
         private readonly INotificationService _notificationService;
+        private readonly IHttpContextAccessor _httpContextAccessor;
 
-        public InvoiceService(HotelDbContext dbContext, INotificationService notificationService)
+        public InvoiceService(
+            HotelDbContext dbContext, 
+            INotificationService notificationService,
+            IHttpContextAccessor httpContextAccessor)
         {
             _dbContext = dbContext;
             _notificationService = notificationService;
+            _httpContextAccessor = httpContextAccessor;
         }
 
         private sealed class DetailChargeSummary
@@ -89,8 +96,6 @@ namespace HotelERP.BE.Application.Services
                         canCreateInvoice = false;
                         blockReason = "Phòng này đã thanh toán.";
                     }
-                    // Phòng đã nằm trong invoice nháp vẫn được chọn lại để in/chốt theo nhóm mới.
-                    // Khi tạo draft mới, hệ thống sẽ tự tách phòng khỏi draft cũ để tránh trùng dòng phòng.
 
                     return new EligibleBookingDetailResponseDto
                     {
@@ -112,8 +117,7 @@ namespace HotelERP.BE.Application.Services
                         OpenInvoiceId = openInvoiceLink?.InvoiceId,
                         OpenInvoiceCode = openInvoiceLink?.Invoice?.InvoiceCode
                     };
-                })
-                .ToList();
+                }).ToList();
 
             return ApiResult<List<EligibleBookingDetailResponseDto>>.Ok(
                 result,
@@ -124,6 +128,7 @@ namespace HotelERP.BE.Application.Services
         public async Task<ApiResult<InvoiceActionResponseDto>> CreateDraftAsync(
             CreateDraftInvoiceRequestDto request,
             int? performedByUserId,
+            string? performedByRole = null,
             CancellationToken cancellationToken = default)
         {
             var detailIds = request.BookingDetailIds
@@ -222,10 +227,7 @@ namespace HotelERP.BE.Application.Services
                     .Where(x => incomingIds.Contains(x.BookingDetailId))
                     .ToList();
 
-                if (linksToDetach.Count == 0)
-                {
-                    continue;
-                }
+                if (linksToDetach.Count == 0) continue;
 
                 foreach (var link in linksToDetach)
                 {
@@ -233,7 +235,6 @@ namespace HotelERP.BE.Application.Services
                 }
 
                 _dbContext.RemoveRange(linksToDetach);
-
                 draft.UpdatedAt = now;
 
                 if (draft.InvoiceBookingDetails.Count == 0)
@@ -273,7 +274,7 @@ namespace HotelERP.BE.Application.Services
                 InvoiceCode = BuildInvoiceCode(booking.BookingCode, sequence),
                 Status = "Draft",
                 Notes = string.IsNullOrWhiteSpace(request.Note)
-                    ? "Invoice nháp tạo theo Hướng B"
+                    ? "Invoice nháp tạo tự động"
                     : AppendAuditText(null, request.Note),
                 CreatedAt = now,
                 UpdatedAt = now,
@@ -315,8 +316,9 @@ namespace HotelERP.BE.Application.Services
 
             var after = MapResponse(booking, invoice);
 
-            AddAuditLog(
+            await AddAuditLog(
                 performedByUserId,
+                performedByRole,
                 "CREATE_DRAFT_INVOICE_PARTIAL",
                 "Invoices",
                 invoice.Id,
@@ -363,6 +365,7 @@ namespace HotelERP.BE.Application.Services
             int invoiceId,
             AddExtraFeeRequestDto request,
             int? performedByUserId,
+            string? performedByRole = null,
             CancellationToken cancellationToken = default)
         {
             if (request.Amount <= 0)
@@ -422,8 +425,9 @@ namespace HotelERP.BE.Application.Services
 
             var after = MapResponse(booking, invoice);
 
-            AddAuditLog(
+            await AddAuditLog(
                 performedByUserId,
+                performedByRole,
                 "ADD_EXTRA_FEE_INVOICE",
                 "Invoices",
                 invoice.Id,
@@ -434,7 +438,7 @@ namespace HotelERP.BE.Application.Services
             await _dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
 
-            // ✅ Thông báo Phụ phí
+            // Gửi Notification
             var extraFeeMsg = new NotificationMessage
             {
                 Title = "Phụ phí mới",
@@ -452,7 +456,8 @@ namespace HotelERP.BE.Application.Services
             };
             _dbContext.Notifications.Add(dbNotif);
             await _dbContext.SaveChangesAsync(cancellationToken);
-            extraFeeMsg.Id = dbNotif.Id; // ✅ Cập nhật ID sau khi save DB
+            
+            extraFeeMsg.Id = dbNotif.Id;
             await _notificationService.SendToRoleAsync("Admin", extraFeeMsg);
 
             return ApiResult<InvoiceActionResponseDto>.Ok(
@@ -465,6 +470,7 @@ namespace HotelERP.BE.Application.Services
             int invoiceId,
             UpdateDamageChargeRequestDto request,
             int? performedByUserId,
+            string? performedByRole = null,
             CancellationToken cancellationToken = default)
         {
             if (request.Amount < 0)
@@ -524,8 +530,9 @@ namespace HotelERP.BE.Application.Services
 
             var after = MapResponse(booking, invoice);
 
-            AddAuditLog(
+            await AddAuditLog(
                 performedByUserId,
+                performedByRole,
                 "UPDATE_DAMAGE_CHARGE_INVOICE",
                 "Invoices",
                 invoice.Id,
@@ -546,6 +553,7 @@ namespace HotelERP.BE.Application.Services
             int invoiceId,
             FinalizeInvoiceRequestDto request,
             int? performedByUserId,
+            string? performedByRole = null,
             CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrWhiteSpace(request.PaymentMethod))
@@ -649,8 +657,9 @@ namespace HotelERP.BE.Application.Services
 
             var after = MapResponse(booking, invoice);
 
-            AddAuditLog(
+            await AddAuditLog(
                 performedByUserId,
+                performedByRole,
                 "FINALIZE_INVOICE_PARTIAL",
                 "Invoices",
                 invoice.Id,
@@ -661,7 +670,7 @@ namespace HotelERP.BE.Application.Services
             await _dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
 
-            // ✅ Thông báo Thanh toán thành công
+            // Gửi Notification
             var payMsg = new NotificationMessage
             {
                 Title = "Thanh toán thành công",
@@ -679,7 +688,8 @@ namespace HotelERP.BE.Application.Services
             };
             _dbContext.Notifications.Add(dbNotif);
             await _dbContext.SaveChangesAsync(cancellationToken);
-            payMsg.Id = dbNotif.Id; // ✅ Cập nhật ID sau khi save DB
+            
+            payMsg.Id = dbNotif.Id; 
             await _notificationService.SendToRoleAsync("Admin", payMsg);
 
             return ApiResult<InvoiceActionResponseDto>.Ok(
@@ -692,6 +702,7 @@ namespace HotelERP.BE.Application.Services
             int bookingId,
             ApplyInvoiceVoucherRequestDto request,
             int? performedByUserId,
+            string? performedByRole = null,
             CancellationToken cancellationToken = default)
         {
             await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
@@ -739,8 +750,9 @@ namespace HotelERP.BE.Application.Services
                     discountAmount = booking.DiscountAmount
                 };
 
-                AddAuditLog(
+                await AddAuditLog(
                     performedByUserId,
+                    performedByRole,
                     "CLEAR_BOOKING_VOUCHER_FROM_INVOICE",
                     "Bookings",
                     booking.Id,
@@ -839,8 +851,9 @@ namespace HotelERP.BE.Application.Services
                 discountAmount
             };
 
-            AddAuditLog(
+            await AddAuditLog(
                 performedByUserId,
+                performedByRole,
                 "APPLY_BOOKING_VOUCHER_FROM_INVOICE",
                 "Bookings",
                 booking.Id,
@@ -862,7 +875,7 @@ namespace HotelERP.BE.Application.Services
             DateTime? fromDate,
             DateTime? toDate,
             string? status,
-            int? bookingId,
+            int? bookingId = null,
             CancellationToken cancellationToken = default)
         {
             await RefreshOpenInvoicesAsync(cancellationToken);
@@ -925,10 +938,7 @@ namespace HotelERP.BE.Application.Services
 
             foreach (var booking in bookings)
             {
-                if (Normalize(booking.Status) == "CANCELLED")
-                {
-                    continue;
-                }
+                if (Normalize(booking.Status) == "CANCELLED") continue;
 
                 var allRoomNumbers = booking.BookingDetails
                     .Select(x => x.Room?.RoomNumber)
@@ -1066,16 +1076,10 @@ namespace HotelERP.BE.Application.Services
             CreateInvoiceDto dto,
             CancellationToken cancellationToken = default)
         {
-            if (dto.BookingId <= 0)
-            {
-                return false;
-            }
+            if (dto.BookingId <= 0) return false;
 
             var booking = await LoadBookingGraphAsync(dto.BookingId, cancellationToken);
-            if (booking is null)
-            {
-                return false;
-            }
+            if (booking is null) return false;
 
             var openInvoice = booking.Invoices
                 .Where(x => !IsClosedInvoice(x.Status) && x.InvoiceBookingDetails.Count > 0)
@@ -1087,10 +1091,7 @@ namespace HotelERP.BE.Application.Services
             if (invoiceId == 0)
             {
                 var eligibleResult = await GetEligibleBookingDetailsAsync(dto.BookingId, cancellationToken);
-                if (!eligibleResult.Success)
-                {
-                    return false;
-                }
+                if (!eligibleResult.Success) return false;
 
                 var bookingDetailIds = eligibleResult.Data?
                     .Where(x => x.CanCreateInvoice)
@@ -1098,10 +1099,7 @@ namespace HotelERP.BE.Application.Services
                     .Distinct()
                     .ToList() ?? new List<int>();
 
-                if (bookingDetailIds.Count == 0)
-                {
-                    return false;
-                }
+                if (bookingDetailIds.Count == 0) return false;
 
                 var createResult = await CreateDraftAsync(
                     new CreateDraftInvoiceRequestDto
@@ -1113,12 +1111,10 @@ namespace HotelERP.BE.Application.Services
                             : dto.Notes
                     },
                     null,
+                    null,
                     cancellationToken);
 
-                if (!createResult.Success || createResult.Data is null)
-                {
-                    return false;
-                }
+                if (!createResult.Success || createResult.Data is null) return false;
 
                 invoiceId = createResult.Data.InvoiceId;
             }
@@ -1130,6 +1126,7 @@ namespace HotelERP.BE.Application.Services
                     PaymentMethod = string.IsNullOrWhiteSpace(dto.PaymentMethod) ? "CASH" : dto.PaymentMethod,
                     Note = dto.Notes
                 },
+                null,
                 null,
                 cancellationToken);
 
@@ -1154,7 +1151,7 @@ namespace HotelERP.BE.Application.Services
                                  || x.Status == "CheckedIn"
                                  || x.Status == "Checked_in"
                                  || x.Status == "Partially_checked_out",
-                            cancellationToken);
+                    cancellationToken);
 
             return new
             {
@@ -1209,23 +1206,15 @@ namespace HotelERP.BE.Application.Services
                     .ThenInclude(x => x!.BookingDetails)
                         .ThenInclude(x => x.Room)
                 .Include(x => x.Booking)
-                    .ThenInclude(x => x!.User)
-                .Include(x => x.Booking)
                     .ThenInclude(x => x!.BookingDetails)
                         .ThenInclude(x => x.RoomType)
-                .Include(x => x.Booking)
-                    .ThenInclude(x => x!.User)
                 .Include(x => x.Booking)
                     .ThenInclude(x => x!.BookingDetails)
                         .ThenInclude(x => x.OrderServices)
                             .ThenInclude(x => x.OrderServiceDetails)
                 .Include(x => x.Booking)
-                    .ThenInclude(x => x!.User)
-                .Include(x => x.Booking)
                     .ThenInclude(x => x!.BookingDetails)
                         .ThenInclude(x => x.LossAndDamages)
-                .Include(x => x.Booking)
-                    .ThenInclude(x => x!.User)
                 .Include(x => x.Booking)
                     .ThenInclude(x => x!.BookingDetails)
                         .ThenInclude(x => x.InvoiceBookingDetails)
@@ -1294,24 +1283,15 @@ namespace HotelERP.BE.Application.Services
         private static decimal CalculateBookingDiscountAmount(Booking booking, decimal subtotal)
         {
             var discountAmount = Money(booking.DiscountAmount);
-            if (discountAmount > 0)
-            {
-                return discountAmount;
-            }
+            if (discountAmount > 0) return discountAmount;
 
-            if (booking.Voucher is null || subtotal <= 0)
-            {
-                return 0;
-            }
+            if (booking.Voucher is null || subtotal <= 0) return 0;
 
             var voucherMin = booking.Voucher.MinBookingValue > 0
                 ? booking.Voucher.MinBookingValue.Value
                 : booking.Voucher.MinBookingAmount;
 
-            if (subtotal < voucherMin)
-            {
-                return 0;
-            }
+            if (subtotal < voucherMin) return 0;
 
             return Normalize(booking.Voucher.DiscountType) == "PERCENT"
                 ? Money(subtotal * (booking.Voucher.DiscountValue / 100m))
@@ -1370,10 +1350,7 @@ namespace HotelERP.BE.Application.Services
             decimal manualAdjustment,
             decimal taxAmount)
         {
-            if (invoice.InvoiceBookingDetails.Count == 0 || summaries.Count == 0)
-            {
-                return;
-            }
+            if (invoice.InvoiceBookingDetails.Count == 0 || summaries.Count == 0) return;
 
             var lineSubtotals = summaries
                 .Select((x, index) => Money(x.RoomCharge + x.ServiceCharge + effectiveDamageLines[index]))
@@ -1404,18 +1381,12 @@ namespace HotelERP.BE.Application.Services
 
         private static List<decimal> DistributeAmount(decimal total, IReadOnlyList<decimal> weights)
         {
-            if (weights.Count == 0)
-            {
-                return new List<decimal>();
-            }
+            if (weights.Count == 0) return new List<decimal>();
 
             var result = Enumerable.Repeat(0m, weights.Count).ToList();
             total = Money(total);
 
-            if (total == 0)
-            {
-                return result;
-            }
+            if (total == 0) return result;
 
             var safeWeights = weights.Select(x => Math.Max(0, x)).ToList();
             var weightSum = safeWeights.Sum();
@@ -1423,11 +1394,7 @@ namespace HotelERP.BE.Application.Services
             if (weightSum <= 0)
             {
                 var even = Money(total / weights.Count);
-                for (var i = 0; i < weights.Count - 1; i++)
-                {
-                    result[i] = even;
-                }
-
+                for (var i = 0; i < weights.Count - 1; i++) result[i] = even;
                 result[^1] = Money(total - result.Take(weights.Count - 1).Sum());
                 return result;
             }
@@ -1486,9 +1453,7 @@ namespace HotelERP.BE.Application.Services
                 .OrderBy(x => x.Id)
                 .ToList();
 
-            var summaries = selectedDetails
-                .Select(BuildDetailChargeSummary)
-                .ToList();
+            var summaries = selectedDetails.Select(BuildDetailChargeSummary).ToList();
 
             var roomTotal = Money(summaries.Sum(x => x.RoomCharge));
             var serviceTotal = Money(summaries.Sum(x => x.ServiceCharge));
@@ -1533,52 +1498,29 @@ namespace HotelERP.BE.Application.Services
 
         private static string DetermineBookingListStatus(Booking booking, Invoice? latestOpenInvoice, bool hasOutstandingDetails)
         {
-            if (Normalize(booking.PaymentStatus) == "PAID")
-            {
-                return "PAID";
-            }
-
-            if (latestOpenInvoice is not null)
-            {
-                return "DRAFT";
-            }
-
-            if (Normalize(booking.PaymentStatus) == "PARTIALLY_PAID")
-            {
-                return hasOutstandingDetails ? "PARTIALLY_PAID" : "PAID";
-            }
+            if (Normalize(booking.PaymentStatus) == "PAID") return "PAID";
+            if (latestOpenInvoice is not null) return "DRAFT";
+            if (Normalize(booking.PaymentStatus) == "PARTIALLY_PAID") return hasOutstandingDetails ? "PARTIALLY_PAID" : "PAID";
 
             return hasOutstandingDetails ? "UNPAID" : Normalize(booking.PaymentStatus);
         }
 
         private static bool ShouldIncludeStatusFilter(string normalizedStatus, string rowStatus)
         {
-            if (string.IsNullOrWhiteSpace(normalizedStatus))
-            {
-                return true;
-            }
-
-            if (normalizedStatus == "UNPAID")
-            {
-                return rowStatus is "UNPAID" or "PARTIALLY_PAID";
-            }
+            if (string.IsNullOrWhiteSpace(normalizedStatus)) return true;
+            if (normalizedStatus == "UNPAID") return rowStatus is "UNPAID" or "PARTIALLY_PAID";
 
             return rowStatus == normalizedStatus;
         }
 
         private static string? NormalizeVoucherCode(string? code)
         {
-            return string.IsNullOrWhiteSpace(code)
-                ? null
-                : code.Trim().ToUpperInvariant();
+            return string.IsNullOrWhiteSpace(code) ? null : code.Trim().ToUpperInvariant();
         }
 
         private static decimal CalculateVoucherDiscountAmount(Voucher voucher, decimal subtotal)
         {
-            if (subtotal <= 0)
-            {
-                return 0;
-            }
+            if (subtotal <= 0) return 0;
 
             var rawDiscount = Normalize(voucher.DiscountType) == "PERCENT"
                 ? subtotal * (voucher.DiscountValue / 100m)
@@ -1599,9 +1541,7 @@ namespace HotelERP.BE.Application.Services
 
             booking.PaymentStatus = allPaid
                 ? "PAID"
-                : anyPaid
-                    ? "PARTIALLY_PAID"
-                    : "UNPAID";
+                : anyPaid ? "PARTIALLY_PAID" : "UNPAID";
 
             if (allPaid && allCheckedOut)
             {
@@ -1622,10 +1562,7 @@ namespace HotelERP.BE.Application.Services
 
         private static decimal CalculateRoomLineAmount(BookingDetail detail)
         {
-            if (detail.LineTotal > 0)
-            {
-                return Money(detail.LineTotal);
-            }
+            if (detail.LineTotal > 0) return Money(detail.LineTotal);
 
             var nights = detail.Nights > 0
                 ? detail.Nights
@@ -1637,10 +1574,7 @@ namespace HotelERP.BE.Application.Services
 
         private static decimal CalculateOrderServiceAmount(OrderService order)
         {
-            if (order.TotalAmount > 0)
-            {
-                return Money(order.TotalAmount);
-            }
+            if (order.TotalAmount > 0) return Money(order.TotalAmount);
 
             var fallback = order.OrderServiceDetails.Sum(d =>
                 d.LineTotal > 0 ? d.LineTotal : (d.Quantity * d.UnitPrice));
@@ -1741,10 +1675,7 @@ namespace HotelERP.BE.Application.Services
 
         private decimal CalculateDepositApplied(Booking? booking, Invoice invoice)
         {
-            if (booking is null || booking.DepositAmount <= 0)
-            {
-                return 0;
-            }
+            if (booking is null || booking.DepositAmount <= 0) return 0;
 
             var selectedDetails = GetSelectedDetails(booking, invoice);
             var selectedRoomTotal = Money(selectedDetails.Sum(CalculateRoomLineAmount));
@@ -1770,10 +1701,7 @@ namespace HotelERP.BE.Application.Services
             IReadOnlyList<DetailChargeSummary> summaries,
             decimal? overrideDamageTotal)
         {
-            if (summaries.Count == 0)
-            {
-                return Array.Empty<decimal>();
-            }
+            if (summaries.Count == 0) return Array.Empty<decimal>();
 
             if (!overrideDamageTotal.HasValue)
             {
@@ -1792,21 +1720,12 @@ namespace HotelERP.BE.Application.Services
 
         private static decimal? ExtractDamageOverrideAmount(string? notes)
         {
-            if (string.IsNullOrWhiteSpace(notes))
-            {
-                return null;
-            }
+            if (string.IsNullOrWhiteSpace(notes)) return null;
 
             var match = Regex.Match(notes, Regex.Escape(DamageOverrideTokenPrefix) + @"(?<amount>\d+(?:\.\d+)?)\]\]");
-            if (!match.Success)
-            {
-                return null;
-            }
+            if (!match.Success) return null;
 
-            if (!decimal.TryParse(match.Groups["amount"].Value, out var amount))
-            {
-                return null;
-            }
+            if (!decimal.TryParse(match.Groups["amount"].Value, out var amount)) return null;
 
             return Money(amount);
         }
@@ -1822,10 +1741,7 @@ namespace HotelERP.BE.Application.Services
 
         private static string? SanitizeInvoiceNotes(string? notes)
         {
-            if (string.IsNullOrWhiteSpace(notes))
-            {
-                return notes;
-            }
+            if (string.IsNullOrWhiteSpace(notes)) return notes;
 
             var cleaned = Regex.Replace(
                 notes,
@@ -1839,8 +1755,9 @@ namespace HotelERP.BE.Application.Services
             return string.IsNullOrWhiteSpace(cleaned) ? null : cleaned;
         }
 
-        private void AddAuditLog(
+        private async Task AddAuditLog(
             int? userId,
+            string? roleName,
             string action,
             string tableName,
             int recordId,
@@ -1848,17 +1765,16 @@ namespace HotelERP.BE.Application.Services
             object? newValue,
             string? reason)
         {
-            _dbContext.AuditLogs.Add(new AuditLog
-            {
-                UserId = userId,
-                Action = action,
-                TableName = tableName,
-                RecordId = recordId,
-                OldValue = oldValue is null ? null : JsonSerializer.Serialize(oldValue),
-                NewValue = newValue is null ? null : JsonSerializer.Serialize(newValue),
-                Reason = reason,
-                CreatedAt = DateTime.UtcNow
-            });
+            var (resolvedUserId, resolvedRole) = ResolveUser();
+            await _dbContext.AddAuditLogAsync(
+                userId: userId ?? resolvedUserId,
+                roleName: roleName ?? resolvedRole,
+                actionType: action,
+                entityType: tableName,
+                message: reason ?? "No reason provided",
+                contextParams: new { recordId },
+                changes: new { oldData = oldValue, newData = newValue }
+            );
         }
 
         private static string BuildInvoiceCode(string bookingCode, int sequence)
@@ -1912,6 +1828,25 @@ namespace HotelERP.BE.Application.Services
         private static decimal Money(decimal value)
         {
             return Math.Round(value, 2, MidpointRounding.AwayFromZero);
+        }
+
+        private (int UserId, string RoleName) ResolveUser()
+        {
+            var user = _httpContextAccessor.HttpContext?.User;
+            var userIdClaim = user?.FindFirst("UserId")?.Value ?? user?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            int uid = int.TryParse(userIdClaim, out int id) ? id : 0;
+            var roleName = user?.FindFirst(ClaimTypes.Role)?.Value ?? "User";
+            return (uid, roleName);
+        }
+
+        public Task<ApiResult<object>> ApplyVoucherToBookingAsync(int bookingId, ApplyInvoiceVoucherRequestDto request, int? performedByUserId, CancellationToken cancellationToken = default)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task FinalizeAsync(int invoiceId, FinalizeInvoiceRequestDto request, int? userId, CancellationToken cancellationToken)
+        {
+            throw new NotImplementedException();
         }
     }
 }

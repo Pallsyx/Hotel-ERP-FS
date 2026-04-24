@@ -1,10 +1,13 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore; // Bổ sung để dùng ToListAsync() và FirstOrDefaultAsync()
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
 using System.Net;
+using System.Security.Claims;
 using HotelERP.BE.Domain.Models;
 using HotelERP.BE.Services;
 using HotelERP.BE.Infrastructure.Data;
-using HotelERP.BE.Utils; // Bổ sung để gọi HotelDbContext
+using HotelERP.BE.Helpers.AuditLogs;
+using HotelERP.BE.Utils;
 
 namespace HotelERP.BE.Controllers;
 
@@ -65,26 +68,32 @@ public class ReviewController(HotelDbContext context, ICloudinaryService cloudin
         review.IsApproved = false;
         review.Status = "Hidden";
 
-        // 2. Lấy và Decode header X-Audit-Reason an toàn
+        // 2. Lấy userId và role thật từ JWT token
+        var userIdRaw = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        int.TryParse(userIdRaw, out int actingUserId);
+        var actingRole = User.FindFirstValue(ClaimTypes.Role) ?? "System";
+
+        // 3. Lấy và Decode header X-Audit-Reason an toàn
         string decodedReason = "Không có lý do";
         if (Request.Headers.TryGetValue("X-Audit-Reason", out var reasonValues))
         {
             decodedReason = WebUtility.UrlDecode(reasonValues.ToString());
         }
 
-        // 3. Ghi Audit Log với Target-typed new()
-        AuditLog auditLog = new()
-        {
-            Action = "HIDE_REVIEW",
-            TableName = "Reviews",
-            RecordId = id,
-            Reason = decodedReason,
-            CreatedAt = DateTime.UtcNow
-        };
+        // 3. Ghi Audit Log (dùng extension method, bên trong vẫn là _context.AuditLogs.Add)
+        var userIdClaim = User.FindFirst("UserId")?.Value ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        int userId = int.TryParse(userIdClaim, out int uid) ? uid : 0;
+        var roleName = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "User";
+        await context.AddAuditLogAsync(
+            userId: userId,
+            roleName: roleName,
+            actionType: "UPDATE",
+            entityType: "Review",
+            message: $"Ẩn đánh giá #{id}: {decodedReason}",
+            contextParams: new { reviewId = id },
+            changes: new { oldData = new { review.Status }, newData = new { Status = "HIDDEN" } }
+        );
 
-        context.AuditLogs.Add(auditLog);
-        
-        await context.SaveChangesAsync();
 
         return Ok(new { message = "Đã ẩn đánh giá và ghi log thành công." });
     }

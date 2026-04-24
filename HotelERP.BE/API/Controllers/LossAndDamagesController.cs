@@ -1,6 +1,7 @@
 using HotelERP.BE.Infrastructure.Data;
 using HotelERP.BE.Domain.Models;
 using HotelERP.BE.Hubs;
+using HotelERP.BE.Helpers.AuditLogs;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.SignalR;
@@ -9,6 +10,7 @@ using HotelERP.BE.Services;
 using HotelERP.BE.DTOs.Notifications;
 using HotelERP.BE.Models.Enums;
 using HotelERP.BE.Models;
+using System.Security.Claims;
 
 namespace HotelERP.BE.API.Controllers;
 
@@ -97,13 +99,30 @@ public class LossAndDamagesController : ControllerBase
                 }
             }
 
+            var roomNumber = damage.RoomInventory?.Equipment != null
+                ? (await _context.Rooms.FindAsync(damage.RoomId))?.RoomNumber ?? "N/A"
+                : "N/A";
+            var itemName = damage.RoomInventory?.Equipment?.Name ?? "Không xác định";
+
             // 2. Xóa bản ghi
             _context.LossAndDamages.Remove(damage);
             
             // 3. Lưu thay đổi xuống Database
             await _context.SaveChangesAsync();
 
-            // 4. (Tùy chọn) Gửi tín hiệu SignalR để các máy khác cũng tự động mất dòng này
+            // 4. Ghi Audit Log
+            var (userId, roleName) = ResolveUser();
+            await _context.AddAuditLogAsync(
+                userId: userId,
+                roleName: roleName,
+                actionType: "DELETE",
+                entityType: "LossAndDamage",
+                message: $"Hủy báo cáo đền bù {itemName} tại phòng {roomNumber}.",
+                contextParams: new { damageId = id, roomNumber, targetItem = itemName },
+                changes: new { oldData = new { damage.Quantity, damage.PenaltyAmount, damage.Description }, newData = (object?)null }
+            );
+
+            // 5. Gửi tín hiệu SignalR
             await _hubContext.Clients.All.SendAsync("DeletedDamage", id);
 
             return Ok(new { message = "Xóa thành công!", id });
@@ -155,6 +174,10 @@ public class LossAndDamagesController : ControllerBase
             }
         }
 
+        var oldQuantity = damage.Quantity;
+        var oldPenalty = damage.PenaltyAmount;
+        var oldDesc = damage.Description;
+
         damage.Quantity = req.Quantity;
         damage.Description = req.Description;
         damage.UpdatedAt = DateTime.UtcNow;
@@ -169,6 +192,21 @@ public class LossAndDamagesController : ControllerBase
         }
 
         await _context.SaveChangesAsync();
+
+        // Ghi Audit Log
+        var room = await _context.Rooms.FindAsync(damage.RoomId);
+        var itemName = damage.RoomInventory?.Equipment?.Name ?? "Không xác định";
+        var (userId, roleName) = ResolveUser();
+        await _context.AddAuditLogAsync(
+            userId: userId,
+            roleName: roleName,
+            actionType: "UPDATE",
+            entityType: "LossAndDamage",
+            message: $"Cập nhật báo cáo đền bù {itemName} tại phòng {room?.RoomNumber ?? "N/A"}.",
+            contextParams: new { damageId = id, roomNumber = room?.RoomNumber ?? "N/A", targetItem = itemName },
+            changes: new { oldData = new { Quantity = oldQuantity, PenaltyAmount = oldPenalty, Description = oldDesc }, newData = new { damage.Quantity, damage.PenaltyAmount, damage.Description } }
+        );
+
         await _hubContext.Clients.All.SendAsync("DamageUpdated", id);
 
         // ✅ Gửi thông báo hệ thống
@@ -296,6 +334,18 @@ public class LossAndDamagesController : ControllerBase
         await _context.SaveChangesAsync();
         
         var room = await _context.Rooms.FindAsync(req.RoomId);
+        var eqName = equipment?.Name ?? "Không xác định";
+        // 4. Ghi Audit Log
+        var (userId, roleName) = ResolveUser();
+        await _context.AddAuditLogAsync(
+            userId: userId,
+            roleName: roleName,
+            actionType: "CREATE",
+            entityType: "LossAndDamage",
+            message: $"Tạo báo cáo đền bù {eqName} tại phòng {room?.RoomNumber ?? "N/A"}.",
+            contextParams: new { damageId = damage.Id, roomNumber = room?.RoomNumber ?? "N/A", targetItem = eqName },
+            changes: new { oldData = (object?)null, newData = new { damage.Quantity, damage.PenaltyAmount, damage.Description } }
+        );
 
         // Trả dữ liệu về cho Frontend và gửi SignalR
         var newRecord = new
@@ -303,7 +353,7 @@ public class LossAndDamagesController : ControllerBase
             id = damage.Id,
             roomId = damage.RoomId,
             roomNumber = room?.RoomNumber ?? "Không xác định",
-            itemName = equipment?.Name ?? "Không xác định",
+            itemName = eqName,
             quantity = damage.Quantity,
             penaltyAmount = damage.PenaltyAmount,
             description = damage.Description,
@@ -336,5 +386,12 @@ public class LossAndDamagesController : ControllerBase
         });
 
         return Ok(newRecord);
+    }
+    private (int UserId, string RoleName) ResolveUser()
+    {
+        var userIdClaim = User.FindFirst("UserId")?.Value ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        int userId = int.TryParse(userIdClaim, out int id) ? id : 0;
+        var roleName = User.FindFirst(ClaimTypes.Role)?.Value ?? "User";
+        return (userId, roleName);
     }
 }

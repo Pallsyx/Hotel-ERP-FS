@@ -103,20 +103,22 @@ namespace HotelERP.BE.API.Controllers
             CancellationToken cancellationToken)
         {
             var userId = ResolveCurrentUserId();
-            var result = await _invoiceService.CreateDraftAsync(request, userId, cancellationToken);
+            var role = ResolveCurrentUserRole();
+            var result = await _invoiceService.CreateDraftAsync(request, userId, role, cancellationToken);
             return StatusCode(result.StatusCode, result);
         }
 
-        [HttpPut("{invoiceId:int}/damage-charge")]
-        public async Task<IActionResult> UpdateDamageCharge(
-            int invoiceId,
-            [FromBody] UpdateDamageChargeRequestDto request,
-            CancellationToken cancellationToken)
-        {
-            var userId = ResolveCurrentUserId();
-            var result = await _invoiceService.SetDamageChargeAsync(invoiceId, request, userId, cancellationToken);
-            return StatusCode(result.StatusCode, result);
-        }
+    [HttpPut("{invoiceId:int}/damage-charge")]
+    public async Task<IActionResult> UpdateDamageCharge(
+        int invoiceId,
+        [FromBody] UpdateDamageChargeRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var userId = ResolveCurrentUserId();
+        var role = ResolveCurrentUserRole();
+        var result = await _invoiceService.SetDamageChargeAsync(invoiceId, request, userId, role, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
 
         [HttpPost("{invoiceId:int}/finalize")]
         public async Task<IActionResult> FinalizeInvoice(
@@ -125,7 +127,8 @@ namespace HotelERP.BE.API.Controllers
             CancellationToken cancellationToken)
         {
             var userId = ResolveCurrentUserId();
-            var result = await _invoiceService.FinalizeAsync(invoiceId, request, userId, cancellationToken);
+        var role = ResolveCurrentUserRole();
+            var result = await _invoiceService.FinalizeAsync(invoiceId, request, userId, role, cancellationToken);
             return StatusCode(result.StatusCode, result);
         }
 
@@ -136,7 +139,8 @@ namespace HotelERP.BE.API.Controllers
             CancellationToken cancellationToken)
         {
             var userId = ResolveCurrentUserId();
-            var result = await _invoiceService.AddExtraFeeAsync(invoiceId, request, userId, cancellationToken);
+            var role = ResolveCurrentUserRole();
+            var result = await _invoiceService.AddExtraFeeAsync(invoiceId, request, userId, role, cancellationToken);
             return StatusCode(result.StatusCode, result);
         }
 
@@ -144,6 +148,11 @@ namespace HotelERP.BE.API.Controllers
         {
             var raw = User.FindFirstValue(ClaimTypes.NameIdentifier);
             return int.TryParse(raw, out var userId) ? userId : null;
+        }
+
+        private string? ResolveCurrentUserRole()
+        {
+            return User.FindFirstValue(ClaimTypes.Role);
         }
     }
 }
