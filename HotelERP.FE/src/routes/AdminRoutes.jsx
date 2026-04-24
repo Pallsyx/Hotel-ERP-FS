@@ -23,6 +23,7 @@ import InvoiceManagement from '../pages/Invoices/InvoiceManagement';
 import InvoiceDashboard from '../pages/Admin/Invoices/InvoiceDashboard';
 
 import ArticleManagement from '../pages/Admin/ArticleManagement';
+import AttractionManagement from '../pages/Admin/AttractionManagement';
 
 const Placeholder = ({ title }) => (
   <div style={{ padding: 24, textAlign: 'center' }}>
@@ -65,7 +66,7 @@ const AdminRoutes = () => {
 
         <Route path='article-categories' element={<Placeholder title='Danh mục Bài viết' />} />
         <Route path='posts' element={<ArticleManagement />} />
-        <Route path='attractions' element={<Placeholder title='Địa điểm lân cận (Bản đồ)' />} />
+        <Route path='attractions' element={<AttractionManagement />} />
         <Route path='reviews' element={<Placeholder title='Kiểm duyệt Đánh giá (Review)' />} />
 
         {/* MODULE 2 - QUẦY LỄ TÂN */}

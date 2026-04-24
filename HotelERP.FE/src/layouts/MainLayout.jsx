@@ -112,6 +112,11 @@ const MainLayout = () => {
       label: 'Quản lý Bài viết',
     },
     {
+      key: '/admin/attractions',
+      icon: <HomeOutlined />,
+      label: 'Khám phá Điểm đến',
+    },
+    {
       key: '/admin/invoices',
       icon: <FileTextOutlined />,
       label: 'Quản lý hóa đơn',

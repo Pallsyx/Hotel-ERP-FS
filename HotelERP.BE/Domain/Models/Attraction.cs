@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace HotelERP.BE.Domain.Models;
@@ -8,6 +8,9 @@ public partial class Attraction
     public int Id { get; set; }
     
     public string Name { get; set; } = null!;
+    
+    // Thuộc tính loại hình điểm tham quan (Di tích, Ẩm thực, Giải trí, Thiên nhiên)
+    public string? Type { get; set; }
     
     public string? Description { get; set; }
     

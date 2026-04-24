@@ -6,6 +6,7 @@ import HomePage from './pages/Home/HomePage';
 // 1. THÊM DÒNG NÀY: Import trang Login của bạn vào đây
 import LoginPage from './pages/Auth/Login';
 import NewsPage from './pages/Home/NewsPage';
+import AttractionsPage from './pages/Home/AttractionsPage';
 
 function App() {
   return (
@@ -16,6 +17,9 @@ function App() {
         
         {/* Trang tin tức */}
         <Route path="/news" element={<NewsPage />} />
+
+        {/* Trang khám phá điểm đến */}
+        <Route path="/attractions" element={<AttractionsPage />} />
 
         {/* 2. THÊM DÒNG NÀY: Đăng ký hộ khẩu cho trang đăng nhập */}
         <Route path="/login" element={<LoginPage />} />

@@ -5,23 +5,21 @@ class Program
 {
     static void Main()
     {
-        string connStr = "Server=localhost;Database=HotelManagementDB;Trusted_Connection=True;TrustServerCertificate=True;";
-        try
+        string connectionString = "Server=DESKTOP-3R12C2Q;Database=HotelManagementDB;Trusted_Connection=True;TrustServerCertificate=True;";
+        string sql = @"
+            UPDATE Attractions SET latitude = 0 WHERE latitude IS NULL;
+            UPDATE Attractions SET longitude = 0 WHERE longitude IS NULL;
+        ";
+        using (var connection = new SqlConnection(connectionString))
         {
-            using (SqlConnection conn = new SqlConnection(connStr))
-            {
-                conn.Open();
-                // Update articles 1-10 to Published
-                using (SqlCommand cmd = new SqlCommand("UPDATE Articles SET status = 'Published' WHERE id <= 10", conn))
-                {
-                    int rows = cmd.ExecuteNonQuery();
-                    Console.WriteLine($"Updated {rows} articles to Published.");
-                }
+            var command = new SqlCommand(sql, connection);
+            connection.Open();
+            try {
+                int rows = command.ExecuteNonQuery();
+                Console.WriteLine($"Updated {rows} rows successfully!");
+            } catch (Exception ex) {
+                Console.WriteLine("Error: " + ex.Message);
             }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine("Lỗi: " + ex.Message);
         }
     }
 }

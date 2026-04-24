@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using HotelERP.BE.Domain.Models;
 using HotelERP.BE.Infrastructure.Data;
@@ -6,12 +7,26 @@ using HotelERP.BE.Infrastructure.Data;
 namespace HotelERP.BE.Controllers;
 
 // --- DTOs giúp nhận/trả dữ liệu an toàn ---
-public record CreateAttractionDto(string Name, string? Description, decimal Latitude, decimal Longitude, decimal? DistanceKm, string? ImageUrl, string? ImagePublicId, string? MapEmbedLink);
-public record UpdateAttractionDto(string Name, string? Description, decimal Latitude, decimal Longitude, decimal? DistanceKm, string? ImageUrl, string? ImagePublicId, string? MapEmbedLink, string Status);
+public class CreateAttractionDto
+{
+    public string Name { get; set; } = null!;
+    public string? Type { get; set; }
+    public string? Description { get; set; }
+    public decimal Latitude { get; set; }
+    public decimal Longitude { get; set; }
+    public decimal? DistanceKm { get; set; }
+    public string? MapEmbedLink { get; set; }
+    public IFormFile? ImageFile { get; set; }
+}
+
+public class UpdateAttractionDto : CreateAttractionDto
+{
+    public string Status { get; set; } = "ACTIVE";
+}
 
 [Route("api/[controller]")]
 [ApiController]
-public class AttractionController(HotelDbContext context) : ControllerBase
+public class AttractionController(HotelDbContext context, HotelERP.BE.Application.Interfaces.IPhotoService photoService) : ControllerBase
 {
     // Lấy danh sách địa điểm
     [HttpGet]
@@ -32,17 +47,29 @@ public class AttractionController(HotelDbContext context) : ControllerBase
 
     // Thêm mới địa điểm (Đảm bảo nhận GPS)
     [HttpPost]
-    public async Task<IActionResult> Create(CreateAttractionDto dto)
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> Create([FromForm] CreateAttractionDto dto)
     {
+        string? imageUrl = null;
+        string? imagePublicId = null;
+
+        if (dto.ImageFile != null)
+        {
+            var uploadResult = await photoService.UploadPhotoAsync(dto.ImageFile);
+            imageUrl = uploadResult.Url;
+            imagePublicId = uploadResult.PublicId;
+        }
+
         Attraction newAttraction = new()
         {
             Name = dto.Name,
+            Type = dto.Type,
             Description = dto.Description,
             Latitude = dto.Latitude,         // Lưu tọa độ GPS
             Longitude = dto.Longitude,       // Lưu tọa độ GPS
             DistanceKm = dto.DistanceKm,
-            ImageUrl = dto.ImageUrl,
-            ImagePublicId = dto.ImagePublicId,
+            ImageUrl = imageUrl,
+            ImagePublicId = imagePublicId,
             MapEmbedLink = dto.MapEmbedLink,
             CreatedAt = DateTime.UtcNow,
             Status = "ACTIVE"
@@ -56,21 +83,28 @@ public class AttractionController(HotelDbContext context) : ControllerBase
 
     // Cập nhật địa điểm
     [HttpPut("{id}")]
-    public async Task<IActionResult> Update(int id, UpdateAttractionDto dto)
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> Update(int id, [FromForm] UpdateAttractionDto dto)
     {
         var attraction = await context.Attractions.FindAsync(id);
         if (attraction is null) return NotFound("Không tìm thấy địa điểm.");
 
         attraction.Name = dto.Name;
+        attraction.Type = dto.Type;
         attraction.Description = dto.Description;
         attraction.Latitude = dto.Latitude;
         attraction.Longitude = dto.Longitude;
         attraction.DistanceKm = dto.DistanceKm;
-        attraction.ImageUrl = dto.ImageUrl;
-        attraction.ImagePublicId = dto.ImagePublicId;
         attraction.MapEmbedLink = dto.MapEmbedLink;
         attraction.Status = dto.Status;
         attraction.UpdatedAt = DateTime.UtcNow;
+
+        if (dto.ImageFile != null)
+        {
+            var uploadResult = await photoService.UploadPhotoAsync(dto.ImageFile);
+            attraction.ImageUrl = uploadResult.Url;
+            attraction.ImagePublicId = uploadResult.PublicId;
+        }
 
         await context.SaveChangesAsync();
         return Ok(new { message = "Cập nhật thành công", data = attraction });
@@ -78,6 +112,7 @@ public class AttractionController(HotelDbContext context) : ControllerBase
 
     // Xóa địa điểm
     [HttpDelete("{id}")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Delete(int id)
     {
         var attraction = await context.Attractions.FindAsync(id);

@@ -1,32 +1,23 @@
 using System;
-using System.Data.SqlClient;
+using Microsoft.Data.SqlClient;
 
 class Program
 {
     static void Main()
     {
-        string connStr = "Server=localhost;Database=HotelManagementDB;Trusted_Connection=True;TrustServerCertificate=True;";
-        string sql = "SELECT TOP 5 Id, Email, PasswordHash FROM Users";
-        try
+        string connectionString = "Server=DESKTOP-3R12C2Q;Database=HotelManagementDB;Trusted_Connection=True;TrustServerCertificate=True;";
+        string sql = "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Attractions';";
+        using (var connection = new SqlConnection(connectionString))
         {
-            using (SqlConnection conn = new SqlConnection(connStr))
+            var command = new SqlCommand(sql, connection);
+            connection.Open();
+            using (var reader = command.ExecuteReader())
             {
-                conn.Open();
-                using (SqlCommand cmd = new SqlCommand(sql, conn))
+                while (reader.Read())
                 {
-                    using (SqlDataReader reader = cmd.ExecuteReader())
-                    {
-                        while (reader.Read())
-                        {
-                            Console.WriteLine($"Id: {reader["Id"]}, Email: {reader["Email"]}, PasswordHash: {reader["PasswordHash"]}");
-                        }
-                    }
+                    Console.WriteLine(reader.GetString(0));
                 }
             }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine("Error: " + ex.Message);
         }
     }
 }
