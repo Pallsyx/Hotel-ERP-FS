@@ -10,6 +10,9 @@ const auditLogApi = {
       responseType: 'blob',
     });
   },
+  purgeOldLogs: () => {
+    return axiosClient.delete('/AuditLogs/purge');
+  },
 };
 
 export default auditLogApi;

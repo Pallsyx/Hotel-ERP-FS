@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Select, DatePicker, Button, Typography, Space, Tag, Spin } from 'antd';
-import { DownloadOutlined, ReloadOutlined, FilterOutlined, UserOutlined } from '@ant-design/icons';
+import { Table, Select, DatePicker, Button, Typography, Space, Tag, Spin, Popconfirm } from 'antd';
+import { DownloadOutlined, ReloadOutlined, FilterOutlined, UserOutlined, DeleteOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { message } from 'antd';
 import auditLogApi from '../../api/auditLogApi';
 import userApi from '../../api/userApi';
 import roleApi from '../../api/roleApi';
+import { useAuthStore } from '../../store/authStore';
+
 
 
 const { Title, Text } = Typography;
@@ -23,6 +25,10 @@ const AuditLogs = () => {
   const [employees, setEmployees] = useState([]);
   const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [purging, setPurging] = useState(false);
+  const currentUser = useAuthStore((state) => state.user);
+  const isAdmin = currentUser?.roleName === 'Admin';
+
   const [filters, setFilters] = useState({
     userId: null,
     roleName: null,
@@ -82,6 +88,19 @@ const AuditLogs = () => {
       message.error('Không thể tải nhật ký hoạt động.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePurge = async () => {
+    setPurging(true);
+    try {
+      const res = await auditLogApi.purgeOldLogs();
+      message.success(res.data?.message || 'Đã xóa log cũ thành công.');
+      fetchLogs(); // refresh danh sách sau khi xóa
+    } catch (error) {
+      message.error(error.response?.data?.message || 'Xóa log cũ thất bại.');
+    } finally {
+      setPurging(false);
     }
   };
 
@@ -236,7 +255,26 @@ const AuditLogs = () => {
           >
             Xuất toàn bộ (Server)
           </Button>
+          {isAdmin && (
+            <Popconfirm
+              title="Xóa log cũ"
+              description="Sẽ xóa vĩnh viễn tất cả audit log cũ hơn 3 tháng. Tiếp tục?"
+              onConfirm={handlePurge}
+              okText="Xóa ngay"
+              cancelText="Hủy"
+              okButtonProps={{ danger: true }}
+            >
+              <Button
+                danger
+                icon={<DeleteOutlined />}
+                loading={purging}
+              >
+                Dọn log cũ
+              </Button>
+            </Popconfirm>
+          )}
         </Space>
+
       </div>
 
       {/* FILTER BAR — khớp với UI trong ảnh */}

@@ -192,16 +192,12 @@ public class AuditLogService : IAuditLogService
     {
         var cutoff = DateTime.UtcNow.Date.AddMonths(-3);
 
-        var oldLogs = await _context.AuditLogs
+        // Xóa trực tiếp trên DB, không cần load dữ liệu vào RAM
+        // Tương đương: DELETE FROM AuditLogs WHERE LogDate < @cutoff
+        var deletedCount = await _context.AuditLogs
             .Where(x => x.LogDate < cutoff)
-            .ToListAsync();
+            .ExecuteDeleteAsync();
 
-        if (oldLogs.Count == 0)
-            return 0;
-
-        _context.AuditLogs.RemoveRange(oldLogs);
-        await _context.SaveChangesAsync();
-
-        return oldLogs.Count;
+        return deletedCount;
     }
 }

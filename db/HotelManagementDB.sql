@@ -2485,3 +2485,28 @@ GO
 
 EXEC dbo.sp_add_jobserver @job_name = N'AutoPurge_OldAuditLogs';
 GO
+
+-- ========================================================================
+-- TRIGGER: Tự động xóa log cũ khi log_date bị chỉnh sửa trực tiếp trong DB
+-- ========================================================================
+IF OBJECT_ID('TR_AuditLogs_AutoPurgeOnUpdate', 'TR') IS NOT NULL
+    DROP TRIGGER TR_AuditLogs_AutoPurgeOnUpdate;
+GO
+
+CREATE TRIGGER TR_AuditLogs_AutoPurgeOnUpdate
+ON Audit_Logs
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- Chỉ chạy logic xóa nếu cột log_date thực sự bị thay đổi
+    IF UPDATE(log_date)
+    BEGIN
+        DECLARE @cutoff DATE = CAST(DATEADD(MONTH, -3, GETUTCDATE()) AS DATE);
+
+        DELETE FROM Audit_Logs
+        WHERE log_date < @cutoff;
+    END
+END;
+GO

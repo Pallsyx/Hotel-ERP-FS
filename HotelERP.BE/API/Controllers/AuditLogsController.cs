@@ -52,4 +52,20 @@ public class AuditLogsController : ControllerBase
         
         return File(fileBytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
     }
+    /// <summary>
+    /// [Admin only] Xóa ngay các audit log có LogDate cũ hơn 3 tháng tính theo date lưu trong DB.
+    /// Không cần đợi Hangfire job chạy theo lịch.
+    /// </summary>
+    [HttpDelete("purge")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> PurgeOldLogs()
+    {
+        var deletedCount = await _auditLogService.PurgeOldLogsAsync();
+        return Ok(new
+        {
+            success = true,
+            message = $"Đã xóa {deletedCount} bản ghi audit log cũ hơn 3 tháng.",
+            deletedCount
+        });
+    }
 }

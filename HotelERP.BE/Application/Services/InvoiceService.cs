@@ -891,6 +891,7 @@ namespace HotelERP.BE.Application.Services
                         : dto.Notes
                 },
                 null,
+                null,
                 cancellationToken);
 
             if (!createResult.Success || createResult.Data is null)
@@ -908,6 +909,7 @@ namespace HotelERP.BE.Application.Services
                 PaymentMethod = string.IsNullOrWhiteSpace(dto.PaymentMethod) ? "CASH" : dto.PaymentMethod,
                 Note = dto.Notes
             },
+            null,
             null,
             cancellationToken);
 
