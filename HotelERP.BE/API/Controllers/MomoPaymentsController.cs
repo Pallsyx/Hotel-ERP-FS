@@ -68,9 +68,13 @@ public class MomoPaymentsController : ControllerBase
 
     [HttpGet("return")]
     [AllowAnonymous]
-    public IActionResult Return([FromQuery] MomoIpnRequestDto request)
+    public async Task<IActionResult> Return([FromQuery] MomoIpnRequestDto request, CancellationToken cancellationToken)
     {
-        var result = _momoPaymentService.ValidateReturn(request);
+        // MoMo redirect về đây sau khi app báo thành công.
+        // Trước đây code chỉ validate rồi redirect, không update DB.
+        // Bây giờ xử lý giống IPN để nếu IPN bị miss thì return vẫn update được invoice/payment.
+        var result = await _momoPaymentService.HandleIpnAsync(request, cancellationToken);
+
         if (!result.Success)
         {
             return StatusCode(result.StatusCode, result);
