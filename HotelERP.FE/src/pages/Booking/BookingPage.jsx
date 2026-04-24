@@ -235,7 +235,11 @@ const BookingList = () => {
       <Card style={{ marginBottom: 24, borderRadius: 12 }}>
         <Form form={form} layout="inline" onFinish={handleSearchRooms} initialValues={{ adults: 2, children: 0 }}>
           <Form.Item name="dates" rules={[{ required: true, message: 'Chọn ngày!' }]}>
-            <RangePicker format="DD/MM/YYYY" style={{ width: 280 }} />
+            <RangePicker 
+              format="DD/MM/YYYY" 
+              style={{ width: 280 }} 
+              disabledDate={(current) => current && current < dayjs().startOf('day')}
+            />
           </Form.Item>
           <Form.Item name="adults" label="Người lớn"><InputNumber min={1} /></Form.Item>
           <Form.Item name="children" label="Trẻ em"><InputNumber min={0} /></Form.Item>

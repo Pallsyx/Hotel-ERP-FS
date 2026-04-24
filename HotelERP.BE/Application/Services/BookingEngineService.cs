@@ -39,6 +39,11 @@ public class BookingEngineService : IBookingEngineService
 
     public async Task<string> HoldRoomAsync(int roomTypeId, int userId, DateTime checkIn, DateTime checkOut)
     {
+        if (checkIn.Date < DateTime.UtcNow.Date)
+            throw new Exception("Ngày nhận phòng không được nằm trong quá khứ.");
+        if (checkOut.Date <= checkIn.Date)
+            throw new Exception("Ngày trả phòng phải sau ngày nhận phòng.");
+
         string resourceLockKey = $"lock:roomtype:{roomTypeId}";
         var expiry = TimeSpan.FromSeconds(10); 
         var wait = TimeSpan.FromSeconds(3);    
@@ -192,6 +197,11 @@ public class BookingEngineService : IBookingEngineService
             decimal finalTotalAmount = 0; // NEW: Biến cộng dồn tổng tiền
 
             foreach (var item in request.Items) {
+                if (item.CheckInDate.Date < DateTime.UtcNow.Date)
+                    throw new Exception($"Ngày nhận phòng ({item.CheckInDate:dd/MM/yyyy}) không được nằm trong quá khứ.");
+                if (item.CheckOutDate.Date <= item.CheckInDate.Date)
+                    throw new Exception("Ngày trả phòng phải sau ngày nhận phòng.");
+
                 // NEW: Lấy giá BasePrice từ CSDL cho hạng phòng này
                 var roomTypeInfo = await _context.RoomTypes.FindAsync(item.RoomTypeId);
                 var basePrice = roomTypeInfo?.BasePrice ?? 0;
