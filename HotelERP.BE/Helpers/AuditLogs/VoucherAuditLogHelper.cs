@@ -1,6 +1,8 @@
 using System.Text.Json;
+using System.Security.Claims;
 using HotelERP.BE.Domain.Models;
 using HotelERP.BE.Infrastructure.Data;
+using Microsoft.AspNetCore.Http;
 
 namespace HotelERP.BE.Helpers.AuditLogs;
 
@@ -12,10 +14,12 @@ public class VoucherAuditLogHelper : IVoucherAuditLogHelper
     };
 
     private readonly HotelDbContext _dbContext;
+    private readonly IHttpContextAccessor _httpContextAccessor;
 
-    public VoucherAuditLogHelper(HotelDbContext dbContext)
+    public VoucherAuditLogHelper(HotelDbContext dbContext, IHttpContextAccessor httpContextAccessor)
     {
         _dbContext = dbContext;
+        _httpContextAccessor = httpContextAccessor;
     }
 
     public object BuildSnapshot(Voucher voucher)
@@ -47,14 +51,26 @@ public class VoucherAuditLogHelper : IVoucherAuditLogHelper
         string reason,
         CancellationToken cancellationToken = default)
     {
+        // Dùng extension method, bên trong vẫn là _dbContext.AuditLogs.Add(new AuditLog {...})
+        var (resolvedUserId, resolvedRole) = ResolveUser();
         await _dbContext.AddAuditLogAsync(
-            userId: userId ?? 0,
-            roleName: roleName,   // dùng role thật thay vì hardcode "System"
+            userId: userId ?? resolvedUserId,
+            roleName: resolvedRole,
             actionType: action,
-            entityType: "Vouchers",
+            entityType: "Voucher",
             message: reason?.Trim() ?? "No reason provided",
-            changes: new { Old = oldValue, New = newValue }
+            contextParams: new { recordId },
+            changes: new { oldData = oldValue, newData = newValue }
         );
+    }
+
+    private (int UserId, string RoleName) ResolveUser()
+    {
+        var user = _httpContextAccessor.HttpContext?.User;
+        var userIdClaim = user?.FindFirst("UserId")?.Value ?? user?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        int uid = int.TryParse(userIdClaim, out int id) ? id : 0;
+        var roleName = user?.FindFirst(ClaimTypes.Role)?.Value ?? "User";
+        return (uid, roleName);
     }
 
     private static string? Serialize(object? value)

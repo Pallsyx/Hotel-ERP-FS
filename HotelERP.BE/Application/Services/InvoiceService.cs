@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Security.Claims;
 using HotelERP.BE.DTOs.Common;
 using HotelERP.BE.DTOs.Invoices;
 using HotelERP.BE.Domain.Models;
@@ -17,10 +18,12 @@ namespace HotelERP.BE.Application.Services
         private const string DamageOverrideTokenPrefix = "[[DAMAGE_OVERRIDE:";
 
         private readonly HotelDbContext _dbContext;
+        private readonly IHttpContextAccessor _httpContextAccessor;
 
-        public InvoiceService(HotelDbContext dbContext)
+        public InvoiceService(HotelDbContext dbContext, IHttpContextAccessor httpContextAccessor)
         {
             _dbContext = dbContext;
+            _httpContextAccessor = httpContextAccessor;
         }
 
         private sealed class DetailChargeSummary
@@ -255,7 +258,7 @@ namespace HotelERP.BE.Application.Services
 
         var after = MapResponse(booking, invoice);
 
-        AddAuditLog(
+        await AddAuditLog(
             performedByUserId,
             performedByRole,
             "CREATE_DRAFT_INVOICE_PARTIAL",
@@ -364,7 +367,7 @@ namespace HotelERP.BE.Application.Services
 
         var after = MapResponse(booking, invoice);
 
-        AddAuditLog(
+        await AddAuditLog(
             performedByUserId,
             performedByRole,
             "ADD_EXTRA_FEE_INVOICE",
@@ -447,7 +450,7 @@ namespace HotelERP.BE.Application.Services
 
         var after = MapResponse(booking, invoice);
 
-        AddAuditLog(
+        await AddAuditLog(
             performedByUserId,
             performedByRole,
             "UPDATE_DAMAGE_CHARGE_INVOICE",
@@ -574,7 +577,7 @@ namespace HotelERP.BE.Application.Services
 
         var after = MapResponse(booking, invoice);
 
-        AddAuditLog(
+        await AddAuditLog(
             performedByUserId,
             performedByRole,
             "FINALIZE_INVOICE_PARTIAL",
@@ -1509,14 +1512,25 @@ namespace HotelERP.BE.Application.Services
         object? newValue,
         string? reason)
     {
+        var (resolvedUserId, resolvedRole) = ResolveUser();
         await _dbContext.AddAuditLogAsync(
-            userId: userId ?? 0,
-            roleName: roleName ?? "System", // fallback chỉ khi không có role thật
+            userId: userId ?? resolvedUserId,
+            roleName: resolvedRole,
             actionType: action,
             entityType: tableName,
             message: reason ?? "No reason provided",
-            changes: new { Old = oldValue, New = newValue }
+            contextParams: new { recordId },
+            changes: new { oldData = oldValue, newData = newValue }
         );
+    }
+
+    private (int UserId, string RoleName) ResolveUser()
+    {
+        var user = _httpContextAccessor.HttpContext?.User;
+        var userIdClaim = user?.FindFirst("UserId")?.Value ?? user?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        int uid = int.TryParse(userIdClaim, out int id) ? id : 0;
+        var roleName = user?.FindFirst(ClaimTypes.Role)?.Value ?? "User";
+        return (uid, roleName);
     }
 
     private static string BuildInvoiceCode(string bookingCode, int sequence)

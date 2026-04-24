@@ -80,15 +80,18 @@ public class ReviewController(HotelDbContext context, ICloudinaryService cloudin
             decodedReason = WebUtility.UrlDecode(reasonValues.ToString());
         }
 
-        await context.SaveChangesAsync();
-
-        // 4. Ghi Audit Log với userId và role thật
+        // 3. Ghi Audit Log (dùng extension method, bên trong vẫn là _context.AuditLogs.Add)
+        var userIdClaim = User.FindFirst("UserId")?.Value ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        int userId = int.TryParse(userIdClaim, out int uid) ? uid : 0;
+        var roleName = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "User";
         await context.AddAuditLogAsync(
-            userId: actingUserId,
-            roleName: actingRole,
-            actionType: "HIDE_REVIEW",
-            entityType: "Reviews",
-            message: decodedReason
+            userId: userId,
+            roleName: roleName,
+            actionType: "UPDATE",
+            entityType: "Review",
+            message: $"Ẩn đánh giá #{id}: {decodedReason}",
+            contextParams: new { reviewId = id },
+            changes: new { oldData = new { review.Status }, newData = new { Status = "HIDDEN" } }
         );
 
 
