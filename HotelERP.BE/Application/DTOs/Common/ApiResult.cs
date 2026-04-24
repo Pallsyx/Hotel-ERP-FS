@@ -16,6 +16,7 @@ public class ApiResult<T>
     public T? Data { get; init; }
 
     public object? Details { get; init; }
+    public object? Result { get; internal set; }
 
     public static ApiResult<T> Ok(T? data, string message = "Success", string code = "SUCCESS")
     {

@@ -41,6 +41,13 @@ namespace HotelERP.BE.Application.Interfaces
             DateTime? fromDate,
             DateTime? toDate,
             string? status,
+            int? bookingId,
+            CancellationToken cancellationToken = default);
+
+        Task<ApiResult<object>> ApplyVoucherToBookingAsync(
+            int bookingId,
+            ApplyInvoiceVoucherRequestDto request,
+            int? performedByUserId,
             CancellationToken cancellationToken = default);
 
         Task<DraftInvoiceDto> GetDraftInvoiceAsync(

@@ -178,6 +178,9 @@ builder.Services.AddSingleton<IDistributedLockFactory>(provider =>
 // --- 6. ĐĂNG KÝ SERVICES ---
 
 // Options của Loyalty Points
+builder.Services.Configure<MomoOptions>(
+    builder.Configuration.GetSection(MomoOptions.SectionName));
+
 builder.Services.Configure<LoyaltyPointsOptions>(
     builder.Configuration.GetSection(LoyaltyPointsOptions.SectionName));
 
@@ -210,6 +213,9 @@ builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(Progr
 builder.Services.AddScoped<IEmailService, EmailService>();
 
 
+
+builder.Services.AddHttpClient();
+builder.Services.AddScoped<IMomoPaymentService, MomoPaymentService>();
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddAuthorization();

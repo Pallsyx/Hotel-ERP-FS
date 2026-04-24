@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Table,
   Input,
@@ -13,9 +13,11 @@ import {
   Card,
   Tooltip,
   message,
+  Alert,
 } from 'antd';
 import { SearchOutlined, EyeOutlined, ReloadOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
+import { useSearchParams } from 'react-router-dom';
 import invoiceApi from '../../../api/invoiceApi';
 import DraftInvoiceModal from './DraftInvoiceModal';
 
@@ -23,7 +25,21 @@ const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 const { Option } = Select;
 
+const statusMeta = {
+  PAID: { text: 'Đã thanh toán', color: 'green' },
+  DRAFT: { text: 'Dự thảo', color: 'orange' },
+  UNPAID: { text: 'Chưa thanh toán', color: 'gold' },
+  PARTIALLY_PAID: { text: 'Thanh toán một phần', color: 'blue' },
+  REFUNDED: { text: 'Đã hoàn tiền', color: 'volcano' },
+  CANCELLED: { text: 'Đã hủy', color: 'red' },
+  PENDING: { text: 'Chờ xử lý', color: 'gold' },
+  COMPLETED: { text: 'Hoàn thành', color: 'cyan' },
+};
+
 const InvoiceDashboard = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const presetBookingId = searchParams.get('bookingId') || '';
+
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState([]);
 
@@ -35,16 +51,21 @@ const InvoiceDashboard = () => {
   const [selectedRecord, setSelectedRecord] = useState(null);
 
   useEffect(() => {
-    fetchInvoices();
-  }, []);
+    setSearchTerm(presetBookingId || '');
+    fetchInvoices({ bookingIdOverride: presetBookingId || null, searchTermOverride: presetBookingId || '' });
+  }, [presetBookingId]);
 
-  const fetchInvoices = async () => {
+  const fetchInvoices = async ({ bookingIdOverride, searchTermOverride } = {}) => {
     try {
       setLoading(true);
       const params = {};
 
-      if (searchTerm) params.searchTerm = searchTerm;
+      const effectiveSearchTerm = searchTermOverride !== undefined ? searchTermOverride : searchTerm;
+      const effectiveBookingId = bookingIdOverride !== undefined ? bookingIdOverride : presetBookingId;
+
+      if (effectiveSearchTerm) params.searchTerm = effectiveSearchTerm;
       if (status) params.status = status;
+      if (effectiveBookingId) params.bookingId = Number(effectiveBookingId);
       if (dateRange && dateRange.length === 2) {
         params.fromDate = dateRange[0].format('YYYY-MM-DD');
         params.toDate = dateRange[1].format('YYYY-MM-DD');
@@ -55,7 +76,7 @@ const InvoiceDashboard = () => {
       setData(rows);
 
       if (rows.length === 0) {
-        message.info('Không tìm thấy hóa đơn nào khớp với bộ lọc.');
+        message.info('Không tìm thấy booking/hóa đơn nào khớp với bộ lọc.');
       }
     } catch (error) {
       console.error('Lỗi khi lấy danh sách hóa đơn:', error);
@@ -73,31 +94,17 @@ const InvoiceDashboard = () => {
     setSearchTerm('');
     setDateRange(null);
     setStatus(undefined);
-    setTimeout(() => fetchInvoices(), 0);
+    if (presetBookingId) {
+      setSearchParams({});
+      return;
+    }
+    setTimeout(() => fetchInvoices({ searchTermOverride: '' }), 0);
   };
 
   const openDraftModal = (record) => {
     const bookingId = record?.bookingId ?? record?.BookingId ?? null;
-    const bookingDetailId = record?.bookingDetailId ?? record?.BookingDetailId ?? null;
-
-    const rawId =
-      record?.invoiceId ??
-      record?.InvoiceId ??
-      record?.id ??
-      record?.Id ??
-      null;
-
-    const invoiceId = rawId && Number(rawId) > 0 ? Number(rawId) : null;
-
-    const invoiceStatus =
-      record?.invoiceStatus ??
-      record?.InvoiceStatus ??
-      record?.status ??
-      null;
-
-    const customerName = record?.customerName ?? record?.CustomerName ?? 'Khách lẻ';
-    const bookingCode = record?.bookingCode ?? record?.BookingCode ?? '';
-    const roomNumber = record?.roomNumber ?? record?.RoomNumber ?? '-';
+    const rawInvoiceId = record?.invoiceId ?? record?.InvoiceId ?? null;
+    const invoiceId = rawInvoiceId && Number(rawInvoiceId) > 0 ? Number(rawInvoiceId) : null;
 
     if (!bookingId) {
       message.warning('Bản ghi này không có Booking ID hợp lệ.');
@@ -106,118 +113,125 @@ const InvoiceDashboard = () => {
 
     setSelectedRecord({
       bookingId,
-      bookingDetailId,
+      bookingDetailId: null,
       invoiceId,
-      invoiceStatus,
-      customerName,
-      bookingCode,
-      roomNumber,
+      invoiceStatus: record?.status ?? record?.Status ?? null,
+      customerName: record?.customerName ?? record?.CustomerName ?? 'Khách lẻ',
+      bookingCode: record?.bookingCode ?? record?.BookingCode ?? '',
+      roomNumber: record?.roomNumber ?? record?.RoomNumber ?? '-',
     });
     setModalVisible(true);
   };
 
-  const columns = [
-    {
-      title: 'Mã Hóa Đơn',
-      dataIndex: 'invoiceCode',
-      key: 'invoiceCode',
-      render: (text, record) => (
-        <Text
-          strong
-          style={{
-            color: String(record?.status || '').toUpperCase() === 'PAID' ? '#2f54eb' : '#faad14',
-          }}
-        >
-          {text || '(Dự thảo)'}
-        </Text>
-      ),
-    },
-    {
-      title: 'Tên khách hàng',
-      dataIndex: 'customerName',
-      key: 'customerName',
-      render: (text) => <Text>{text || 'Khách lẻ'}</Text>,
-    },
-    {
-      title: 'Phòng',
-      dataIndex: 'roomNumber',
-      key: 'roomNumber',
-      render: (text) => <Text strong>{text || '-'}</Text>,
-    },
-    {
-      title: 'Tổng tiền',
-      dataIndex: 'finalTotal',
-      key: 'finalTotal',
-      render: (val, record) => {
-        const normalizedStatus = String(record?.status || '').toUpperCase();
-        if (normalizedStatus === 'DRAFT') {
-          return <Text type="secondary">Đang tính toán...</Text>;
-        }
-
-        return (
-          <Text strong>
-            {new Intl.NumberFormat('vi-VN', {
-              style: 'currency',
-              currency: 'VND',
-            }).format(val || 0)}
-          </Text>
-        );
+  const columns = useMemo(
+    () => [
+      {
+        title: 'Booking ID',
+        dataIndex: 'bookingId',
+        key: 'bookingId',
+        width: 120,
+        render: (value) => <Text strong>{value || '-'}</Text>,
       },
-    },
-    {
-      title: 'Ngày tạo',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-      render: (val) => (val ? dayjs(val).format('DD/MM/YYYY HH:mm') : '-'),
-    },
-    {
-      title: 'Trạng thái',
-      dataIndex: 'status',
-      key: 'status',
-      render: (status) => {
-        let color = 'blue';
-        let text = status || 'CHƯA XÁC ĐỊNH';
-
-        const statusMap = {
-          PAID: { text: 'Đã thanh toán', color: 'green' },
-          DRAFT: { text: 'Dự thảo', color: 'orange' },
-          UNPAID: { text: 'Chưa thanh toán', color: 'orange' },
-          REFUNDED: { text: 'Đã hoàn tiền', color: 'volcano' },
-          CANCELLED: { text: 'Đã hủy', color: 'red' },
-          PENDING: { text: 'Chờ xử lý', color: 'gold' },
-          COMPLETED: { text: 'Hoàn thành', color: 'cyan' },
-        };
-
-        const key = String(status || '').toUpperCase();
-        if (statusMap[key]) {
-          text = statusMap[key].text;
-          color = statusMap[key].color;
-        }
-
-        return <Tag color={color}>{String(text).toUpperCase()}</Tag>;
+      {
+        title: 'Mã Booking / Hóa đơn',
+        key: 'codes',
+        render: (_, record) => (
+          <Space direction="vertical" size={0}>
+            <Text strong>{record?.bookingCode || '-'}</Text>
+            <Text
+              type="secondary"
+              style={{
+                color: String(record?.status || '').toUpperCase() === 'PAID' ? '#2f54eb' : undefined,
+              }}
+            >
+              {record?.invoiceCode || '(Tạm tính)'}
+            </Text>
+          </Space>
+        ),
       },
-    },
-    {
-      title: 'Thao tác',
-      key: 'action',
-      render: (_, record) => (
-        <Tooltip title="Xem hóa đơn tạm tính">
-          <Button
-            type="primary"
-            ghost
-            icon={<EyeOutlined />}
-            onClick={() => openDraftModal(record)}
-          />
-        </Tooltip>
-      ),
-    },
-  ];
+      {
+        title: 'Tên khách hàng',
+        dataIndex: 'customerName',
+        key: 'customerName',
+        render: (text) => <Text>{text || 'Khách lẻ'}</Text>,
+      },
+      {
+        title: 'Các phòng trong booking',
+        dataIndex: 'roomNumber',
+        key: 'roomNumber',
+        render: (text) => <Text strong>{text || '-'}</Text>,
+      },
+      {
+        title: 'Số tiền cần xử lý',
+        dataIndex: 'finalTotal',
+        key: 'finalTotal',
+        render: (val, record) => {
+          const normalizedStatus = String(record?.status || '').toUpperCase();
+          if (normalizedStatus === 'DRAFT' && !Number(val)) {
+            return <Text type="secondary">Đang tính toán...</Text>;
+          }
+
+          return (
+            <Text strong>
+              {new Intl.NumberFormat('vi-VN', {
+                style: 'currency',
+                currency: 'VND',
+              }).format(val || 0)}
+            </Text>
+          );
+        },
+      },
+      {
+        title: 'Ngày tạo',
+        dataIndex: 'createdAt',
+        key: 'createdAt',
+        render: (val) => (val ? dayjs(val).format('DD/MM/YYYY HH:mm') : '-'),
+      },
+      {
+        title: 'Trạng thái',
+        dataIndex: 'status',
+        key: 'status',
+        render: (value) => {
+          const meta = statusMeta[String(value || '').toUpperCase()] || {
+            text: value || 'Chưa xác định',
+            color: 'default',
+          };
+          return <Tag color={meta.color}>{String(meta.text).toUpperCase()}</Tag>;
+        },
+      },
+      {
+        title: 'Thao tác',
+        key: 'action',
+        width: 110,
+        render: (_, record) => (
+          <Tooltip title="Xem hóa đơn tạm tính theo booking">
+            <Button
+              type="primary"
+              ghost
+              icon={<EyeOutlined />}
+              onClick={() => openDraftModal(record)}
+            />
+          </Tooltip>
+        ),
+      },
+    ],
+    []
+  );
 
   return (
     <div style={{ padding: 24, background: '#fff', minHeight: '80vh', borderRadius: 8 }}>
       <Title level={2} style={{ marginBottom: 24 }}>
         Quản lý Hóa Đơn
       </Title>
+
+      {presetBookingId ? (
+        <Alert
+          style={{ marginBottom: 16 }}
+          type="info"
+          showIcon
+          message={`Đang hiển thị riêng Booking ID #${presetBookingId} sau thao tác trả phòng.`}
+        />
+      ) : null}
 
       <Card
         style={{
@@ -231,7 +245,7 @@ const InvoiceDashboard = () => {
           <Col xs={24} sm={12} md={6}>
             <div style={{ marginBottom: 8, fontSize: 13, color: '#8c8c8c' }}>Tìm kiếm:</div>
             <Input
-              placeholder="Mã HĐ, tên khách hàng, mã booking, số phòng..."
+              placeholder="Booking ID, mã booking, tên khách, mã hóa đơn, số phòng..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               onPressEnter={handleSearch}
@@ -250,6 +264,7 @@ const InvoiceDashboard = () => {
             >
               <Option value="PAID">Đã thanh toán</Option>
               <Option value="UNPAID">Chưa thanh toán</Option>
+              <Option value="PARTIALLY_PAID">Thanh toán một phần</Option>
               <Option value="DRAFT">Dự thảo</Option>
             </Select>
           </Col>
@@ -280,11 +295,11 @@ const InvoiceDashboard = () => {
       <Table
         columns={columns}
         dataSource={data}
-        rowKey={(record) => record.rowId || record.id || `${record.bookingId}-${record.bookingDetailId}-${record.invoiceCode || 'draft'}`}
+        rowKey={(record) => record.rowId || `booking-${record.bookingId}`}
         loading={loading}
         pagination={{
           pageSize: 10,
-          showTotal: (total) => `Tổng cộng ${total} kết quả`,
+          showTotal: (total) => `Tổng cộng ${total} booking`,
           showSizeChanger: true,
         }}
         className="invoice-table"
