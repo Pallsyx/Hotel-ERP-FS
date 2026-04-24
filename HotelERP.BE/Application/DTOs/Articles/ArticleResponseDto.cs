@@ -11,7 +11,12 @@ public class ArticleResponseDto
     public string? ThumbnailUrl { get; set; }
     public DateTime? PublishedAt { get; set; }
     
-    // Tên và Slug của chuyên mục nối sang để FE hiển thị (Ví dụ: "Khuyến Mãi", "khuyen-mai")
     public string? CategoryName { get; set; } 
     public string? CategorySlug { get; set; }
+
+    public string? Tags { get; set; }
+    public string? MetaTitle { get; set; }
+    public string? MetaDescription { get; set; }
+    public string? Status { get; set; }
+    public string? Content { get; set; }
 }

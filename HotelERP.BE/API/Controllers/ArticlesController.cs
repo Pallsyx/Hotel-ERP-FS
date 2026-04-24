@@ -30,7 +30,21 @@ public class ArticlesController : ControllerBase
     [AllowAnonymous] 
     public async Task<IActionResult> Search([FromQuery] string? keyword, [FromQuery] string? categoryName)
     {
+        // Public search only returns Published articles (default param)
         var result = await _articleService.SearchArticlesAsync(keyword, categoryName);
+        return Ok(result);
+    }
+
+    // ==========================================
+    // 1.5. LẤY TẤT CẢ BÀI VIẾT (Cho Admin/Manager)
+    // URL: GET /api/Articles/admin
+    // ==========================================
+    [HttpGet("admin")]
+    [Authorize]
+    public async Task<IActionResult> GetForAdmin([FromQuery] string? keyword, [FromQuery] string? categoryName, [FromQuery] string? status)
+    {
+        // Pass the explicit status filter, or "ALL" if not provided
+        var result = await _articleService.SearchArticlesAsync(keyword, categoryName, status ?? "ALL");
         return Ok(result);
     }
 

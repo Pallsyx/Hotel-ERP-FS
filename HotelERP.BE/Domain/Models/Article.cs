@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace HotelERP.BE.Domain.Models;
@@ -22,6 +22,12 @@ public partial class Article
     public string? ThumbnailUrl { get; set; }
 
     public string? ThumbnailPublicId { get; set; }
+
+    public string? Tags { get; set; }
+
+    public string? MetaTitle { get; set; }
+
+    public string? MetaDescription { get; set; }
 
     public string Status { get; set; } = null!;
 

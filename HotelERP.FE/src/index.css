@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 * {
   margin: 0;
   padding: 0;
@@ -6,5 +8,47 @@
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  background-color: #f0f2f5; /* Màu nền xám nhẹ chuẩn của Ant Design */
+  background-color: #f0f2f5;
+  /* Màu nền xám nhẹ chuẩn của Ant Design */
+}
+
+/* ==================== ARTICLE MODAL ==================== */
+.article-modal-overlay {
+    @apply fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-300;
+}
+
+.article-modal-overlay.show {
+    @apply opacity-100 pointer-events-auto;
+}
+
+.article-modal-container {
+    @apply bg-white w-full max-w-4xl max-h-[90vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col transform scale-95 transition-transform duration-300 relative;
+}
+
+.article-modal-overlay.show .article-modal-container {
+    @apply scale-100;
+}
+
+.article-modal-close {
+    @apply absolute top-4 right-4 w-10 h-10 bg-black/10 hover:bg-black/20 rounded-full flex items-center justify-center text-[#262b3f] transition-colors z-10;
+}
+
+.article-modal-header-img {
+    @apply w-full h-64 md:h-80 object-cover;
+}
+
+.article-modal-body {
+    @apply p-8 md:p-12 overflow-y-auto;
+}
+
+.article-modal-title {
+    @apply text-3xl font-serif text-[#262b3f] mb-4 leading-snug;
+}
+
+.article-modal-meta {
+    @apply flex items-center gap-4 text-sm text-gray-500 mb-8 pb-8 border-b border-gray-200;
+}
+
+.article-modal-content {
+    @apply text-gray-700 leading-relaxed space-y-4;
 }

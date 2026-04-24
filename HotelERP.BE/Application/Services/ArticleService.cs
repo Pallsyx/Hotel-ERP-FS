@@ -33,7 +33,11 @@ public class ArticleService
         
         int authorId = int.Parse(userIdString);
 
-        // 2. Logic Auto-Slug và kiểm tra trùng lặp trong DB
+        // 2. Lấy Role từ token để check quyền Publish
+        var roleClaim = _httpContextAccessor.HttpContext?.User?.FindFirst(ClaimTypes.Role)?.Value;
+        bool isAdmin = roleClaim == "Admin";
+
+        // Logic Auto-Slug và kiểm tra trùng lặp trong DB
         string baseSlug = SlugHelper.GenerateSlug(request.Title);
         string finalSlug = baseSlug;
         int counter = 1;
@@ -43,6 +47,30 @@ public class ArticleService
         {
             finalSlug = $"{baseSlug}-{counter}";
             counter++;
+        }
+
+        // Auto-Excerpt nếu không nhập Summary
+        string? summary = request.Summary;
+        if (string.IsNullOrWhiteSpace(summary) && !string.IsNullOrWhiteSpace(request.Content))
+        {
+            // Loại bỏ HTML tags để làm tóm tắt
+            var plainText = System.Text.RegularExpressions.Regex.Replace(request.Content, "<.*?>", String.Empty);
+            summary = plainText.Length > 150 ? plainText.Substring(0, 150) + "..." : plainText;
+        }
+
+        // Logic Status
+        string status = "Draft"; // Mặc định
+        if (!string.IsNullOrEmpty(request.Status))
+        {
+            if (request.Status == "Published")
+            {
+                // Cho phép bất kỳ ai có quyền tạo bài viết đều có quyền Published
+                status = "Published";
+            }
+            else if (request.Status == "Pending Review" || request.Status == "Draft")
+            {
+                status = request.Status;
+            }
         }
 
         // 3. Upload ảnh lên Cloudinary
@@ -63,7 +91,15 @@ public class ArticleService
                 .FirstOrDefaultAsync(c => c.Name == request.CategoryName);
                 
             if (category == null)
-                throw new Exception($"Không tìm thấy danh mục nào có tên là '{request.CategoryName}' trong hệ thống.");
+            {
+                category = new ArticleCategory { 
+                    Name = request.CategoryName,
+                    Status = "ACTIVE",
+                    CreatedAt = DateTime.UtcNow
+                };
+                _context.ArticleCategories.Add(category);
+                await _context.SaveChangesAsync();
+            }
                 
             resolvedCategoryId = category.Id;
         }
@@ -74,12 +110,15 @@ public class ArticleService
             Title = request.Title,
             Slug = finalSlug,
             Content = request.Content,
-            Summary = request.Summary,
+            Summary = summary,
             CategoryId = resolvedCategoryId,
             AuthorId = authorId,
             ThumbnailUrl = thumbnailUrl,
             ThumbnailPublicId = thumbnailPublicId,
-            Status = "ACTIVE",
+            Tags = request.Tags,
+            MetaTitle = request.MetaTitle,
+            MetaDescription = request.MetaDescription,
+            Status = status,
             PublishedAt = DateTime.UtcNow,
             CreatedAt = DateTime.UtcNow
         };
@@ -98,9 +137,32 @@ public class ArticleService
         var article = await _context.Articles.FindAsync(id);
         if (article == null) throw new Exception("Không tìm thấy bài viết");
 
+        // Auto-Excerpt
+        string? summary = request.Summary;
+        if (string.IsNullOrWhiteSpace(summary) && !string.IsNullOrWhiteSpace(request.Content))
+        {
+            var plainText = System.Text.RegularExpressions.Regex.Replace(request.Content, "<.*?>", String.Empty);
+            summary = plainText.Length > 150 ? plainText.Substring(0, 150) + "..." : plainText;
+        }
+
+        // Check Role
+        var roleClaim = _httpContextAccessor.HttpContext?.User?.FindFirst(ClaimTypes.Role)?.Value;
+        bool isAdmin = roleClaim == "Admin";
+        
+        string status = article.Status;
+        if (!string.IsNullOrEmpty(request.Status))
+        {
+            if (request.Status == "Published" || request.Status == "Pending Review" || request.Status == "Draft")
+                status = request.Status;
+        }
+
         article.Title = request.Title;
         article.Content = request.Content;
-        article.Summary = request.Summary;
+        article.Summary = summary;
+        article.Tags = request.Tags;
+        article.MetaTitle = request.MetaTitle;
+        article.MetaDescription = request.MetaDescription;
+        article.Status = status;
         article.UpdatedAt = DateTime.UtcNow;
         if (!string.IsNullOrWhiteSpace(request.CategoryName))
         {
@@ -108,7 +170,15 @@ public class ArticleService
                 .FirstOrDefaultAsync(c => c.Name == request.CategoryName);
                 
             if (category == null)
-                throw new Exception($"Không tìm thấy danh mục nào có tên là '{request.CategoryName}'.");
+            {
+                category = new ArticleCategory { 
+                    Name = request.CategoryName,
+                    Status = "ACTIVE",
+                    CreatedAt = DateTime.UtcNow
+                };
+                _context.ArticleCategories.Add(category);
+                await _context.SaveChangesAsync();
+            }
                 
             article.CategoryId = category.Id;
         }
@@ -148,10 +218,10 @@ public class ArticleService
         await _context.SaveChangesAsync();
     }
 
-   // ==========================================
-    // API TÌM KIẾM BÀI VIẾT (TÌM THEO TÊN CHUYÊN MỤC)
     // ==========================================
-    public async Task<List<ArticleResponseDto>> SearchArticlesAsync(string? keyword, string? categoryName)
+    // API TÌM KIẾM BÀI VIẾT
+    // ==========================================
+    public async Task<List<ArticleResponseDto>> SearchArticlesAsync(string? keyword, string? categoryName, string? status = "Published")
     {
         var query = _context.Articles
             .Include(a => a.Category) 
@@ -168,6 +238,12 @@ public class ArticleService
         {
             query = query.Where(a => a.Category != null && a.Category.Name == categoryName);
         }
+        
+        // Filter by Status ("ALL" to ignore filter)
+        if (status != "ALL" && !string.IsNullOrWhiteSpace(status))
+        {
+            query = query.Where(a => a.Status == status);
+        }
 
         var articles = await query
             .OrderByDescending(a => a.PublishedAt)
@@ -179,7 +255,11 @@ public class ArticleService
                 Summary = a.Summary,
                 ThumbnailUrl = a.ThumbnailUrl,
                 PublishedAt = a.PublishedAt,
-                CategoryName = a.Category != null ? a.Category.Name : null
+                CategoryName = a.Category != null ? a.Category.Name : null,
+                Tags = a.Tags,
+                MetaTitle = a.MetaTitle,
+                MetaDescription = a.MetaDescription,
+                Status = a.Status
             })
             .ToListAsync();
 

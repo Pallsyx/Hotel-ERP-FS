@@ -13,7 +13,8 @@ import {
   DashboardOutlined, // Icon cho Dashboard
   IdcardOutlined,    // Icon cho Quầy lễ tân
   FileTextOutlined,  // Icon cho Hóa đơn
-  GiftOutlined       // Icon cho Voucher
+  GiftOutlined,       // Icon cho Voucher
+  EditOutlined        // Icon cho Bài viết
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
@@ -104,6 +105,11 @@ const MainLayout = () => {
       icon: <GiftOutlined />,
       label: 'Quản lý Voucher',
       requiredPermission: 'MANAGE_SERVICES',
+    },
+    {
+      key: '/admin/posts',
+      icon: <EditOutlined />,
+      label: 'Quản lý Bài viết',
     },
     {
       key: '/admin/invoices',

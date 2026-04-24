@@ -1,13 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import * as signalR from '@microsoft/signalr';
 import axios from 'axios';
-import axiosClient from '../api/axiosClient';
-import { 
-  Table, Button, DatePicker, 
-  Space, Card, Row, Col, Typography, message, 
-  Select, InputNumber, Form, Input, Modal, Image, Upload, Radio, Divider
+import {
+  Table, Button, DatePicker,
+  Space, Card, Row, Col, Typography, message,
+  Select, InputNumber, Form, Input, Modal, Image, Upload
 } from 'antd';
-import { 
+import {
   AppstoreOutlined, SearchOutlined, ReloadOutlined,
   WarningOutlined, DollarOutlined, ClockCircleOutlined,
   EditOutlined, DeleteOutlined, InboxOutlined, PlusOutlined, UploadOutlined
@@ -49,11 +48,11 @@ export default function LossAndDamages() {
   const [stats, setStats] = useState({ totalIncidents: 0, totalAmount: 0, totalQuantity: 0 });
   const [loading, setLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date().toLocaleTimeString('vi-VN', { hour12: false }));
-  
+
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [form] = Form.useForm();
-  
+
   const [uploadFile, setUploadFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
 
@@ -112,7 +111,6 @@ export default function LossAndDamages() {
       setData(response.data.data);
       setStats(response.data.stats);
       setLastUpdated(new Date().toLocaleTimeString('vi-VN', { hour12: false }));
-      message.success('Đã làm mới dữ liệu từ hệ thống!');
     } catch (error) {
       console.error(error);
       message.error("Lỗi khi kết nối API Backend!");
@@ -294,7 +292,7 @@ export default function LossAndDamages() {
         try {
           await axiosClient.delete(`/LossAndDamages/${editingRecord.id}/image`);
           setPreviewUrl(null);
-          setEditingRecord(prev => ({...prev, evidenceImageUrl: null}));
+          setEditingRecord(prev => ({ ...prev, evidenceImageUrl: null }));
           message.success('Xóa ảnh thành công!');
           fetchData();
         } catch (error) {
@@ -308,24 +306,14 @@ export default function LossAndDamages() {
   const handleUpdate = async () => {
     try {
       const values = await form.validateFields();
-      
-      // Nếu người dùng chọn dùng bộ tính toán (không phải nhập tay hoàn toàn vào PenaltyAmount cũ)
-      // Ở đây ta đơn giản hoá: Nếu họ đang dùng UI mới thì tính lại.
-      let finalPenaltyAmount = values.penaltyAmount; 
-      if (editCompensationType !== 'custom_legacy') {
-          // Logic tính toán cho Edit (cần PriceIfLost của món đồ đó)
-          // Lưu ý: record cũ có thể không có link trực tiếp tới PriceIfLost hiện tại trong state
-          // Nên ta ưu tiên dùng giá trị người dùng nhập trong form.
-      }
-
-      await axiosClient.put(`/LossAndDamages/${editingRecord.id}`, values);
+      await axios.put(`https://localhost:7100/api/LossAndDamages/${editingRecord.id}`, values);
       
       // Tiền hành upload ảnh nếu có file mới được chọn
       if (uploadFile) {
         const formData = new FormData();
         formData.append('file', uploadFile);
-        await axiosClient.post(`/LossAndDamages/${editingRecord.id}/image`, formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
+        await axios.post(`https://localhost:7100/api/LossAndDamages/${editingRecord.id}/image`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
         });
       }
 
@@ -334,7 +322,7 @@ export default function LossAndDamages() {
       setUploadFile(null);
       fetchData(); // Cập nhật lại Stats & Ảnh
     } catch (error) {
-      if(error.isAxiosError) {
+      if (error.isAxiosError) {
         message.error('Lỗi khi cập nhật trên Server!');
       } else {
         console.error(error);
@@ -368,7 +356,7 @@ export default function LossAndDamages() {
     if (!appliedDates || appliedDates.length !== 2) return data;
     const start = appliedDates[0].startOf('day').valueOf();
     const end = appliedDates[1].endOf('day').valueOf();
-    
+
     return data.filter(item => {
       if (!item.createdAt) return false;
       const itemDate = new Date(item.createdAt).getTime();
@@ -405,41 +393,41 @@ export default function LossAndDamages() {
 
   const columns = [
     { title: 'ID', dataIndex: 'id', key: 'id', width: 80, align: 'center' },
-    { 
-      title: 'Bằng chứng', 
-      dataIndex: 'evidenceImageUrl', 
+    {
+      title: 'Bằng chứng',
+      dataIndex: 'evidenceImageUrl',
       key: 'evidence',
       width: 100,
       render: (img) => img ? (
-        <Image 
-          width={60} 
-          height={60} 
-          src={img} 
-          style={{ objectFit: 'cover', borderRadius: '6px', border: '1px solid #d9d9d9' }} 
+        <Image
+          width={60}
+          height={60}
+          src={img}
+          style={{ objectFit: 'cover', borderRadius: '6px', border: '1px solid #d9d9d9' }}
           preview={{ mask: 'Xem' }}
-          alt="Bằng chứng" 
+          alt="Bằng chứng"
         />
       ) : <span className="text-gray-400 text-sm">Không ảnh</span>
     },
     { title: 'Số phòng', dataIndex: 'roomNumber', key: 'roomNumber', width: 100, className: 'font-medium' },
-    { 
-      title: 'Vật tư', 
-      dataIndex: 'itemName', 
+    {
+      title: 'Vật tư',
+      dataIndex: 'itemName',
       key: 'itemName',
       render: (text) => <span className="text-blue-600 font-medium whitespace-normal break-words">{text}</span>
     },
     { title: 'SL Hỏng', dataIndex: 'quantity', key: 'quantity', width: 90, align: 'center' },
-    { 
-      title: 'Tiền phạt (VND)', 
-      dataIndex: 'penaltyAmount', 
+    {
+      title: 'Tiền phạt (VND)',
+      dataIndex: 'penaltyAmount',
       key: 'penaltyAmount',
       width: 150,
       render: (amount) => <span className="text-red-500 font-semibold">{amount.toLocaleString('vi-VN')}đ</span>
     },
     { title: 'Mô tả', dataIndex: 'description', key: 'description', render: (text) => <span className="whitespace-normal break-words">{text}</span> },
-    { 
-      title: 'Ngày báo cáo', 
-      dataIndex: 'createdAt', 
+    {
+      title: 'Ngày báo cáo',
+      dataIndex: 'createdAt',
       key: 'createdAt',
       width: 150,
       render: (date) => formatDate(date)
@@ -460,273 +448,159 @@ export default function LossAndDamages() {
 
   return (
     <div className="p-6 overflow-y-auto w-full max-w-screen-2xl mx-auto font-sans min-h-screen">
-          {/* KHU VỰC THỐNG KÊ */}
-          <Row gutter={[24, 24]} className="mb-6">
-            <Col xs={24} lg={8}>
-              <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 h-full flex flex-col justify-center">
-                <Text className="text-gray-500 text-sm block mb-2 font-medium">Tổng sự cố (Trang này)</Text>
-                <div className="flex items-center text-yellow-600 text-2xl font-bold">
-                  <WarningOutlined className="mr-3" />
-                  {totalIncidents}
-                </div>
+      {/* KHU VỰC THỐNG KÊ */}
+      <Row gutter={[24, 24]} className="mb-6">
+        <Col xs={24} lg={8}>
+          <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 h-full flex flex-col justify-center">
+            <Text className="text-gray-500 text-sm block mb-2 font-medium">Tổng sự cố (Trang này)</Text>
+            <div className="flex items-center text-yellow-600 text-2xl font-bold">
+              <WarningOutlined className="mr-3" />
+              {totalIncidents}
+            </div>
+          </div>
+        </Col>
+        <Col xs={24} lg={8}>
+          <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 h-full flex flex-col justify-center">
+            <Text className="text-gray-500 text-sm block mb-2 font-medium">Tổng tiền đền bù</Text>
+            <div className="flex items-center text-red-500 text-2xl font-bold">
+              <DollarOutlined className="mr-3" />
+              {totalAmount.toLocaleString('vi-VN')} đ
+            </div>
+          </div>
+        </Col>
+        <Col xs={24} lg={8}>
+          <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center h-full">
+            <div>
+              <Text className="text-gray-500 text-sm block mb-2 font-medium">Số lượng thất thoát</Text>
+              <div className="flex items-center text-blue-600 text-2xl font-bold">
+                <InboxOutlined className="mr-3" />
+                {totalQuantity} <span className="text-base font-normal text-gray-500 ml-2 mt-1">món</span>
               </div>
-            </Col>
-            <Col xs={24} lg={8}>
-              <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 h-full flex flex-col justify-center">
-                <Text className="text-gray-500 text-sm block mb-2 font-medium">Tổng tiền đền bù</Text>
-                <div className="flex items-center text-red-500 text-2xl font-bold">
-                  <DollarOutlined className="mr-3" />
-                  {totalAmount.toLocaleString('vi-VN')} đ
-                </div>
+            </div>
+            <div className="text-right border-l pl-5 border-gray-200 flex flex-col justify-center">
+              <Text className="text-gray-500 text-sm block mb-2 font-medium">Lần cuối cập nhật</Text>
+              <div className="flex items-center justify-end text-gray-700 text-xl font-semibold">
+                <ClockCircleOutlined className="mr-2 text-gray-400 text-lg" />
+                {lastUpdated}
               </div>
-            </Col>
-            <Col xs={24} lg={8}>
-              <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center h-full">
-                <div>
-                  <Text className="text-gray-500 text-sm block mb-2 font-medium">Số lượng thất thoát</Text>
-                  <div className="flex items-center text-blue-600 text-2xl font-bold">
-                    <InboxOutlined className="mr-3" />
-                    {totalQuantity} <span className="text-base font-normal text-gray-500 ml-2 mt-1">món</span>
-                  </div>
-                </div>
-                <div className="text-right border-l pl-5 border-gray-200 flex flex-col justify-center">
-                  <Text className="text-gray-500 text-sm block mb-2 font-medium">Lần cuối cập nhật</Text>
-                  <div className="flex items-center justify-end text-gray-700 text-xl font-semibold">
-                    <ClockCircleOutlined className="mr-2 text-gray-400 text-lg" />
-                    {lastUpdated}
-                  </div>
-                </div>
-              </div>
-            </Col>
-          </Row>
+            </div>
+          </div>
+        </Col>
+      </Row>
 
-          <Row gutter={[24, 24]}>
-            {/* BẢNG DỮ LIỆU */}
-            <Col xs={24} lg={24}>
-              <Card 
-                title={<span className="font-semibold text-gray-700 text-base">▤ Quản lý Đền bù & Thất thoát</span>}
-                bordered={false} 
-                className="shadow-sm border border-gray-100 rounded-xl h-full"
-              >
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-                    <Space className="w-full sm:w-auto flex flex-wrap gap-2">
-                      <Button 
-                        type="primary" 
-                        danger
-                        icon={<PlusOutlined />} 
-                        onClick={handleOpenCreateModal}
-                        className="rounded-md"
-                      >
-                        Báo cáo sự cố mới
-                      </Button>
-                      <Divider type="vertical" />
-                      <RangePicker 
-                        format="DD/MM/YYYY" 
-                        placeholder={['Từ ngày', 'Đến ngày']} 
-                        size="middle" 
-                        className="rounded-md" 
-                        value={selectedDates}
-                        onChange={(dates) => setSelectedDates(dates)}
-                      />
-                      <Button 
-                        type="primary" 
-                        icon={<SearchOutlined />} 
-                        className="bg-blue-600 rounded-md"
-                        onClick={handleApplyFilter}
-                      >
-                        Lọc dữ liệu
-                      </Button>
-                    </Space>
-                    <Button onClick={() => {
-                      setSelectedDates(null);
-                      setAppliedDates(null);
-                      fetchData();
-                    }} icon={<ReloadOutlined />} className="rounded-md hover:text-blue-600 hover:border-blue-600">
-                      Làm mới
-                    </Button>
-                  </div>
-
-                <Table 
-                  columns={columns} 
-                  dataSource={filteredData} 
-                  rowKey="id" 
-                  loading={loading}
-                  pagination={{ pageSize: 8, showSizeChanger: true, showTotal: (total) => `Tổng cộng ${total} bản ghi` }}
-                  className="border border-gray-200 rounded-lg overflow-hidden shadow-sm"
-                />
-              </Card>
-            </Col>
-          </Row>
-          
-          <Modal
-            title="Chỉnh sửa Chi tiết Đền bù"
-            open={isEditModalVisible}
-            onOk={handleUpdate}
-            onCancel={() => setIsEditModalVisible(false)}
-            okText="Lưu thay đổi"
-            cancelText="Hủy"
+      <Row gutter={[24, 24]}>
+        {/* BẢNG DỮ LIỆU */}
+        <Col xs={24} lg={24}>
+          <Card
+            title={<span className="font-semibold text-gray-700 text-base">▤ Quản lý Đền bù & Thất thoát</span>}
+            bordered={false}
+            className="shadow-sm border border-gray-100 rounded-xl h-full"
           >
-            <Form form={form} layout="vertical">
-              <Row gutter={16}>
-                <Col span={8}>
-                  <Form.Item 
-                    name="quantity" 
-                    label="Số lượng hỏng (*)" 
-                    rules={[{ required: true, message: 'Vui lòng nhập số lượng!' }]}
-                  >
-                    <InputNumber min={1} className="w-full" />
-                  </Form.Item>
-                </Col>
-                <Col span={16}>
-                   <Form.Item label="Hình thức đền bù">
-                    <Radio.Group value={editCompensationType} onChange={e => setEditCompensationType(e.target.value)} disabled={isEditFixed100Pct}>
-                      <Radio value="percentage">% Giá trị</Radio>
-                      <Radio value="custom">Nhập tiền</Radio>
-                    </Radio.Group>
-                    {isEditFixed100Pct && <div className="text-orange-500 text-xs mt-1">Sản phẩm tiêu hao phạt cố định 100%</div>}
-                  </Form.Item>
-                </Col>
-              </Row>
-
-              {editCompensationType === 'percentage' && (
-                <Form.Item name="editPercentageValue" label="Phần trăm phạt (%)" rules={[{ required: true }]} initialValue={100}>
-                  <InputNumber min={isEditFixed100Pct ? 100 : 8} max={200} step={5} className="w-full" disabled={isEditFixed100Pct} formatter={value => `${value}%`} parser={value => value.replace('%', '')} />
-                </Form.Item>
-              )}
-
-              <Form.Item 
-                name="penaltyAmount" 
-                label={editCompensationType === 'custom' ? "Số tiền phạt (VND)" : "Tiền phạt dự kiến (Tự động)"}
-              >
-                <InputNumber 
-                    min={0} 
-                    step={1000} 
-                    className="w-full" 
-                    placeholder="Ví dụ: 50000"
-                    disabled={editCompensationType !== 'custom'}
-                    formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} 
-                    parser={value => value.replace(/\$\s?|(,*)/g, '')}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+              <Space className="w-full sm:w-auto flex flex-wrap gap-2">
+                <RangePicker
+                  format="DD/MM/YYYY"
+                  placeholder={['Từ ngày', 'Đến ngày']}
+                  size="middle"
+                  className="rounded-md"
+                  value={selectedDates}
+                  onChange={(dates) => setSelectedDates(dates)}
                 />
-              </Form.Item>
-
-              <Form.Item 
-                name="description" 
-                label="Mô tả / Ghi chú"
-              >
-                <Input.TextArea rows={3} placeholder="Nguyên nhân, tình trạng..." />
-              </Form.Item>
-
-              <Form.Item label="Đổi ảnh bằng chứng">
-                <Upload
-                  name="file"
-                  showUploadList={false}
-                  beforeUpload={(file) => {
-                    setUploadFile(file);
-                    // Tạo preview URL
-                    const reader = new FileReader();
-                    reader.onload = (e) => setPreviewUrl(e.target.result);
-                    reader.readAsDataURL(file);
-                    return false; // Ngăn chặn upload tự động
-                  }}
+                <Button
+                  type="primary"
+                  icon={<SearchOutlined />}
+                  className="bg-blue-600 rounded-md"
+                  onClick={handleApplyFilter}
                 >
-                  <Button icon={<UploadOutlined />}>Chọn ảnh mới</Button>
-                </Upload>
-                {previewUrl && (
-                   <div className="mt-3 p-3 bg-gray-50 border rounded text-center" style={{ position: 'relative' }}>
-                     <Text type="secondary" className="block mb-2 text-xs">Ảnh hiển tại</Text>
-                     <Image width={80} height={80} src={previewUrl} style={{objectFit: 'cover', borderRadius: '4px'}}/>
-                     <Button 
-                       type="primary" 
-                       danger 
-                       icon={<DeleteOutlined />} 
-                       size="small" 
-                       style={{ position: 'absolute', top: 8, right: 8 }}
-                       onClick={handleDeleteImage}
-                       title="Xóa ảnh"
-                     />
-                   </div>
-                )}
-              </Form.Item>
-            </Form>
-          </Modal>
+                  Lọc dữ liệu
+                </Button>
+              </Space>
+              <Button onClick={() => {
+                setSelectedDates(null);
+                setAppliedDates(null);
+                fetchData();
+              }} icon={<ReloadOutlined />} className="rounded-md hover:text-blue-600 hover:border-blue-600">
+                Làm mới
+              </Button>
+            </div>
 
-          {/* MODAL THÊM MỚI BÁO CÁO ĐỀN BÙ */}
-          <Modal
-            title={<Title level={4}><WarningOutlined className="text-red-500 mr-2" /> Báo cáo Thất thoát & Đền bù</Title>}
-            open={isCreateModalVisible}
-            onOk={handleCreate}
-            onCancel={() => setIsCreateModalVisible(false)}
-            okText="Gửi báo cáo"
-            cancelText="Hủy"
-            width={600}
+            <Table
+              columns={columns}
+              dataSource={filteredData}
+              rowKey="id"
+              loading={loading}
+              pagination={{ pageSize: 8, showSizeChanger: true, showTotal: (total) => `Tổng cộng ${total} bản ghi` }}
+              className="border border-gray-200 rounded-lg overflow-hidden shadow-sm"
+            />
+          </Card>
+        </Col>
+      </Row>
+
+      <Modal
+        title="Chỉnh sửa Chi tiết Đền bù"
+        open={isEditModalVisible}
+        onOk={handleUpdate}
+        onCancel={() => setIsEditModalVisible(false)}
+        okText="Lưu thay đổi"
+        cancelText="Hủy"
+      >
+        <Form form={form} layout="vertical">
+          <Form.Item
+            name="quantity"
+            label="Số lượng hỏng (*)"
+            rules={[{ required: true, message: 'Vui lòng nhập số lượng!' }]}
           >
-            <Form form={createForm} layout="vertical" initialValues={{ quantity: 1, percentageValue: 100 }}>
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Item name="roomId" label="Chọn Phòng (*)" rules={[{ required: true }]}>
-                    <Select placeholder="Chọn phòng..." onChange={handleRoomChange} showSearch optionFilterProp="children">
-                      {rooms.map(r => <Option key={r.id} value={r.id}>{r.roomNumber}</Option>)}
-                    </Select>
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item name="equipmentId" label="Vật tư hỏng/mất (*)" rules={[{ required: true }]}>
-                    <Select 
-                      placeholder="Chọn món đồ..." 
-                      disabled={!selectedRoomId && roomInventories.length === 0}
-                      onChange={handleInventoryChange}
-                    >
-                      {roomInventories.map(ri => (
-                        <Option key={ri.id} value={ri.id}>
-                          {ri.itemName} (Giá gốc: {ri.priceIfLost.toLocaleString()}đ)
-                        </Option>
-                      ))}
-                    </Select>
-                  </Form.Item>
-                </Col>
-              </Row>
+            <InputNumber min={1} className="w-full" />
+          </Form.Item>
 
-              <Row gutter={16}>
-                <Col span={8}>
-                  <Form.Item name="quantity" label="Số lượng (*)" rules={[{ required: true }]}>
-                    <InputNumber min={1} className="w-full" />
-                  </Form.Item>
-                </Col>
-                <Col span={16}>
-                  <Form.Item label="Hình thức đền bù">
-                    <Radio.Group value={compensationType} onChange={e => setCompensationType(e.target.value)} disabled={isFixed100Pct}>
-                      <Radio value="percentage">% Giá trị</Radio>
-                      <Radio value="custom">Nhập tiền</Radio>
-                    </Radio.Group>
-                    {isFixed100Pct && <div className="text-orange-500 text-xs mt-1">Sản phẩm tiêu hao phạt cố định 100%</div>}
-                  </Form.Item>
-                </Col>
-              </Row>
+          <Form.Item
+            name="penaltyAmount"
+            label="Tiền phạt (VND) (Tùy chỉnh)"
+            help="Cứ để trống hệ thống sẽ tự tính lại nếu bạn đổi Số lượng"
+          >
+            <InputNumber min={0} step={1000} className="w-full" placeholder="Ví dụ: 50000" />
+          </Form.Item>
 
-              {compensationType === 'percentage' && (
-                <Form.Item name="percentageValue" label="Phần trăm phạt (%)" rules={[{ required: true }]}>
-                  <InputNumber min={isFixed100Pct ? 100 : 8} max={200} step={5} className="w-full" disabled={isFixed100Pct} formatter={value => `${value}%`} parser={value => value.replace('%', '')} />
-                </Form.Item>
-              )}
+          <Form.Item
+            name="description"
+            label="Mô tả / Ghi chú"
+          >
+            <Input.TextArea rows={3} placeholder="Nguyên nhân, tình trạng..." />
+          </Form.Item>
 
-              {compensationType === 'custom' && (
-                <Form.Item name="customAmount" label="Số tiền phạt cụ thể (VND)" rules={[{ required: true }]}>
-                  <InputNumber min={0} step={1000} className="w-full" formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} parser={value => value.replace(/\$\s?|(,*)/g, '')} />
-                </Form.Item>
-              )}
-
-              <div className="bg-red-50 p-4 rounded-lg mb-4 border border-red-100 flex justify-between items-center">
-                <Text strong className="text-red-700">TỔNG TIỀN PHẠT DỰ KIẾN:</Text>
-                <Title level={3} style={{ margin: 0, color: '#cf1322' }}>
-                  {currentPenaltyPreview.toLocaleString('vi-VN')} đ
-                </Title>
+          <Form.Item label="Đổi ảnh bằng chứng">
+            <Upload
+              name="file"
+              showUploadList={false}
+              beforeUpload={(file) => {
+                setUploadFile(file);
+                // Tạo preview URL
+                const reader = new FileReader();
+                reader.onload = (e) => setPreviewUrl(e.target.result);
+                reader.readAsDataURL(file);
+                return false; // Ngăn chặn upload tự động
+              }}
+            >
+              <Button icon={<UploadOutlined />}>Chọn ảnh mới</Button>
+            </Upload>
+            {previewUrl && (
+              <div className="mt-3 p-3 bg-gray-50 border rounded text-center" style={{ position: 'relative' }}>
+                <Text type="secondary" className="block mb-2 text-xs">Ảnh hiển tại</Text>
+                <Image width={80} height={80} src={previewUrl} style={{ objectFit: 'cover', borderRadius: '4px' }} />
+                <Button
+                  type="primary"
+                  danger
+                  icon={<DeleteOutlined />}
+                  size="small"
+                  style={{ position: 'absolute', top: 8, right: 8 }}
+                  onClick={handleDeleteImage}
+                  title="Xóa ảnh"
+                />
               </div>
-
-              <Form.Item name="description" label="Mô tả chi tiết / Nguyên nhân">
-                <Input.TextArea rows={2} placeholder="Ví dụ: Khách làm vỡ, khách lấy mang về..." />
-              </Form.Item>
-            </Form>
-          </Modal>
+            )}
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 }

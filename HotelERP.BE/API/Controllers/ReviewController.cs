@@ -11,7 +11,6 @@ using HotelERP.BE.Utils;
 
 namespace HotelERP.BE.Controllers;
 
-// DTO để nhận dữ liệu an toàn khi người dùng tạo đánh giá mới
 public record CreateReviewDto(int? UserId, int RoomTypeId, int Rating, string? Comment, string? ImageUrl, string? ImagePublicId);
 
 [Route("api/[controller]")]
@@ -19,18 +18,32 @@ public record CreateReviewDto(int? UserId, int RoomTypeId, int Rating, string? C
 public class ReviewController(HotelDbContext context, ICloudinaryService cloudinaryService) : ControllerBase
 {
     // ==========================================
-    // 1. LẤY DANH SÁCH (READ)
+    // 1. LẤY DANH SÁCH CHO KHÁCH (CHỈ BÀI ĐÃ DUYỆT)
     // ==========================================
-    [HttpGet]
-    public async Task<IActionResult> GetAllVisible()
+    [HttpGet("visible")]
+    public async Task<IActionResult> GetVisibleReviews()
     {
-        // Lấy danh sách đánh giá mới nhất (Global Query Filter sẽ tự động bỏ qua các bài đã bị ẩn)
-        var reviews = await context.Reviews.OrderByDescending(r => r.CreatedAt).ToListAsync();
+        // Chỉ lấy những bài đã được Admin duyệt
+        var reviews = await context.Reviews
+            .Where(r => r.IsApproved == true && r.Status == "APPROVED")
+            .OrderByDescending(r => r.CreatedAt)
+            .ToListAsync();
         return Ok(reviews);
     }
 
     // ==========================================
-    // 2. THÊM ĐÁNH GIÁ MỚI (CREATE)
+    // 1b. LẤY TẤT CẢ CHO ADMIN (THẤY CẢ BÀI BỊ ẨN/CHỜ)
+    // ==========================================
+    [HttpGet("admin-all")]
+    public async Task<IActionResult> GetAllForAdmin()
+    {
+        // Admin cần thấy mọi thứ để duyệt/ẩn
+        var reviews = await context.Reviews.IgnoreQueryFilters().OrderByDescending(r => r.CreatedAt).ToListAsync();
+        return Ok(reviews);
+    }
+
+    // ==========================================
+    // 2. THÊM ĐÁNH GIÁ MỚI (TỪ KHÁCH HÀNG)
     // ==========================================
     [HttpPost]
     public async Task<IActionResult> Create(CreateReviewDto dto)
@@ -43,30 +56,46 @@ public class ReviewController(HotelDbContext context, ICloudinaryService cloudin
             Comment = dto.Comment,
             ImageUrl = dto.ImageUrl,
             ImagePublicId = dto.ImagePublicId,
-            IsApproved = true, // Mặc định khi mới tạo là được phép hiển thị
-            Status = "VISIBLE",
+            
+            // 🚀 ĐÃ SỬA: Mặc định chờ Admin duyệt
+            IsApproved = false, 
+            Status = "PENDING",
+            
             CreatedAt = DateTime.UtcNow
         };
 
         context.Reviews.Add(newReview);
         await context.SaveChangesAsync();
-        return Ok(new { message = "Thêm đánh giá thành công", data = newReview });
+        return Ok(new { message = "Gửi đánh giá thành công. Vui lòng chờ kiểm duyệt.", data = newReview });
     }
 
     // ==========================================
-    // 3. ẨN ĐÁNH GIÁ VÀ GHI LOG (UPDATE / SOFT DELETE)
+    // 3A. ADMIN DUYỆT BÀI ĐÁNH GIÁ
+    // ==========================================
+    [HttpPut("{id}/approve")]
+    public async Task<IActionResult> ApproveReview(int id)
+    {
+        var review = await context.Reviews.IgnoreQueryFilters().FirstOrDefaultAsync(r => r.Id == id);
+        if (review is null) return NotFound("Không tìm thấy đánh giá.");
+
+        review.IsApproved = true;
+        review.Status = "APPROVED";
+
+        await context.SaveChangesAsync();
+        return Ok(new { message = "Đã duyệt đánh giá thành công." });
+    }
+
+    // ==========================================
+    // 3B. ADMIN ẨN ĐÁNH GIÁ (KÈM LÝ DO)
     // ==========================================
     [HttpPut("{id}/hide")]
     public async Task<IActionResult> HideReview(int id)
     {
-        // Thêm IgnoreQueryFilters() để tìm được cả những bài lỡ bị ẩn trước đó
         var review = await context.Reviews.IgnoreQueryFilters().FirstOrDefaultAsync(r => r.Id == id);
-        
         if (review is null) return NotFound("Không tìm thấy đánh giá.");
 
-        // 1. Soft Delete
         review.IsApproved = false;
-        review.Status = "Hidden";
+        review.Status = "HIDDEN";
 
         // 2. Lấy userId và role thật từ JWT token
         var userIdRaw = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -80,39 +109,31 @@ public class ReviewController(HotelDbContext context, ICloudinaryService cloudin
             decodedReason = WebUtility.UrlDecode(reasonValues.ToString());
         }
 
-        // 3. Ghi Audit Log (dùng extension method, bên trong vẫn là _context.AuditLogs.Add)
-        var userIdClaim = User.FindFirst("UserId")?.Value ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-        int userId = int.TryParse(userIdClaim, out int uid) ? uid : 0;
-        var roleName = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "User";
-        await context.AddAuditLogAsync(
-            userId: userId,
-            roleName: roleName,
-            actionType: "UPDATE",
-            entityType: "Review",
-            message: $"Ẩn đánh giá #{id}: {decodedReason}",
-            contextParams: new { reviewId = id },
-            changes: new { oldData = new { review.Status }, newData = new { Status = "HIDDEN" } }
-        );
+        AuditLog auditLog = new()
+        {
+            Action = "HIDE_REVIEW",
+            TableName = "Reviews",
+            RecordId = id,
+            Reason = decodedReason,
+            CreatedAt = DateTime.UtcNow
+        };
 
+        context.AuditLogs.Add(auditLog);
+        await context.SaveChangesAsync();
 
         return Ok(new { message = "Đã ẩn đánh giá và ghi log thành công." });
     }
 
     // ==========================================
-    // 4. UPLOAD HÌNH ẢNH
+    // 4 & 5. UPLOAD & DELETE (Giữ nguyên của bạn)
     // ==========================================
     [HttpPost("upload-image")]
     public async Task<IActionResult> UploadImage(IFormFile file)
     {
         try
         {
-            // Bản xịn yêu cầu truyền thêm tham số tên thư mục (ví dụ: "reviews")
             var result = await cloudinaryService.UploadImageAsync(file, "reviews");
-
-            return Ok(new { 
-                ImageUrl = result.Url, 
-                PublicId = result.PublicId 
-            });
+            return Ok(new { ImageUrl = result.Url, PublicId = result.PublicId });
         }
         catch (Exception ex)
         {
@@ -120,14 +141,17 @@ public class ReviewController(HotelDbContext context, ICloudinaryService cloudin
         }
     }
 
-    // ==========================================
-    // 5. XÓA VĨNH VIỄN (HARD DELETE)
-    // ==========================================
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {
         var review = await context.Reviews.IgnoreQueryFilters().FirstOrDefaultAsync(r => r.Id == id);
         if (review is null) return NotFound("Không tìm thấy đánh giá.");
+
+        // Nếu có ảnh trên Cloudinary, bạn có thể gọi API xóa ảnh ở đây trước khi xóa DB
+        // if (!string.IsNullOrEmpty(review.ImagePublicId))
+        // {
+        //     await cloudinaryService.DeleteImageAsync(review.ImagePublicId);
+        // }
 
         context.Reviews.Remove(review);
         await context.SaveChangesAsync();

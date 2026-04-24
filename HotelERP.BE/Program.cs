@@ -95,7 +95,7 @@ builder.Services.AddAuthentication(options =>
 })
 .AddJwtBearer(options =>
 {
-    options.RequireHttpsMetadata = true;
+    options.RequireHttpsMetadata = false;
     options.SaveToken = true;
     options.TokenValidationParameters = new TokenValidationParameters
     {
@@ -297,7 +297,7 @@ using (var scope = app.Services.CreateScope())
         Cron.Daily);
 }
 
-app.UseHttpsRedirection(); 
+// app.UseHttpsRedirection(); // Commented out to prevent Authorization header stripping on Vite proxy redirect
 app.UseCors("AllowSignalR"); // Dùng cái này là đủ cho cả API và SignalR
 app.UseAuthentication();
 app.UseAuthorization();
