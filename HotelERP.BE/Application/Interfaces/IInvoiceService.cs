@@ -64,5 +64,6 @@ namespace HotelERP.BE.Application.Interfaces
 
         Task<object> GetInvoiceSummaryAsync(
             CancellationToken cancellationToken = default);
+        Task FinalizeAsync(int invoiceId, FinalizeInvoiceRequestDto request, int? userId, CancellationToken cancellationToken);
     }
 }

@@ -489,6 +489,8 @@ public class MomoPaymentService : IMomoPaymentService
                     Note = $"MoMo {source} success. transId={request.TransId}; payType={request.PayType}; msg={request.Message}"
                 },
                 null,
+
+                null,
                 cancellationToken);
 
             if (!finalizeResult.Success && finalizeResult.Code != "INVOICE_ALREADY_PAID")
