@@ -1,7 +1,12 @@
 /* HomePage.css */
 @reference "tailwindcss";
+
+.homepage-wrapper * {
+    font-family: "Times New Roman", Times, serif !important;
+}
+
 .homepage-wrapper {
-    @apply font-sans text-gray-800 bg-[#262b3f] overflow-x-hidden selection:bg-[#b4976c] selection:text-white;
+    @apply text-gray-800 bg-[#262b3f] overflow-x-hidden selection:bg-[#b4976c] selection:text-white;
 }
 
 /* ==================== 1. HEADER & HERO ==================== */
@@ -10,8 +15,7 @@
 }
 
 .hero-bg {
-    @apply absolute inset-0 bg-cover bg-center z-0;
-    background-image: url('https://images.unsplash.com/photo-1611892440504-42a792e24d32?q=80&w=2000&auto=format&fit=crop');
+    @apply absolute inset-0 bg-cover bg-center z-0 transition-opacity duration-1000 ease-in-out;
 }
 
 .hero-overlay {
@@ -56,7 +60,7 @@
 }
 
 .booking-grid {
-    @apply grid grid-cols-1 md:grid-cols-4 gap-6;
+    @apply grid grid-cols-1 md:grid-cols-5 gap-6;
 }
 
 .booking-col {
@@ -354,40 +358,42 @@
 
 /* ==================== 6. NEWS & WEDDING PACKAGE ==================== */
 .news-wedding-section {
-    @apply bg-[#262b3f] pt-20 pb-0;
+    @apply bg-[#262b3f] pt-20 pb-0 border-t border-white/5;
 }
 
 .news-wrapper {
-    @apply max-w-7xl mx-auto px-8 mb-20;
+    @apply max-w-7xl mx-auto px-8 mb-20 text-center;
 }
 
 .news-title {
-    @apply text-3xl font-serif text-white mb-10;
+    @apply text-4xl font-serif text-white mb-12 text-center leading-snug;
 }
 
 .news-grid {
-    @apply flex flex-col md:flex-row gap-8;
+    @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10 text-center;
 }
 
 .news-card {
-    @apply flex bg-white rounded-xl overflow-hidden w-full md:w-1/2 cursor-pointer hover:-translate-y-2 transition duration-500;
+    @apply flex flex-col bg-white rounded-xl overflow-hidden shadow-lg cursor-pointer hover:-translate-y-2 transition duration-500;
 }
 
 .news-card-img {
-    @apply w-1/2 object-cover;
+    @apply w-full h-56 object-cover;
 }
 
 .news-card-content {
-    @apply w-1/2 p-8 flex flex-col justify-center;
+    @apply w-full p-6 flex flex-col justify-center items-center flex-1;
 }
 
 .news-card-title {
-    @apply text-xl font-serif text-[#262b3f] mb-4;
+    @apply text-xl font-serif text-[#262b3f] mb-4 leading-snug text-center;
 }
 
 .news-card-date {
-    @apply text-[#b4976c] text-[10px] tracking-widest uppercase;
+    @apply text-[#b4976c] text-[10px] tracking-widest uppercase font-bold mt-auto text-center;
 }
+
+/* Removed Article Modal Styles to index.css */
 
 .wedding-section {
     @apply relative pb-24;

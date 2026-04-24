@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { useAuthStore } from '../store/authStore';
 
-const API_BASE_URL = 'https://localhost:7100/api';
+const API_BASE_URL = 'http://localhost:5080/api';
 
 const axiosClient = axios.create({
   baseURL: API_BASE_URL,
@@ -44,7 +44,7 @@ axiosClient.interceptors.response.use(
 
       try {
         const response = await axios.post(`${API_BASE_URL}/Auth/refresh-token`, {
-          token: localStorage.getItem('token'),
+          accessToken: localStorage.getItem('token'),
           refreshToken: refreshToken,
         });
 

@@ -1,16 +1,114 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import './HomePage.css';
+import AttractionMap from '../../components/Map/AttractionMap';
+import articleApi from '../../api/articleApi';
 
 export default function HomePage() {
+    // Lấy ngày hiện tại (real time) theo chuẩn yyyy-mm-dd để gắn vào input date
+    const today = new Date().toLocaleDateString('en-CA'); // 'en-CA' trả về format YYYY-MM-DD tương thích với input type="date"
+    // ---------------------------------------------------------
+    // Lấy danh sách bài viết từ CMS để hiển thị ra trang chủ
+    // ---------------------------------------------------------
+    const [articles, setArticles] = useState([]);
+    const [loadingArticles, setLoadingArticles] = useState(true);
+    const [selectedArticle, setSelectedArticle] = useState(null);
+
+    useEffect(() => {
+        // Gọi API lấy bài viết
+        setLoadingArticles(true);
+        articleApi.search().then((res) => {
+            // Giới hạn hiển thị 6 bài mới nhất ở trang chủ
+            setArticles(res.data ? res.data.slice(0, 6) : []);
+        }).catch(err => {
+            console.error("Lỗi khi tải bài viết:", err);
+        }).finally(() => {
+            setLoadingArticles(false);
+        });
+    }, []);
+
+    // ==========================================
+    // SEO Cập nhật Meta Title và Meta Description
+    // ==========================================
+    useEffect(() => {
+        if (selectedArticle) {
+            // Lưu lại title gốc để lát sau trả về
+            const originalTitle = document.title;
+            
+            // Cập nhật thẻ Title
+            document.title = selectedArticle.metaTitle || selectedArticle.title || 'Asteria Resort';
+            
+            // Cập nhật hoặc tạo mới thẻ Meta Description
+            let metaDesc = document.querySelector('meta[name="description"]');
+            if (!metaDesc) {
+                metaDesc = document.createElement('meta');
+                metaDesc.name = "description";
+                document.head.appendChild(metaDesc);
+            }
+            metaDesc.content = selectedArticle.metaDescription || selectedArticle.summary || '';
+
+            return () => {
+                // Khôi phục title và description khi đóng modal
+                document.title = originalTitle;
+            };
+        } else {
+            document.title = 'Asteria Resort - Không gian nghỉ dưỡng đẳng cấp';
+        }
+    }, [selectedArticle]);
+
+    // ---------------------------------------------------------
+    // Hero Slider State
+    // ---------------------------------------------------------
+    const slides = [
+        {
+            id: 1,
+            image: "https://images.unsplash.com/photo-1611892440504-42a792e24d32?q=80&w=2000&auto=format&fit=crop",
+            title: "Không gian nghỉ dưỡng đẳng cấp,\nhoà mình cùng thiên nhiên."
+        },
+        {
+            id: 2,
+            image: "https://images.unsplash.com/photo-1542314831-c6a4d4586f37?q=80&w=2000&auto=format&fit=crop",
+            title: "Đặc quyền hội viên thượng lưu,\ntận hưởng kỳ nghỉ trọn vẹn."
+        },
+        {
+            id: 3,
+            image: "https://images.unsplash.com/photo-1571896349842-33c89424de2d?q=80&w=2000&auto=format&fit=crop",
+            title: "Khám phá tinh hoa ẩm thực,\nđánh thức mọi giác quan."
+        },
+        {
+            id: 4,
+            image: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=2000&auto=format&fit=crop",
+            title: "Thư giãn tuyệt đối tại Spa,\nthanh lọc tâm hồn và cơ thể."
+        }
+    ];
+
+    const [currentSlide, setCurrentSlide] = useState(0);
+    const [isPlaying, setIsPlaying] = useState(true);
+
+    const nextSlide = () => setCurrentSlide((prev) => (prev === slides.length - 1 ? 0 : prev + 1));
+    const prevSlide = () => setCurrentSlide((prev) => (prev === 0 ? slides.length - 1 : prev - 1));
+
+    useEffect(() => {
+        let interval;
+        if (isPlaying) {
+            interval = setInterval(() => nextSlide(), 5000);
+        }
+        return () => clearInterval(interval);
+    }, [isPlaying]);
+
     return (
         <div className="homepage-wrapper">
 
             {/* ==================== 1. HEADER & HERO SECTION ==================== */}
-            <section className="hero-section">
-                {/* Background Image */}
-                <div className="hero-bg">
-                    <div className="hero-overlay"></div>
-                </div>
+            <section className="hero-section group">
+                {/* Background Images */}
+                {slides.map((slide, index) => (
+                    <div
+                        key={slide.id}
+                        className={`hero-bg ${index === currentSlide ? 'opacity-100' : 'opacity-0'}`}
+                        style={{ backgroundImage: `url(${slide.image})` }}
+                    ></div>
+                ))}
+                <div className="hero-overlay"></div>
 
                 {/* Navbar */}
                 <header className="header-navbar">
@@ -19,7 +117,7 @@ export default function HomePage() {
                         <a href="#" className="nav-item">Trang Chủ</a>
                         <a href="#about" className="nav-item">Giới Thiệu</a>
                         <a href="#rooms" className="nav-item">Phòng</a>
-                        <a href="#services" className="nav-item">Trang</a>
+                        <a href="/news" className="nav-item">Tin Tức</a>
                         <a href="#contact" className="nav-item">Liên Hệ</a>
                     </nav>
                     <button className="btn-book-now">
@@ -27,10 +125,28 @@ export default function HomePage() {
                     </button>
                 </header>
 
+                {/* Navigation Arrows */}
+                <button
+                    onClick={prevSlide}
+                    className="absolute left-8 md:left-16 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/10 hover:bg-white/30 text-white flex items-center justify-center backdrop-blur-sm transition-all border border-white/20 z-10 opacity-0 group-hover:opacity-100"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                    </svg>
+                </button>
+                <button
+                    onClick={nextSlide}
+                    className="absolute right-8 md:right-16 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/10 hover:bg-white/30 text-white flex items-center justify-center backdrop-blur-sm transition-all border border-white/20 z-10 opacity-0 group-hover:opacity-100"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                    </svg>
+                </button>
+
                 {/* Hero Title */}
-                <div className="hero-title-container">
-                    <h1 className="hero-title">
-                        Không gian nghỉ dưỡng đẳng cấp,<br />hoà mình cùng thiên nhiên.
+                <div className="hero-title-container px-20">
+                    <h1 className="hero-title whitespace-pre-line transition-all duration-700 transform translate-y-0 opacity-100" key={currentSlide}>
+                        {slides[currentSlide].title}
                     </h1>
                 </div>
 
@@ -45,29 +161,54 @@ export default function HomePage() {
                                     <span>Check out *</span>
                                 </div>
                                 <div className="booking-input-group">
-                                    <input type="text" placeholder="Ngày đến" className="booking-input" />
+                                    <input
+                                        type="date"
+                                        defaultValue={today}
+                                        min={today}
+                                        className="booking-input"
+                                        style={{ colorScheme: 'dark' }}
+                                    />
                                     <span className="booking-input-separator">→</span>
-                                    <input type="text" placeholder="Ngày đi" className="booking-input-right" />
+                                    <input
+                                        type="date"
+                                        defaultValue={today}
+                                        min={today}
+                                        className="booking-input-right"
+                                        style={{ colorScheme: 'dark' }}
+                                    />
                                 </div>
                             </div>
 
                             {/* Adults */}
                             <div className="booking-col">
                                 <span className="booking-label">Người lớn *</span>
-                                <select className="booking-select">
-                                    <option>Chọn số lượng</option>
-                                    <option>1 Người</option>
-                                    <option>2 Người</option>
+                                <select className="booking-select" defaultValue="2">
+                                    <option value="" disabled>Chọn số lượng</option>
+                                    {[...Array(10)].map((_, i) => (
+                                        <option key={i} value={i + 1}>{i + 1} Người</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Children */}
+                            <div className="booking-col">
+                                <span className="booking-label">Trẻ em</span>
+                                <select className="booking-select" defaultValue="0">
+                                    <option value="" disabled>Chọn số lượng</option>
+                                    {[...Array(10)].map((_, i) => (
+                                        <option key={i} value={i}>{i} Trẻ em</option>
+                                    ))}
                                 </select>
                             </div>
 
                             {/* Rooms */}
                             <div className="booking-col">
                                 <span className="booking-label">Phòng *</span>
-                                <select className="booking-select">
-                                    <option>Chọn số lượng</option>
-                                    <option>1 Phòng</option>
-                                    <option>2 Phòng</option>
+                                <select className="booking-select" defaultValue="1">
+                                    <option value="" disabled>Chọn số lượng</option>
+                                    {[...Array(10)].map((_, i) => (
+                                        <option key={i} value={i + 1}>{i + 1} Phòng</option>
+                                    ))}
                                 </select>
                             </div>
                         </div>
@@ -94,14 +235,14 @@ export default function HomePage() {
                             </p>
                             <div className="hotline-wrapper">
                                 <span className="hotline-label">Hotline Đặt Phòng</span>
-                                <span className="hotline-number">024 2242 0777</span>
+                                <span className="hotline-number">0363332841</span>
                             </div>
                         </div>
 
                         {/* Image Right */}
                         <div className="room-image-col">
                             <img
-                                src="https://images.unsplash.com/photo-1542314831-c6a4d4586f37?q=80&w=1000&auto=format&fit=crop"
+                                src="https://dulichkhampha24.com/wp-content/uploads/2020/08/khach-san-fivitel-hoi-an-2.jpg"
                                 alt="Family in Hotel"
                                 className="room-main-image"
                             />
@@ -242,6 +383,102 @@ export default function HomePage() {
                 </div>
             </section>
 
+            {/* ==================== 5.5 ATTRACTIONS ==================== */}
+            <section className="bg-[#262b3f] py-16 px-8 border-t border-white/5">
+                <div className="max-w-7xl mx-auto">
+                    <div className="text-center mb-12">
+                        <p className="text-[#b4976c] tracking-[0.2em] uppercase text-[10px] font-bold mb-4">Khám Phá</p>
+                        <h2 className="text-4xl font-serif text-white leading-snug">Các Điểm Đến Lân Cận</h2>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        {/* Bửu Long */}
+                        <div className="bg-white rounded-xl overflow-hidden shadow-lg transition-transform hover:-translate-y-2 cursor-pointer group flex flex-col">
+                            <div className="h-56 overflow-hidden relative">
+                                <img src="https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=800" alt="Khu du lịch Bửu Long" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors"></div>
+                            </div>
+                            <div className="p-6 flex-1 flex flex-col justify-center items-center">
+                                <h3 className="text-xl font-serif text-[#262b3f] mb-4 text-center leading-snug">Khu du lịch Bửu Long</h3>
+                                <p className="text-gray-600 text-sm leading-relaxed text-center">
+                                    Được ví như "Vịnh Hạ Long thu nhỏ", nổi bật với hồ nước trong xanh và những cụm núi đá hùng vĩ tuyệt đẹp.
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Trấn Biên */}
+                        <div className="bg-white rounded-xl overflow-hidden shadow-lg transition-transform hover:-translate-y-2 cursor-pointer group flex flex-col">
+                            <div className="h-56 overflow-hidden relative">
+                                <img src="https://images.unsplash.com/photo-1599940824399-b87987ceb72a?q=80&w=800" alt="Văn miếu Trấn Biên" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors"></div>
+                            </div>
+                            <div className="p-6 flex-1 flex flex-col justify-center items-center">
+                                <h3 className="text-xl font-serif text-[#262b3f] mb-4 text-center leading-snug">Văn miếu Trấn Biên</h3>
+                                <p className="text-gray-600 text-sm leading-relaxed text-center">
+                                    Biểu tượng văn hóa lâu đời của Đồng Nai. Kiến trúc cổ kính tôn vinh truyền thống hiếu học của người Việt.
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Biên Hùng */}
+                        <div className="bg-white rounded-xl overflow-hidden shadow-lg transition-transform hover:-translate-y-2 cursor-pointer group flex flex-col">
+                            <div className="h-56 overflow-hidden relative">
+                                <img src="https://images.unsplash.com/photo-1519331379826-f10be5486c6f?q=80&w=800" alt="Công viên Biên Hùng" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors"></div>
+                            </div>
+                            <div className="p-6 flex-1 flex flex-col justify-center items-center">
+                                <h3 className="text-xl font-serif text-[#262b3f] mb-4 text-center leading-snug">Công viên Biên Hùng</h3>
+                                <p className="text-gray-600 text-sm leading-relaxed text-center">
+                                    Lá phổi xanh giữa lòng thành phố. Điểm hẹn lý tưởng để tản bộ, ngắm hồ và tham gia vui chơi giải trí.
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Amazing Bay */}
+                        <div className="bg-white rounded-xl overflow-hidden shadow-lg transition-transform hover:-translate-y-2 cursor-pointer group flex flex-col">
+                            <div className="h-56 overflow-hidden relative">
+                                <img src="https://images.unsplash.com/photo-1571896349842-33c89424de2d?q=80&w=800" alt="Vịnh Kỳ Diệu" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors"></div>
+                            </div>
+                            <div className="p-6 flex-1 flex flex-col justify-center items-center">
+                                <h3 className="text-xl font-serif text-[#262b3f] mb-4 text-center leading-snug">Vịnh Kỳ Diệu</h3>
+                                <p className="text-gray-600 text-sm leading-relaxed text-center">
+                                    Siêu công viên nước Amazing Bay với những trò chơi đẳng cấp quốc tế, đánh bay cái nóng mùa hè oi bức.
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Chùa Ông */}
+                        <div className="bg-white rounded-xl overflow-hidden shadow-lg transition-transform hover:-translate-y-2 cursor-pointer group flex flex-col">
+                            <div className="h-56 overflow-hidden relative">
+                                <img src="https://images.unsplash.com/photo-1545569341-9eb8b30979d9?q=80&w=800" alt="Thất Phủ Cổ Miếu" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors"></div>
+                            </div>
+                            <div className="p-6 flex-1 flex flex-col justify-center items-center">
+                                <h3 className="text-xl font-serif text-[#262b3f] mb-4 text-center leading-snug">Thất Phủ Cổ Miếu</h3>
+                                <p className="text-gray-600 text-sm leading-relaxed text-center">
+                                    Ngôi chùa linh thiêng mang đậm kiến trúc, dấu ấn lịch sử và văn hóa tín ngưỡng độc đáo tại Đồng Nai.
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Giang Điền */}
+                        <div className="bg-white rounded-xl overflow-hidden shadow-lg transition-transform hover:-translate-y-2 cursor-pointer group flex flex-col">
+                            <div className="h-56 overflow-hidden relative">
+                                <img src="https://images.unsplash.com/photo-1433086966358-54859d0ed716?q=80&w=800" alt="Thác Giang Điền" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors"></div>
+                            </div>
+                            <div className="p-6 flex-1 flex flex-col justify-center items-center">
+                                <h3 className="text-xl font-serif text-[#262b3f] mb-4 text-center leading-snug">Thác Giang Điền</h3>
+                                <p className="text-gray-600 text-sm leading-relaxed text-center">
+                                    Khu du lịch sinh thái nổi tiếng với cảnh quan thiên nhiên hoang sơ, dòng thác hiền hòa và đa dạng.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             {/* ==================== 6. NEWS & WEDDING PACKAGE ==================== */}
             <section className="news-wedding-section">
 
@@ -251,45 +488,40 @@ export default function HomePage() {
                     <h2 className="news-title">Tin Tức Mới Nhất Từ Resort</h2>
 
                     <div className="news-grid">
-                        <div className="news-card">
-                            <img src="https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?q=80&w=400" className="news-card-img" alt="News" />
-                            <div className="news-card-content">
-                                <h3 className="news-card-title">Khai trương khu Spa phong cách Nhật Bản mới.</h3>
-                                <p className="news-card-date">Ngày 3 Tháng 4, 2026</p>
-                            </div>
-                        </div>
-                        <div className="news-card">
-                            <img src="https://images.unsplash.com/photo-1542314831-c6a4d4586f37?q=80&w=400" className="news-card-img" alt="News" />
-                            <div className="news-card-content">
-                                <h3 className="news-card-title">Nhận giải thưởng khu nghỉ dưỡng thân thiện gia đình.</h3>
-                                <p className="news-card-date">Ngày 15 Tháng 4, 2026</p>
-                            </div>
-                        </div>
+                        {loadingArticles ? (
+                            <div style={{ color: '#fff', fontSize: '14px', fontStyle: 'italic' }}>Đang tải bài viết mới nhất...</div>
+                        ) : articles.length > 0 ? (
+                            articles.map(item => {
+                                const dateStr = new Date(item.publishedAt || new Date()).toLocaleDateString('vi-VN', {
+                                    day: 'numeric', month: 'long', year: 'numeric'
+                                });
+                                return (
+                                    <div 
+                                        className="news-card" 
+                                        key={item.id}
+                                        onClick={() => setSelectedArticle(item)}
+                                    >
+                                        <img src={item.thumbnailUrl || "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?q=80&w=400"} className="news-card-img" alt={item.title} style={{ objectFit: 'cover' }} />
+                                        <div className="news-card-content">
+                                            <h3 className="news-card-title">{item.title}</h3>
+                                            <p className="news-card-date">Ngày {dateStr}</p>
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        ) : (
+                            <div style={{ color: '#fff', fontSize: '14px', fontStyle: 'italic' }}>Chưa có bài viết nào được xuất bản.</div>
+                        )}
                     </div>
-                </div>
 
-                {/* Tiệc Cưới */}
-                <div className="wedding-section">
-                    <div className="wedding-bg-layer"></div>
-
-                    <div className="wedding-wrapper">
-                        <p className="section-subtitle-white">Tiệc Cưới</p>
-                        <h2 className="wedding-title">Các Gói Tổ Chức Tiệc Cưới Tại Resort</h2>
-
-                        <div className="wedding-grid">
-                            {['SILVER', 'GOLD', 'PLATINUM'].map((pkg, idx) => (
-                                <div key={idx} className="wedding-pkg-card">
-                                    <h3 className="wedding-pkg-name">{pkg}</h3>
-                                    <p className="wedding-pkg-price">{50 + idx * 30} USD/khách</p>
-                                    <ul className="wedding-pkg-features">
-                                        <li>✓ Trang trí không gian lễ cưới cao cấp</li>
-                                        <li>✓ Bữa tối thực đơn 5 món chọn lọc</li>
-                                        <li>✓ Tặng phòng tân hôn hạng Suite</li>
-                                    </ul>
-                                    <button className="wedding-pkg-btn">Xem Chi Tiết →</button>
-                                </div>
-                            ))}
-                        </div>
+                    <div style={{ textAlign: 'center', marginTop: '3rem' }}>
+                        <button 
+                            className="btn-discover"
+                            onClick={() => window.location.href = '/news'}
+                            style={{ padding: '1rem 3rem' }}
+                        >
+                            Xem Tất Cả Tin Tức
+                        </button>
                     </div>
                 </div>
             </section>
@@ -307,15 +539,7 @@ export default function HomePage() {
                             <span className="footer-phone-icon">📞</span> 0987244924
                         </p>
                         <div className="footer-map-wrapper">
-                            <iframe
-                                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d15668.790518386828!2d106.79093836373703!3d10.948386121980646!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3174d9e03d40cb93%3A0xe5560b4de0c92ec9!2zVHLGsOG7nW5nIMSR4bqhaSBo4buNYyBM4bqhYyBI4buTbmc!5e0!3m2!1svi!2s!4v1714000000000!5m2!1svi!2s"
-                                width="100%"
-                                height="180"
-                                style={{ border: 0 }}
-                                allowFullScreen=""
-                                loading="lazy"
-                                referrerPolicy="no-referrer-when-downgrade"
-                            ></iframe>
+                            <AttractionMap isFooter={true} />
                         </div>
                         <p className="footer-newsletter-title">Đăng Ký Bản Tin</p>
                         <div className="newsletter-form">
@@ -368,6 +592,49 @@ export default function HomePage() {
                     <p>Copyright 2026. All Right Reserved by Asteria.</p>
                 </div>
             </footer>
+
+            {/* ==================== ARTICLE MODAL ==================== */}
+            <div className={`article-modal-overlay ${selectedArticle ? 'show' : ''}`} onClick={() => setSelectedArticle(null)}>
+                <div className="article-modal-container" onClick={e => e.stopPropagation()}>
+                    {/* Nút đóng */}
+                    <button className="article-modal-close" onClick={() => setSelectedArticle(null)}>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                    
+                    {selectedArticle && (
+                        <>
+                            {/* Ảnh bìa bài viết */}
+                            <img 
+                                src={selectedArticle.thumbnailUrl || "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?q=80&w=1200"} 
+                                alt={selectedArticle.title} 
+                                className="article-modal-header-img"
+                            />
+                            
+                            {/* Nội dung bài viết */}
+                            <div className="article-modal-body">
+                                <h2 className="article-modal-title">{selectedArticle.title}</h2>
+                                <div className="article-modal-meta">
+                                    <span>
+                                        Đăng ngày: {new Date(selectedArticle.publishedAt || new Date()).toLocaleDateString('vi-VN', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                    </span>
+                                    {selectedArticle.category && (
+                                        <>
+                                            <span>•</span>
+                                            <span className="text-[#b4976c] uppercase tracking-widest text-xs font-bold">{selectedArticle.category}</span>
+                                        </>
+                                    )}
+                                </div>
+                                <div 
+                                    className="article-modal-content"
+                                    dangerouslySetInnerHTML={{ __html: selectedArticle.content || "<p>Nội dung bài viết đang được cập nhật...</p>" }}
+                                />
+                            </div>
+                        </>
+                    )}
+                </div>
+            </div>
 
         </div>
     );

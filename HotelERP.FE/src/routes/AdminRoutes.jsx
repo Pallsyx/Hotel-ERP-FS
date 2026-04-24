@@ -22,6 +22,8 @@ import Departures from '../pages/Receptionist/Departures';
 import InvoiceManagement from '../pages/Invoices/InvoiceManagement';
 import InvoiceDashboard from '../pages/Admin/Invoices/InvoiceDashboard';
 
+import ArticleManagement from '../pages/Admin/ArticleManagement';
+
 const Placeholder = ({ title }) => (
   <div style={{ padding: 24, textAlign: 'center' }}>
     <h2 style={{ color: '#1890ff' }}>{title}</h2>
@@ -44,7 +46,7 @@ const AdminRoutes = () => {
       <Route path="/booking/search" element={<Placeholder title="Tìm kiếm & Chọn phòng trống" />} />
       <Route path="/booking/checkout" element={<Placeholder title="Thanh toán & Nhập Voucher" />} />
 
-      <Route path='/admin' element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
+      <Route path='/' element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
         <Route index element={<Navigate to='dashboard' replace />} />
         <Route path='dashboard' element={<Placeholder title='Dashboard Thống kê' />} />
 
@@ -62,7 +64,7 @@ const AdminRoutes = () => {
         <Route path='invoices' element={<InvoiceDashboard />} />
 
         <Route path='article-categories' element={<Placeholder title='Danh mục Bài viết' />} />
-        <Route path='posts' element={<Placeholder title='Quản lý Bài viết (Blog)' />} />
+        <Route path='posts' element={<ArticleManagement />} />
         <Route path='attractions' element={<Placeholder title='Địa điểm lân cận (Bản đồ)' />} />
         <Route path='reviews' element={<Placeholder title='Kiểm duyệt Đánh giá (Review)' />} />
 

@@ -209,7 +209,7 @@ public partial class HotelDbContext : DbContext
         modelBuilder.Entity<ArticleCategory>().HasQueryFilter(c => c.Status == "ACTIVE");
 
         modelBuilder.Entity<Article>().HasQueryFilter(a =>
-            a.Status == "ACTIVE" &&
+            a.Status != "INACTIVE" &&
             (a.Category == null || a.Category.Status == "ACTIVE")
         );
 
