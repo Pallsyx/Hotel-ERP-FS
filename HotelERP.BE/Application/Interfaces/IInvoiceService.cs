@@ -53,5 +53,7 @@ namespace HotelERP.BE.Application.Interfaces
 
         Task<object> GetInvoiceSummaryAsync(
             CancellationToken cancellationToken = default);
+
+        Task SendInvoiceEmailJobAsync(int invoiceId, string email);
     }
 }

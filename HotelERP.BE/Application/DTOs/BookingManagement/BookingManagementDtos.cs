@@ -79,6 +79,8 @@ public class BookingListItemDto
     public string Status { get; set; } = null!;
     public DateTime BookedAt { get; set; }
     public decimal FinalAmount { get; set; }
+    public decimal DiscountAmount { get; set; }
+    public string? VoucherCode { get; set; }
     public decimal DepositAmount { get; set; }
     public string PaymentStatus { get; set; } = null!;
     public string? Notes { get; set; }

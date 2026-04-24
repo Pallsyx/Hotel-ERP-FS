@@ -7,21 +7,27 @@ using RedLockNet;
 using StackExchange.Redis;
 using Microsoft.EntityFrameworkCore;
 using System.CodeDom.Compiler;
+using HotelERP.BE.Services.Bookings;
 
 namespace HotelERP.BE.Application.Services;
 
 public class BookingEngineService : IBookingEngineService
 {
     private readonly HotelDbContext _context;
-private readonly IDistributedLockFactory _lockFactory;
+    private readonly IDistributedLockFactory _lockFactory;
     private readonly IConnectionMultiplexer _redis;
+    private readonly IBookingVoucherService _voucherService;
 
-    // 1 CONSTRUCTOR
-    public BookingEngineService(HotelDbContext context, IDistributedLockFactory lockFactory, IConnectionMultiplexer redis)
+    public BookingEngineService(
+        HotelDbContext context, 
+        IDistributedLockFactory lockFactory, 
+        IConnectionMultiplexer redis,
+        IBookingVoucherService voucherService)
     {
         _context = context;
         _lockFactory = lockFactory;
         _redis = redis;
+        _voucherService = voucherService;
     }
 
     // ====================================================================
@@ -107,6 +113,7 @@ private readonly IDistributedLockFactory _lockFactory;
 
         foreach (var booking in expiredBookings)
         {
+
             booking.Status = BookingStatus.Expired; 
             var db = _redis.GetDatabase();
             await db.KeyDeleteAsync($"booking:hold:{booking.Id}");
@@ -234,9 +241,19 @@ private readonly IDistributedLockFactory _lockFactory;
             }
 
             // Gán lại tổng tiền cuối cho mảng Booking cha
+            booking.BookingSubtotal = finalTotalAmount;
             booking.FinalAmount = finalTotalAmount;
             
             await _context.SaveChangesAsync();
+
+            // NEW: Áp dụng Voucher nếu có
+            if (!string.IsNullOrWhiteSpace(request.VoucherCode))
+            {
+                var (isApplied, error, _) = await _voucherService.ApplyVoucherAsync(booking.Id, request.VoucherCode);
+                // Bạn có thể chọn quăng lỗi hoặc chỉ log nếu voucher không hợp lệ
+                // Ở đây tôi chọn không quăng lỗi để đơn đặt phòng vẫn thành công, chỉ là không được giảm giá
+            }
+
             await transaction.CommitAsync();
             return booking.Id;
         }

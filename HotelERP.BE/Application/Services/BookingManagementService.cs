@@ -36,6 +36,7 @@ public class BookingManagementService : IBookingManagementService
                 .ThenInclude(bd => bd.Room)
             .Include(b => b.BookingDetails)
                 .ThenInclude(bd => bd.RoomType)
+            .Include(b => b.Voucher)
             .AsQueryable();
 
         // --- Filter theo keyword (GuestName, Phone, Email, BookingCode) ---
@@ -485,6 +486,8 @@ public class BookingManagementService : IBookingManagementService
             Status = b.Status,
             BookedAt = b.BookedAt,
             FinalAmount = b.FinalAmount,
+            DiscountAmount = b.DiscountAmount,
+            VoucherCode = b.Voucher?.Code,
             DepositAmount = b.DepositAmount,
             PaymentStatus = b.PaymentStatus,
             Notes = b.Notes,

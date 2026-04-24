@@ -7,10 +7,12 @@ namespace HotelERP.BE.Services.Bookings
     public class BookingVoucherService : IBookingVoucherService
     {
         private readonly HotelDbContext _context;
+        private readonly RedLockNet.IDistributedLockFactory _lockFactory;
 
-        public BookingVoucherService(HotelDbContext context)
+        public BookingVoucherService(HotelDbContext context, RedLockNet.IDistributedLockFactory lockFactory)
         {
             _context = context;
+            _lockFactory = lockFactory;
         }
 
         public async Task<(bool IsSuccess, string ErrorCode, VoucherResponse? Data)> ApplyVoucherAsync(int bookingId, string voucherCode)
@@ -25,6 +27,14 @@ namespace HotelERP.BE.Services.Bookings
             if (voucher == null) return (false, "VOUCHER_NOT_FOUND", null);
 
             var now = DateTime.UtcNow;
+
+            // Xử lý đồng thời: Áp dụng RedLock để lock Voucher này
+            using var redLock = await _lockFactory.CreateLockAsync($"VoucherLock:{voucher.Id}", TimeSpan.FromSeconds(10));
+            if (!redLock.IsAcquired)
+            {
+                return (false, "SYSTEM_BUSY", null);
+            }
+
             var usedCount = await GetUsedCountAsync(voucher.Id);
             var status = ResolveVoucherStatus(voucher, usedCount, now);
 
@@ -95,7 +105,7 @@ namespace HotelERP.BE.Services.Bookings
 
         private async Task<int> GetUsedCountAsync(int voucherId)
         {
-            return await _context.Bookings.CountAsync(x => x.VoucherId == voucherId);
+            return await _context.Bookings.CountAsync(x => x.VoucherId == voucherId && x.Status != "Cancelled" && x.Status != "CancelledByAdmin" && x.Status != "Expired");
         }
 
         private static string ResolveVoucherStatus(Domain.Models.Voucher voucher, int usedCount, DateTime now)

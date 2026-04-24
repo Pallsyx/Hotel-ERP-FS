@@ -7,6 +7,7 @@ using HotelERP.BE.Infrastructure.Data;
 using HotelERP.BE.Application.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Hangfire;
 
 namespace HotelERP.BE.Application.Services
 {
@@ -16,10 +17,14 @@ namespace HotelERP.BE.Application.Services
         private const string DamageOverrideTokenPrefix = "[[DAMAGE_OVERRIDE:";
 
         private readonly HotelDbContext _dbContext;
+        private readonly Hangfire.IBackgroundJobClient _backgroundJobClient;
+        private readonly IEmailService _emailService;
 
-        public InvoiceService(HotelDbContext dbContext)
+        public InvoiceService(HotelDbContext dbContext, Hangfire.IBackgroundJobClient backgroundJobClient, IEmailService emailService)
         {
             _dbContext = dbContext;
+            _backgroundJobClient = backgroundJobClient;
+            _emailService = emailService;
         }
 
         private sealed class DetailChargeSummary
@@ -578,10 +583,53 @@ namespace HotelERP.BE.Application.Services
         await _dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
+        var customerEmail = booking.GuestEmail ?? booking.User?.Email;
+        if (!string.IsNullOrWhiteSpace(customerEmail))
+        {
+            _backgroundJobClient.Enqueue(() => SendInvoiceEmailJobAsync(invoice.Id, customerEmail));
+        }
+
         return ApiResult<InvoiceActionResponseDto>.Ok(
             after,
             "Chốt và xuất hóa đơn thành công.",
             "FINALIZE_INVOICE_SUCCESS");
+    }
+
+    public async Task SendInvoiceEmailJobAsync(int invoiceId, string email)
+    {
+        var invoice = await _dbContext.Invoices
+            .AsNoTracking()
+            .Include(x => x.Booking)
+            .FirstOrDefaultAsync(x => x.Id == invoiceId);
+
+        if (invoice == null || invoice.Booking == null) return;
+
+        string subject = $"[Hotel ERP] Hóa đơn thanh toán #{invoice.InvoiceCode}";
+        string customerName = invoice.Booking.GuestName ?? "Quý khách";
+        string htmlMessage = $@"
+            <div style='font-family: Arial, sans-serif; line-height: 1.6; color: #333;'>
+                <h2 style='color: #4CAF50;'>Cảm ơn quý khách đã sử dụng dịch vụ!</h2>
+                <p>Kính gửi <strong>{customerName}</strong>,</p>
+                <p>Hệ thống xin gửi đến quý khách thông tin hóa đơn thanh toán cho mã đặt phòng <strong>{invoice.Booking.BookingCode}</strong>.</p>
+                <table style='width: 100%; border-collapse: collapse; margin-top: 15px;'>
+                    <tr style='background: #f4f4f4;'>
+                        <td style='padding: 10px; border: 1px solid #ddd;'><strong>Mã hóa đơn:</strong></td>
+                        <td style='padding: 10px; border: 1px solid #ddd;'>{invoice.InvoiceCode}</td>
+                    </tr>
+                    <tr>
+                        <td style='padding: 10px; border: 1px solid #ddd;'><strong>Tổng tiền (đã bao gồm thuế/phí):</strong></td>
+                        <td style='padding: 10px; border: 1px solid #ddd;'>{invoice.FinalTotal:N0} VND</td>
+                    </tr>
+                    <tr style='background: #f4f4f4;'>
+                        <td style='padding: 10px; border: 1px solid #ddd;'><strong>Ngày xuất:</strong></td>
+                        <td style='padding: 10px; border: 1px solid #ddd;'>{invoice.PaidAt?.ToString("dd/MM/yyyy HH:mm") ?? DateTime.Now.ToString("dd/MM/yyyy HH:mm")}</td>
+                    </tr>
+                </table>
+                <p style='margin-top: 20px;'>Mọi thắc mắc xin vui lòng liên hệ lễ tân hoặc phản hồi qua email này.</p>
+                <p>Trân trọng,<br><strong>Đội ngũ Hotel ERP</strong></p>
+            </div>";
+
+        await _emailService.SendEmailAsync(email, subject, htmlMessage);
     }
 
 

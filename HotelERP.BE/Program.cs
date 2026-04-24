@@ -279,6 +279,11 @@ using (var scope = app.Services.CreateScope())
     recurringJobManager.AddOrUpdate("MarkOccupiedRoomsDirtyAt9AM",
         () => scope.ServiceProvider.GetRequiredService<IRoomService>().MarkOccupiedRoomsDirtyAsync(),
         "0 2 * * *"); // 02:00 UTC = 09:00 Vietnam (UTC+7)
+
+    // Job quét và vô hiệu hóa Voucher đã quá hạn, chạy mỗi ngày lúc 00:00 UTC (07:00 VN)
+    recurringJobManager.AddOrUpdate("ExpireVouchersJob",
+        () => scope.ServiceProvider.GetRequiredService<IVoucherService>().ExpireVouchersJobAsync(CancellationToken.None),
+        Cron.Daily);
 }
 
 app.UseHttpsRedirection(); 
