@@ -6,6 +6,7 @@ namespace HotelERP.BE.Application.DTOs.AuditLogs;
 public class AuditLogQueryDto
 {
     public string? RoleName { get; set; }
+    public int? UserId { get; set; }
     public int? Day { get; set; }
     public int? Month { get; set; }
     public int? Year { get; set; }

@@ -279,6 +279,11 @@ using (var scope = app.Services.CreateScope())
     recurringJobManager.AddOrUpdate("MarkOccupiedRoomsDirtyAt9AM",
         () => scope.ServiceProvider.GetRequiredService<IRoomService>().MarkOccupiedRoomsDirtyAsync(),
         "0 2 * * *"); // 02:00 UTC = 09:00 Vietnam (UTC+7)
+
+    // Job xóa audit log quá 3 tháng - chạy mỗi ngày lúc 01:00 UTC (08:00 Việt Nam)
+    recurringJobManager.AddOrUpdate("PurgeOldAuditLogs",
+        () => scope.ServiceProvider.GetRequiredService<IAuditLogService>().PurgeOldLogsAsync(),
+        "0 1 * * *"); // 01:00 UTC = 08:00 Vietnam (UTC+7)
 }
 
 app.UseHttpsRedirection(); 

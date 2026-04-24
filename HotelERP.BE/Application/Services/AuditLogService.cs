@@ -163,6 +163,33 @@ public class AuditLogService : IAuditLogService
             q = q.Where(x => x.LogDate.Day == query.Day.Value);
         }
 
+        // 3. Filter theo UserId cụ thể (dùng cho dropdown "Lọc theo nhân viên")
+        if (query.UserId.HasValue)
+        {
+            q = q.Where(x => x.UserId == query.UserId.Value);
+        }
+
         return await q.ToListAsync();
+    }
+
+    /// <summary>
+    /// Xóa tất cả audit log có LogDate cũ hơn 3 tháng.
+    /// Return số bản ghi đã xóa.
+    /// </summary>
+    public async Task<int> PurgeOldLogsAsync()
+    {
+        var cutoff = DateTime.UtcNow.Date.AddMonths(-3);
+
+        var oldLogs = await _context.AuditLogs
+            .Where(x => x.LogDate < cutoff)
+            .ToListAsync();
+
+        if (oldLogs.Count == 0)
+            return 0;
+
+        _context.AuditLogs.RemoveRange(oldLogs);
+        await _context.SaveChangesAsync();
+
+        return oldLogs.Count;
     }
 }
