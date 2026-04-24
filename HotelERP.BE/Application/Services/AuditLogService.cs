@@ -28,57 +28,69 @@ public class AuditLogService : IAuditLogService
 
         foreach (var log in rawLogs)
         {
-            var dto = new AuditLogResponseDto
-            {
-                Id = log.Id,
-                Date = log.LogDate,
-                EmployeeName = log.User?.FullName ?? $"User {log.UserId}",
-                RoleName = log.RoleName ?? string.Empty,
-            };
-
             if (!string.IsNullOrEmpty(log.LogData))
             {
                 try
                 {
-                    // CaseInsensitive bắt buộc: JSON trong DB được ghi bằng camelCase (AuditLogExtensions)
-                    // nhưng RawLogDataDto dùng PascalCase properties
                     var jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
                     var parsedData = JsonSerializer.Deserialize<RawLogDataDto>(log.LogData, jsonOptions);
-                    if (parsedData != null && parsedData.Events != null)
+                    if (parsedData != null && parsedData.Events != null && parsedData.Events.Any())
                     {
-                        var events = new List<AuditEventDto>();
-                        foreach (var e in parsedData.Events)
+                        var dto = new AuditLogResponseDto
                         {
-                            events.Add(new AuditEventDto
-                            {
-                                EventId = e.eventId,
-                                Timestamp = e.timestamp,
-                                ActionType = e.actionType,
-                                EntityType = e.entityType,
-                                Message = e.message
-                            });
-                        }
-                        
-                        events = events.OrderByDescending(x => x.Timestamp).ToList();
+                            Id = log.Id,
+                            Date = log.LogDate,
+                            EmployeeName = log.User?.FullName ?? $"User {log.UserId}",
+                            RoleName = log.RoleName ?? string.Empty,
+                        };
+
+                        var events = parsedData.Events.Select(e => new AuditEventDto
+                        {
+                            EventId = e.eventId,
+                            Timestamp = e.timestamp,
+                            ActionType = e.actionType,
+                            EntityType = e.entityType,
+                            Message = e.message
+                        })
+                        .OrderByDescending(x => x.Timestamp) // Mới nhất lên đầu
+                        .ToList();
+
                         dto.Events = events;
-                        
-                        if (events.Any())
-                        {
-                            var latestEvent = events.First();
-                            var otherCount = events.Count - 1;
-                            dto.Summary = otherCount > 0
-                                ? $"{latestEvent.Message} (và {otherCount} sự kiện khác)"
-                                : latestEvent.Message;
-                        }
+
+                        var firstEvent = events.FirstOrDefault(e => !string.IsNullOrWhiteSpace(e.Message)) ?? events.First();
+                        var otherCount = events.Count - 1;
+                        dto.Summary = otherCount > 0 
+                            ? $"{firstEvent.Message} (và {otherCount} sự kiện khác)" 
+                            : firstEvent.Message;
+
+                        result.Add(dto);
                     }
                 }
                 catch
                 {
-                    // Ignore parse errors
+                    var dto = new AuditLogResponseDto
+                    {
+                        Id = log.Id,
+                        Date = log.LogDate,
+                        EmployeeName = log.User?.FullName ?? $"User {log.UserId}",
+                        RoleName = log.RoleName ?? string.Empty,
+                        Summary = "Không có hoạt động nổi bật"
+                    };
+                    result.Add(dto);
                 }
             }
-
-            result.Add(dto);
+            else
+            {
+                var dto = new AuditLogResponseDto
+                {
+                    Id = log.Id,
+                    Date = log.LogDate,
+                    EmployeeName = log.User?.FullName ?? $"User {log.UserId}",
+                    RoleName = log.RoleName ?? string.Empty,
+                    Summary = "Không có hoạt động nổi bật"
+                };
+                result.Add(dto);
+            }
         }
 
         return result.OrderByDescending(x => x.Date).ToList();

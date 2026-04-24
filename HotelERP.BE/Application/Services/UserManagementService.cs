@@ -7,18 +7,32 @@ using Microsoft.EntityFrameworkCore;
 using HotelERP.BE.Events;
 using HotelERP.BE.Models; // Nhớ add thêm namespace này
 
+using HotelERP.BE.Helpers.AuditLogs;
+using Microsoft.AspNetCore.Http;
+using System.Security.Claims;
+
 namespace HotelERP.BE.Application.Services;
 
 public class UserManagementService : IUserManagementService
 {
     private readonly HotelDbContext _context;
     private readonly IMediator _mediator;
+    private readonly IHttpContextAccessor _httpContextAccessor;
 
-    // Đã sửa lỗi thiếu IMediator ở tham số
-    public UserManagementService(HotelDbContext context, IMediator mediator) 
+    public UserManagementService(HotelDbContext context, IMediator mediator, IHttpContextAccessor httpContextAccessor) 
     {
         _context = context;
         _mediator = mediator;
+        _httpContextAccessor = httpContextAccessor;
+    }
+
+    private (int UserId, string RoleName) ResolveUser()
+    {
+        var user = _httpContextAccessor.HttpContext?.User;
+        var userIdClaim = user?.FindFirst("UserId")?.Value ?? user?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        int userId = int.TryParse(userIdClaim, out int id) ? id : 0;
+        var roleName = user?.FindFirst(ClaimTypes.Role)?.Value ?? "User";
+        return (userId, roleName);
     }
 
     public async Task<IEnumerable<UserListItemResponse>> GetAllUsersAsync()
@@ -57,6 +71,17 @@ public class UserManagementService : IUserManagementService
 
         if (result)
         {
+            var (resolvedUserId, resolvedRole) = ResolveUser();
+            await _context.AddAuditLogAsync(
+                userId: resolvedUserId,
+                roleName: resolvedRole,
+                actionType: "CREATE",
+                entityType: "Users",
+                message: $"Tạo mới tài khoản nhân viên '{user.FullName}'.",
+                contextParams: new { newUserId = user.Id },
+                changes: new { newData = new { user.FullName, user.Email, user.RoleId, user.Status } }
+            );
+
             // PHÁT SỰ KIỆN: Báo cho hệ thống biết có User mới
             await _mediator.Publish(new UserActivityEvent(user.FullName, "Create"));
         }
@@ -74,6 +99,17 @@ public class UserManagementService : IUserManagementService
 
         if (isSuccess)
         {
+            var (resolvedUserId, resolvedRole) = ResolveUser();
+            await _context.AddAuditLogAsync(
+                userId: resolvedUserId,
+                roleName: resolvedRole,
+                actionType: "DELETE",
+                entityType: "Users",
+                message: $"Vô hiệu hóa tài khoản '{user.FullName}'.",
+                contextParams: new { disabledUserId = user.Id },
+                changes: new { oldData = new { Status = true }, newData = new { Status = false } }
+            );
+
             // PHÁT SỰ KIỆN: Khóa tài khoản
             await _mediator.Publish(new UserActivityEvent(user.FullName, "Lock"));
         }
@@ -91,6 +127,17 @@ public class UserManagementService : IUserManagementService
 
         if (isSuccess)
         {
+            var (resolvedUserId, resolvedRole) = ResolveUser();
+            await _context.AddAuditLogAsync(
+                userId: resolvedUserId,
+                roleName: resolvedRole,
+                actionType: "UPDATE",
+                entityType: "Users",
+                message: $"Thay đổi chức vụ của '{user.FullName}' thành Role ID: {newRoleId}.",
+                contextParams: new { targetUserId = user.Id, newRoleId },
+                changes: new { newData = new { RoleId = newRoleId } }
+            );
+
             // PHÁT SỰ KIỆN: Đổi quyền
             await _mediator.Publish(new UserActivityEvent(user.FullName, "ChangeRole"));
         }
@@ -120,7 +167,33 @@ public class UserManagementService : IUserManagementService
     if (oldStatus != request.Status)
     {
         var actionType = request.Status ? "Unlock" : "Lock"; 
+        
+        var (resolvedUserId, resolvedRole) = ResolveUser();
+        var statusKeyword = request.Status ? "Khôi phục hoạt động" : "Vô hiệu hóa";
+        await _context.AddAuditLogAsync(
+            userId: resolvedUserId,
+            roleName: resolvedRole,
+            actionType: "UPDATE",
+            entityType: "Users",
+            message: $"{statusKeyword} tài khoản '{user.FullName}'.",
+            contextParams: new { targetUserId = user.Id },
+            changes: new { oldData = new { Status = oldStatus }, newData = new { Status = request.Status } }
+        );
+
         await _mediator.Publish(new UserActivityEvent(user.FullName, actionType));
+    }
+    else
+    {
+        var (resolvedUserId, resolvedRole) = ResolveUser();
+        await _context.AddAuditLogAsync(
+            userId: resolvedUserId,
+            roleName: resolvedRole,
+            actionType: "UPDATE",
+            entityType: "Users",
+            message: $"Cập nhật thông tin tài khoản '{user.FullName}'.",
+            contextParams: new { targetUserId = user.Id },
+            changes: new { newData = new { request.FullName, request.Phone, request.RoleId } }
+        );
     }
 
     return true;
@@ -229,6 +302,18 @@ public async Task<bool> UpdateRolePermissionsAsync(int roleId, RolePermissionsRe
     }
 
     await _context.SaveChangesAsync();
+
+    var (resolvedUserId, resolvedRole) = ResolveUser();
+    await _context.AddAuditLogAsync(
+        userId: resolvedUserId,
+        roleName: resolvedRole,
+        actionType: "UPDATE",
+        entityType: "Roles",
+        message: $"Cập nhật phân quyền cho chức vụ '{role.Name}'.",
+        contextParams: new { targetRoleId = role.Id },
+        changes: new { newData = new { role.Description, GrantedPermissions = request.PermissionCodes } }
+    );
+
     return true;
     }
     // Hàm lấy tất cả Role để hiển thị trong dropdown 
@@ -312,6 +397,18 @@ public async Task<bool> UpdateUserSpecificPermissionsAsync(int userId, List<stri
     }
 
     await _context.SaveChangesAsync();
+
+    var (resolvedUserId, resolvedRole) = ResolveUser();
+    await _context.AddAuditLogAsync(
+        userId: resolvedUserId,
+        roleName: resolvedRole,
+        actionType: "UPDATE",
+        entityType: "UserPermissions",
+        message: $"Cập nhật quyền ngoại lệ cá nhân cho tài khoản '{user.FullName}'.",
+        contextParams: new { targetUserId = user.Id },
+        changes: new { newData = new { GrantedOverridePermissions = selectedPermissionCodes } }
+    );
+
     return true;
 }
 }
