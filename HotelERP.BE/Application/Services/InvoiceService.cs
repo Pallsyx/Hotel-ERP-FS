@@ -13,6 +13,7 @@ using HotelERP.BE.DTOs.Notifications;
 using HotelERP.BE.Models.Enums;
 using HotelERP.BE.Models;
 using HotelERP.BE.Helpers.AuditLogs;
+using Hangfire;
 
 namespace HotelERP.BE.Application.Services
 {
@@ -24,15 +25,19 @@ namespace HotelERP.BE.Application.Services
         private readonly HotelDbContext _dbContext;
         private readonly INotificationService _notificationService;
         private readonly IHttpContextAccessor _httpContextAccessor;
+        private readonly Hangfire.IBackgroundJobClient _backgroundJobClient;
+        private readonly IEmailService _emailService;
 
         public InvoiceService(
-            HotelDbContext dbContext, 
+            HotelDbContext dbContext, Hangfire.IBackgroundJobClient backgroundJobClient, IEmailService emailService, 
             INotificationService notificationService,
             IHttpContextAccessor httpContextAccessor)
         {
             _dbContext = dbContext;
             _notificationService = notificationService;
             _httpContextAccessor = httpContextAccessor;
+            _backgroundJobClient = backgroundJobClient;
+            _emailService = emailService;
         }
 
         private sealed class DetailChargeSummary
@@ -692,191 +697,145 @@ namespace HotelERP.BE.Application.Services
             payMsg.Id = dbNotif.Id; 
             await _notificationService.SendToRoleAsync("Admin", payMsg);
 
+        var customerEmail = booking.GuestEmail ?? booking.User?.Email;
+        if (!string.IsNullOrWhiteSpace(customerEmail))
+        {
+            _backgroundJobClient.Enqueue(() => SendInvoiceEmailJobAsync(invoice.Id, customerEmail));
+        }
+
             return ApiResult<InvoiceActionResponseDto>.Ok(
                 after,
                 "Chốt và xuất hóa đơn thành công.",
                 "FINALIZE_INVOICE_SUCCESS");
         }
 
-        public async Task<ApiResult<object>> ApplyVoucherToBookingAsync(
-            int bookingId,
-            ApplyInvoiceVoucherRequestDto request,
-            int? performedByUserId,
-            string? performedByRole = null,
-            CancellationToken cancellationToken = default)
+    public async Task SendInvoiceEmailJobAsync(int invoiceId, string email)
+    {
+        var invoice = await _dbContext.Invoices
+            .AsNoTracking()
+            .Include(x => x.Booking)
+            .FirstOrDefaultAsync(x => x.Id == invoiceId);
+
+        if (invoice == null || invoice.Booking == null) return;
+
+        string subject = $"[Hotel ERP] Hóa đơn thanh toán #{invoice.InvoiceCode}";
+        string customerName = invoice.Booking.GuestName ?? "Quý khách";
+        string htmlMessage = $@"
+            <div style='font-family: Arial, sans-serif; line-height: 1.6; color: #333;'>
+                <h2 style='color: #4CAF50;'>Cảm ơn quý khách đã sử dụng dịch vụ!</h2>
+                <p>Kính gửi <strong>{customerName}</strong>,</p>
+                <p>Hệ thống xin gửi đến quý khách thông tin hóa đơn thanh toán cho mã đặt phòng <strong>{invoice.Booking.BookingCode}</strong>.</p>
+                <table style='width: 100%; border-collapse: collapse; margin-top: 15px;'>
+                    <tr style='background: #f4f4f4;'>
+                        <td style='padding: 10px; border: 1px solid #ddd;'><strong>Mã hóa đơn:</strong></td>
+                        <td style='padding: 10px; border: 1px solid #ddd;'>{invoice.InvoiceCode}</td>
+                    </tr>
+                    <tr>
+                        <td style='padding: 10px; border: 1px solid #ddd;'><strong>Tổng tiền (đã bao gồm thuế/phí):</strong></td>
+                        <td style='padding: 10px; border: 1px solid #ddd;'>{invoice.FinalTotal:N0} VND</td>
+                    </tr>
+                    <tr style='background: #f4f4f4;'>
+                        <td style='padding: 10px; border: 1px solid #ddd;'><strong>Ngày xuất:</strong></td>
+                        <td style='padding: 10px; border: 1px solid #ddd;'>{invoice.PaidAt?.ToString("dd/MM/yyyy HH:mm") ?? DateTime.Now.ToString("dd/MM/yyyy HH:mm")}</td>
+                    </tr>
+                </table>
+                <p style='margin-top: 20px;'>Mọi thắc mắc xin vui lòng liên hệ lễ tân hoặc phản hồi qua email này.</p>
+                <p>Trân trọng,<br><strong>Đội ngũ Hotel ERP</strong></p>
+            </div>";
+
+        await _emailService.SendEmailAsync(email, subject, htmlMessage);
+    }
+
+
+
+    public async Task<List<InvoiceListDto>> GetAllInvoicesAsync(
+        string? searchTerm,
+        DateTime? fromDate,
+        DateTime? toDate,
+        string? status,
+        CancellationToken cancellationToken = default)
+    {
+        await RefreshOpenInvoicesAsync(cancellationToken);
+
+        var results = new List<InvoiceListDto>();
+
+        var invoiceQuery = _dbContext.Invoices
+            .AsNoTracking()
+            .Include(x => x.Booking)
+                .ThenInclude(x => x!.User)
+            .Include(x => x.InvoiceBookingDetails)
+                .ThenInclude(x => x.BookingDetail)
+                    .ThenInclude(x => x.Room)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(searchTerm))
         {
-            await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
-
-            var booking = await LoadBookingGraphAsync(bookingId, cancellationToken);
-            if (booking is null)
-            {
-                return ApiResult<object>.Fail(
-                    StatusCodes.Status404NotFound,
-                    "BOOKING_NOT_FOUND",
-                    $"Không tìm thấy booking id = {bookingId}.");
-            }
-
-            var before = new
-            {
-                booking.Id,
-                booking.VoucherId,
-                VoucherCode = booking.Voucher?.Code,
-                booking.DiscountAmount
-            };
-
-            var normalizedCode = NormalizeVoucherCode(request.Code);
-            var now = DateTime.UtcNow;
-
-            if (string.IsNullOrWhiteSpace(normalizedCode))
-            {
-                booking.VoucherId = null;
-                booking.Voucher = null;
-                booking.DiscountAmount = 0m;
-                booking.UpdatedAt = now;
-
-                foreach (var openInvoice in booking.Invoices.Where(x => !IsClosedInvoice(x.Status)))
-                {
-                    RecalculateInvoice(booking, openInvoice);
-                    openInvoice.UpdatedAt = now;
-                }
-
-                await _dbContext.SaveChangesAsync(cancellationToken);
-
-                var afterClear = new
-                {
-                    bookingId = booking.Id,
-                    voucherId = (int?)null,
-                    voucherCode = (string?)null,
-                    discountAmount = booking.DiscountAmount
-                };
-
-                await AddAuditLog(
-                    performedByUserId,
-                    performedByRole,
-                    "CLEAR_BOOKING_VOUCHER_FROM_INVOICE",
-                    "Bookings",
-                    booking.Id,
-                    before,
-                    afterClear,
-                    "Bỏ voucher khỏi hóa đơn tạm tính");
-
-                await _dbContext.SaveChangesAsync(cancellationToken);
-                await transaction.CommitAsync(cancellationToken);
-
-                return ApiResult<object>.Ok(
-                    afterClear,
-                    "Đã bỏ voucher khỏi booking.",
-                    "CLEAR_BOOKING_VOUCHER_SUCCESS");
-            }
-
-            var voucher = await _dbContext.Vouchers
-                .FirstOrDefaultAsync(x => x.Code == normalizedCode, cancellationToken);
-
-            if (voucher is null)
-            {
-                return ApiResult<object>.Fail(
-                    StatusCodes.Status404NotFound,
-                    "VOUCHER_NOT_FOUND",
-                    $"Không tìm thấy voucher code = {normalizedCode}.");
-            }
-
-            var usageCount = await _dbContext.Bookings
-                .CountAsync(x => x.VoucherId == voucher.Id && x.Id != booking.Id, cancellationToken);
-
-            if (voucher.ValidFrom.HasValue && voucher.ValidFrom.Value > now)
-            {
-                return ApiResult<object>.Fail(
-                    StatusCodes.Status409Conflict,
-                    "VOUCHER_NOT_STARTED",
-                    "Voucher chưa tới thời gian áp dụng.");
-            }
-
-            if (voucher.ValidTo.HasValue && voucher.ValidTo.Value < now)
-            {
-                return ApiResult<object>.Fail(
-                    StatusCodes.Status409Conflict,
-                    "VOUCHER_EXPIRED",
-                    "Voucher đã hết hạn.");
-            }
-
-            if (voucher.UsageLimit.HasValue && usageCount >= voucher.UsageLimit.Value)
-            {
-                return ApiResult<object>.Fail(
-                    StatusCodes.Status409Conflict,
-                    "VOUCHER_USAGE_LIMIT_REACHED",
-                    "Voucher đã hết lượt sử dụng.");
-            }
-
-            var wholeBookingSubtotal = Money(booking.BookingDetails.Select(BuildDetailChargeSummary).Sum(x => x.Subtotal));
-            var voucherMin = voucher.MinBookingValue > 0
-                ? voucher.MinBookingValue.Value
-                : voucher.MinBookingAmount;
-
-            if (wholeBookingSubtotal <= 0)
-            {
-                return ApiResult<object>.Fail(
-                    StatusCodes.Status409Conflict,
-                    "BOOKING_SUBTOTAL_EMPTY",
-                    "Booking chưa có dữ liệu để áp voucher.");
-            }
-
-            if (wholeBookingSubtotal < voucherMin)
-            {
-                return ApiResult<object>.Fail(
-                    StatusCodes.Status409Conflict,
-                    "BOOKING_NOT_ELIGIBLE_FOR_VOUCHER",
-                    $"Booking chưa đạt giá trị tối thiểu {Money(voucherMin):N0} VND để áp voucher.");
-            }
-
-            var discountAmount = CalculateVoucherDiscountAmount(voucher, wholeBookingSubtotal);
-
-            booking.VoucherId = voucher.Id;
-            booking.Voucher = voucher;
-            booking.DiscountAmount = discountAmount;
-            booking.UpdatedAt = now;
-
-            foreach (var openInvoice in booking.Invoices.Where(x => !IsClosedInvoice(x.Status)))
-            {
-                RecalculateInvoice(booking, openInvoice);
-                openInvoice.UpdatedAt = now;
-            }
-
-            await _dbContext.SaveChangesAsync(cancellationToken);
-
-            var after = new
-            {
-                bookingId = booking.Id,
-                voucherId = voucher.Id,
-                voucherCode = voucher.Code,
-                discountAmount
-            };
-
-            await AddAuditLog(
-                performedByUserId,
-                performedByRole,
-                "APPLY_BOOKING_VOUCHER_FROM_INVOICE",
-                "Bookings",
-                booking.Id,
-                before,
-                after,
-                $"Áp voucher {voucher.Code}");
-
-            await _dbContext.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-
-            return ApiResult<object>.Ok(
-                after,
-                "Áp voucher thành công.",
-                "APPLY_BOOKING_VOUCHER_SUCCESS");
+            var term = searchTerm.Trim();
+            invoiceQuery = invoiceQuery.Where(x =>
+                (x.InvoiceCode != null && x.InvoiceCode.Contains(term)) ||
+                (x.Booking != null && x.Booking.BookingCode.Contains(term)) ||
+                (x.Booking != null && x.Booking.GuestName != null && x.Booking.GuestName.Contains(term)) ||
+                (x.Booking != null && x.Booking.User != null && x.Booking.User.FullName.Contains(term)) ||
+                x.InvoiceBookingDetails.Any(d => d.BookingDetail != null && d.BookingDetail.Room != null && d.BookingDetail.Room.RoomNumber.Contains(term)));
         }
 
-        public async Task<List<InvoiceListDto>> GetAllInvoicesAsync(
-            string? searchTerm,
-            DateTime? fromDate,
-            DateTime? toDate,
-            string? status,
-            int? bookingId = null,
-            CancellationToken cancellationToken = default)
+        if (fromDate.HasValue)
+        {
+            var from = fromDate.Value.Date;
+            invoiceQuery = invoiceQuery.Where(x => x.CreatedAt >= from);
+        }
+
+        if (toDate.HasValue)
+        {
+            var toExclusive = toDate.Value.Date.AddDays(1);
+            invoiceQuery = invoiceQuery.Where(x => x.CreatedAt < toExclusive);
+        }
+
+        var normalizedStatus = Normalize(status);
+        var invoices = await invoiceQuery
+            .OrderByDescending(x => x.CreatedAt)
+            .ToListAsync(cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(normalizedStatus) && normalizedStatus != "UNPAID")
+        {
+            invoices = invoices
+                .Where(x => Normalize(x.Status) == normalizedStatus)
+                .ToList();
+        }
+
+        results.AddRange(invoices.Select(x =>
+        {
+            var roomNumbers = x.InvoiceBookingDetails?
+                .Select(d => d.BookingDetail?.Room?.RoomNumber)
+                .Where(r => !string.IsNullOrWhiteSpace(r))
+                .Distinct()
+                .ToList() ?? new List<string?>();
+
+            var firstBookingDetailId = x.InvoiceBookingDetails?
+                .Select(d => (int?)d.BookingDetailId)
+                .FirstOrDefault();
+
+            return new InvoiceListDto
+            {
+                RowId = $"inv-{x.Id}",
+                Id = x.Id,
+                InvoiceId = x.Id,
+                BookingId = x.Booking?.Id ?? 0,
+                BookingDetailId = firstBookingDetailId,
+                InvoiceCode = x.InvoiceCode,
+                CustomerName = x.Booking?.GuestName
+                   ?? x.Booking?.User?.FullName
+                   ?? "Khách lẻ",
+                BookingCode = x.Booking?.BookingCode,
+                RoomNumber = roomNumbers.Count == 0 ? "-" : string.Join(", ", roomNumbers),
+                FinalTotal = x.FinalTotal,
+                Status = Normalize(x.Status) == "DRAFT" ? "DRAFT" : Normalize(x.Status),
+                CreatedAt = x.CreatedAt,
+                IsDraftPreview = false
+            };
+        }));
+
+        if (string.IsNullOrWhiteSpace(normalizedStatus) || normalizedStatus == "UNPAID")
         {
             await RefreshOpenInvoicesAsync(cancellationToken);
 

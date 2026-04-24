@@ -10,7 +10,7 @@ import {
   ConfigProvider,
   message,
 } from 'antd';
-import { PlusOutlined, EditOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, ReloadOutlined, SearchOutlined, UploadOutlined, DownloadOutlined } from '@ant-design/icons';
 import { equipmentApi } from '../../api/equipmentApi';
 import EquipmentModal from './components/EquipmentModal';
 
@@ -182,6 +182,9 @@ const RoomInventory = () => {
                 onChange={(v) => setCategory(v)}
                 options={[
                   { value: 'Trang thiết bị', label: 'Trang thiết bị' },
+                  { value: 'Nội thất', label: 'Nội thất' },
+                  { value: 'Điện tử', label: 'Điện tử' },
+                  { value: 'Minibar', label: 'Minibar' },
                   { value: 'Đồ uống', label: 'Đồ uống' },
                   { value: 'Đồ ăn', label: 'Đồ ăn' },
                   { value: 'Khác', label: 'Khác' },
@@ -192,17 +195,91 @@ const RoomInventory = () => {
               </Button>
             </Space>
 
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => {
-                setEditingItem(null);
-                setModalOpen(true);
-              }}
-              style={{ background: '#1677ff' }}
-            >
-              Thêm vật tư
-            </Button>
+            <Space>
+              <Button
+                icon={<DownloadOutlined />}
+                onClick={async () => {
+                  try {
+                    const response = await equipmentApi.exportExcel();
+                    const url = window.URL.createObjectURL(new Blob([response.data]));
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.setAttribute('download', 'DanhSachVatTu.xlsx');
+                    document.body.appendChild(link);
+                    link.click();
+                    link.parentNode.removeChild(link);
+                    message.success('Tải file Excel thành công!');
+                  } catch (error) {
+                    console.error(error);
+                    message.error('Lỗi khi xuất file Excel!');
+                  }
+                }}
+              >
+                Xuất Excel
+              </Button>
+              <div style={{ position: 'relative', display: 'inline-block' }}>
+                <Button icon={<UploadOutlined />}>Nhập Excel</Button>
+                <input
+                  type="file"
+                  accept=".xlsx"
+                  onChange={async (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+
+                    // Chỉ cho phép file .xlsx
+                    if (!file.name.endsWith('.xlsx')) {
+                      message.error('Hệ thống chỉ hỗ trợ định dạng file .xlsx mới (không hỗ trợ .xls cũ)');
+                      e.target.value = null;
+                      return;
+                    }
+
+                    const formData = new FormData();
+                    formData.append('file', file);
+
+                    const hide = message.loading('Đang xử lý file Excel...', 0);
+                    try {
+                      const response = await equipmentApi.importExcel(formData);
+                      if (response && response.data?.success) {
+                        message.success(response.data.message || 'Nhập dữ liệu thành công!');
+                        fetchEquipments();
+                      } else {
+                        message.error(response?.data?.message || 'Có lỗi xảy ra khi nhập dữ liệu!');
+                      }
+                    } catch (error) {
+                      console.error(error);
+                      if (error.response?.data?.message?.includes("corrupted data")) {
+                        message.error('File Excel bị lỗi định dạng hoặc đang được mở ở phần mềm khác. Vui lòng tắt file Excel đi và thử lại.');
+                      } else {
+                        message.error(error.response?.data?.message || 'Lỗi khi nhập file Excel!');
+                      }
+                    } finally {
+                      hide();
+                      e.target.value = null;
+                    }
+                  }}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    opacity: 0,
+                    cursor: 'pointer'
+                  }}
+                />
+              </div>
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => {
+                  setEditingItem(null);
+                  setModalOpen(true);
+                }}
+                style={{ background: '#1677ff' }}
+              >
+                Thêm vật tư
+              </Button>
+            </Space>
           </div>
 
           <Table
@@ -210,6 +287,7 @@ const RoomInventory = () => {
             dataSource={equipments}
             rowKey="id"
             loading={loading}
+            scroll={{ x: 1000, y: 'calc(100vh - 280px)' }}
             pagination={{
               current: pagination.current,
               pageSize: pagination.pageSize,

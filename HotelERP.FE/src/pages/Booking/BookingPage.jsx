@@ -356,6 +356,7 @@ const SelectRoom = () => {
         guestPhone: values.phone,
         guestEmail: values.email || '',
         notes: values.notes || '',
+        voucherCode: values.voucherCode || '',
         items: items
       };
 
@@ -618,45 +619,42 @@ const BookingDetail = () => {
   const [creatingDepositMomo, setCreatingDepositMomo] = useState(false);
   const [checkingDepositPayment, setCheckingDepositPayment] = useState(false);
 
-  const fetchDetail = async () => {
-    try {
-      const response = await bookingManagementApi.searchBookings({ keyword: bookingCode, page: 1, pageSize: 1 });
-      const resultData = response.data?.data;
-      if (resultData && resultData.items && resultData.items.length > 0) {
-        const dbBooking = resultData.items[0];
-        const mappedBooking = {
-          id: dbBooking.id || dbBooking.Id,
-          bookingCode: dbBooking.bookingCode || dbBooking.BookingCode,
-          customerName: dbBooking.guestName || dbBooking.GuestName || 'Khách vãng lai',
-          phone: dbBooking.guestPhone || dbBooking.GuestPhone,
-          email: dbBooking.guestEmail || dbBooking.GuestEmail,
-          checkInDate:
-            (dbBooking.details || dbBooking.Details || [])[0]?.checkInDate ||
-            (dbBooking.details || dbBooking.Details || [])[0]?.CheckInDate ||
-            dbBooking.bookedAt ||
-            dbBooking.BookedAt,
-          status: dbBooking.status || dbBooking.Status,
-          totalAmount: dbBooking.finalAmount || dbBooking.FinalAmount || 0,
-          deposit: dbBooking.depositAmount || dbBooking.DepositAmount || 0,
-          originalRooms: (dbBooking.details || dbBooking.Details || []).map((d) => ({
-            id: d.id || d.Id,
-            typeName: d.roomTypeName || d.RoomTypeName,
-            roomNum: d.roomNumber || d.RoomNumber || 'Chưa xếp',
-            checkIn: dayjs(d.checkInDate || d.CheckInDate).format('DD/MM/YYYY HH:mm'),
-            checkOut: dayjs(d.checkOutDate || d.CheckOutDate).format('DD/MM/YYYY HH:mm'),
-            price: d.pricePerNight ?? d.PricePerNight ?? 0,
-            status: d.status || d.Status,
-          })),
-          notes: dbBooking.notes || dbBooking.Notes,
-        };
-        setBooking(mappedBooking);
-      }
-    } catch (err) {
-      console.error('Lỗi khi tải chi tiết booking', err);
-    }
-  };
-
   useEffect(() => {
+    const fetchDetail = async () => {
+      try {
+        const response = await bookingManagementApi.searchBookings({ keyword: bookingCode, page: 1, pageSize: 1 });
+        const resultData = response.data?.data;
+        if (resultData && resultData.items && resultData.items.length > 0) {
+           const dbBooking = resultData.items[0];
+           const mappedBooking = {
+              id: dbBooking.id || dbBooking.Id,
+              bookingCode: dbBooking.bookingCode || dbBooking.BookingCode,
+              customerName: dbBooking.guestName || dbBooking.GuestName || 'Khách vãng lai',
+              phone: dbBooking.guestPhone || dbBooking.GuestPhone,
+              email: dbBooking.guestEmail || dbBooking.GuestEmail,
+              checkInDate: (dbBooking.details || dbBooking.Details || [])[0]?.checkInDate || (dbBooking.details || dbBooking.Details || [])[0]?.CheckInDate || dbBooking.bookedAt || dbBooking.BookedAt,
+              status: dbBooking.status || dbBooking.Status,
+              totalAmount: dbBooking.finalAmount || dbBooking.FinalAmount || 0,
+              discountAmount: dbBooking.discountAmount || dbBooking.DiscountAmount || 0,
+              voucherCode: dbBooking.voucherCode || dbBooking.VoucherCode || 'Không áp dụng',
+              deposit: dbBooking.depositAmount || dbBooking.DepositAmount || 0, 
+              originalRooms: (dbBooking.details || dbBooking.Details || []).map(d => ({
+                  id: d.id || d.Id,
+                  typeName: d.roomTypeName || d.RoomTypeName,
+                  roomNum: d.roomNumber || d.RoomNumber || 'Chưa xếp',
+                  checkIn: dayjs(d.checkInDate || d.CheckInDate).format('DD/MM/YYYY HH:mm'),
+                  checkOut: dayjs(d.checkOutDate || d.CheckOutDate).format('DD/MM/YYYY HH:mm'),
+                  price: d.pricePerNight ?? d.PricePerNight ?? 0,
+                  status: d.status || d.Status
+              })),
+              notes: dbBooking.notes || dbBooking.Notes
+           };
+           setBooking(mappedBooking);
+        }
+      } catch (err) {
+        console.error("Lỗi khi tải chi tiết booking", err);
+      }
+    };
     fetchDetail();
   }, [bookingCode]);
 
@@ -874,8 +872,8 @@ const BookingDetail = () => {
         <Col span={12}>
           <Card title="Thông tin thanh toán" extra={<Button size="small" onClick={() => setIsDepositModalOpen(true)}>Nạp Cọc</Button>} style={{ borderRadius: 12, height: '100%' }}>
             <div style={{ lineHeight: '32px' }}>
-              <div><Text type="secondary" style={{ width: 150, display: 'inline-block' }}>Mã Voucher:</Text> <Text>{booking.voucherCode || 'Không áp dụng'}</Text></div>
-              <div><Text type="secondary" style={{ width: 150, display: 'inline-block' }}>Giảm giá:</Text> <Text type="danger">-0 đ</Text></div>
+              <div><Text type="secondary" style={{ width: 150, display: 'inline-block' }}>Mã Voucher:</Text> <Text strong color="blue">{booking.voucherCode}</Text></div>
+              <div><Text type="secondary" style={{ width: 150, display: 'inline-block' }}>Giảm giá:</Text> <Text type="danger">-{booking.discountAmount?.toLocaleString()} đ</Text></div>
               <div><Text type="secondary" style={{ width: 150, display: 'inline-block' }}>Đã đặt cọc:</Text> <Text style={{ color: '#52c41a' }}>+{(booking.deposit || 0).toLocaleString()} đ</Text></div>
               <div style={{ marginTop: 8 }}><Text type="secondary" style={{ width: 150, display: 'inline-block', fontSize: 16 }}>Tổng tiền (Dự kiến):</Text> <Text strong style={{ fontSize: 18, color: '#1890ff' }}>{displayTotal} đ</Text></div>
               <div style={{ marginTop: 4 }}><Text type="secondary" style={{ width: 150, display: 'inline-block', fontSize: 16 }}>Còn lại cần thanh toán:</Text> <Text strong type="danger" style={{ fontSize: 16 }}>{((booking.totalAmount || 2400000) - (booking.deposit || 0)).toLocaleString()} đ</Text></div>

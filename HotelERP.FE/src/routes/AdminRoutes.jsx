@@ -23,6 +23,7 @@ import InHouse from '../pages/Receptionist/InHouse';
 import Departures from '../pages/Receptionist/Departures';
 import InvoiceManagement from '../pages/Invoices/InvoiceManagement';
 import InvoiceDashboard from '../pages/Admin/Invoices/InvoiceDashboard';
+import VoucherManagement from '../pages/Admin/Vouchers/VoucherManagement';
 
 const Placeholder = ({ title }) => (
   <div style={{ padding: 24, textAlign: 'center' }}>
@@ -62,6 +63,7 @@ const AdminRoutes = () => {
         <Route path='damage-reports' element={<Placeholder title='Báo cáo Hư hỏng & Đền bù' />} />
         <Route path='loss-and-damages' element={<LossAndDamages />} />
         <Route path='invoices' element={<InvoiceDashboard />} />
+        <Route path='vouchers' element={<VoucherManagement />} />
 
         <Route path='article-categories' element={<Placeholder title='Danh mục Bài viết' />} />
         <Route path='posts' element={<Placeholder title='Quản lý Bài viết (Blog)' />} />

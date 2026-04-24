@@ -7,6 +7,7 @@ public class MultiRoomBookingRequest
     public string GuestEmail { get; set; } = null!;
     public string GuestPhone { get; set; } = null!;
     public string? Notes { get; set; }
+    public string? VoucherCode { get; set; }
 }
 
 public class BookingRoomItem

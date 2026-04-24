@@ -113,7 +113,8 @@ public class VoucherService : IVoucherService
             MinBookingValue = request.MinBookingAmount,
             ValidFrom = request.ValidFrom,
             ValidTo = validTo,
-            UsageLimit = request.UsageLimit
+            UsageLimit = request.UsageLimit,
+            Reason = request.Reason
         };
 
         _dbContext.Vouchers.Add(voucher);
@@ -174,10 +175,9 @@ public class VoucherService : IVoucherService
         voucher.DiscountValue = request.DiscountValue;
         voucher.MinBookingValue = request.MinBookingAmount;
         voucher.ValidFrom = request.ValidFrom;
-        voucher.ValidTo = normalizedStatus == StatusInactive && (!request.ValidTo.HasValue || request.ValidTo.Value > now)
-            ? now.AddSeconds(-1)
-            : request.ValidTo;
+        voucher.ValidTo = request.ValidTo;
         voucher.UsageLimit = request.UsageLimit;
+        voucher.Reason = request.Reason;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
@@ -385,7 +385,7 @@ public class VoucherService : IVoucherService
     {
         return await _dbContext.Bookings
             .AsNoTracking()
-            .Where(x => x.VoucherId.HasValue)
+            .Where(x => x.VoucherId.HasValue && x.Status != "Cancelled" && x.Status != "CancelledByAdmin" && x.Status != "Expired")
             .GroupBy(x => x.VoucherId!.Value)
             .Select(g => new { VoucherId = g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.VoucherId, x => x.Count, cancellationToken);
@@ -446,8 +446,38 @@ public class VoucherService : IVoucherService
             UsageLimit = voucher.UsageLimit,
             UsedCount = usedCount,
             Status = status,
+            Reason = voucher.Reason,
             CreatedAt = voucher.ValidFrom ?? now,
             UpdatedAt = null
         };
+    }
+
+    public async Task ExpireVouchersJobAsync(CancellationToken cancellationToken = default)
+    {
+        var now = DateTime.UtcNow;
+        var vouchers = await _dbContext.Vouchers.ToListAsync(cancellationToken);
+        var usedCountMap = await GetUsedCountMapAsync(cancellationToken);
+
+        var count = 0;
+        foreach (var v in vouchers)
+        {
+            var usedCount = usedCountMap.GetValueOrDefault(v.Id, 0);
+            var status = ResolveVoucherStatus(v, usedCount, now);
+
+            // Nếu status logic là INACTIVE nhưng DB chưa lưu ValidTo quá khứ, ta ép cứng lại
+            if (status == StatusInactive && (!v.ValidTo.HasValue || v.ValidTo.Value > now))
+            {
+                v.ValidTo = now.AddSeconds(-1);
+                v.Reason = string.IsNullOrWhiteSpace(v.Reason) 
+                    ? "Hệ thống tự động vô hiệu hóa (Hangfire Job)" 
+                    : v.Reason + " | Hệ thống tự động vô hiệu hóa";
+                count++;
+            }
+        }
+
+        if (count > 0)
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
     }
 }

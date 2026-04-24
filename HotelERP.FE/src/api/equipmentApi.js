@@ -8,4 +8,12 @@ export const equipmentApi = {
   updateEquipment: (id, data) => axiosClient.put(`/Equipments/${id}`, data),
 
   deleteEquipment: (id) => axiosClient.delete(`/Equipments/${id}`),
+
+  importExcel: (formData) => axiosClient.post('/Equipments/import-excel', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
+
+  exportExcel: () => axiosClient.get('/Equipments/export-excel', {
+    responseType: 'blob'
+  }),
 };

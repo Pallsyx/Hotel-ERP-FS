@@ -11,6 +11,7 @@ using HotelERP.BE.Services;
 using HotelERP.BE.DTOs.Notifications;
 using HotelERP.BE.Models.Enums;
 using HotelERP.BE.Models;
+using HotelERP.BE.Services.Bookings;
 
 namespace HotelERP.BE.Application.Services;
 
@@ -19,18 +20,20 @@ public class BookingEngineService : IBookingEngineService
     private readonly HotelDbContext _context;
     private readonly IDistributedLockFactory _lockFactory;
     private readonly IConnectionMultiplexer _redis;
+    private readonly IBookingVoucherService _voucherService;
     private readonly INotificationService _notificationService;
 
     public BookingEngineService(
         HotelDbContext context, 
         IDistributedLockFactory lockFactory, 
         IConnectionMultiplexer redis,
-        INotificationService notificationService)
+        IBookingVoucherService voucherService)
     {
         _context = context;
         _lockFactory = lockFactory;
         _redis = redis;
         _notificationService = notificationService;
+        _voucherService = voucherService;
     }
 
     // ====================================================================
@@ -121,6 +124,7 @@ public class BookingEngineService : IBookingEngineService
 
         foreach (var booking in expiredBookings)
         {
+
             booking.Status = BookingStatus.Expired; 
             var db = _redis.GetDatabase();
             await db.KeyDeleteAsync($"booking:hold:{booking.Id}");
@@ -252,9 +256,20 @@ public class BookingEngineService : IBookingEngineService
                 await db.StringSetAsync($"hold:{booking.Id}:{item.RoomTypeId}", "HOLDING", TimeSpan.FromMinutes(15));
             }
 
+            // Gán lại tổng tiền cuối cho mảng Booking cha
+            booking.BookingSubtotal = finalTotalAmount;
             booking.FinalAmount = finalTotalAmount;
             
             await _context.SaveChangesAsync();
+
+            // NEW: Áp dụng Voucher nếu có
+            if (!string.IsNullOrWhiteSpace(request.VoucherCode))
+            {
+                var (isApplied, error, _) = await _voucherService.ApplyVoucherAsync(booking.Id, request.VoucherCode);
+                // Bạn có thể chọn quăng lỗi hoặc chỉ log nếu voucher không hợp lệ
+                // Ở đây tôi chọn không quăng lỗi để đơn đặt phòng vẫn thành công, chỉ là không được giảm giá
+            }
+
             await transaction.CommitAsync();
 
             // ✅ Thông báo Booking mới

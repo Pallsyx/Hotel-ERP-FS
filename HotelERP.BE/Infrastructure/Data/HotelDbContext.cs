@@ -321,7 +321,13 @@ public partial class HotelDbContext : DbContext
                 .HasColumnType("datetime")
                 .HasColumnName("updated_at");
             entity.Property(e => e.UserId).HasColumnName("user_id");
+            entity.Property(e => e.DepositAmount)
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("deposit_amount")
+                .HasDefaultValue(0m);
+
             entity.Property(e => e.VoucherId).HasColumnName("voucher_id");
+
 
             entity.HasOne(d => d.User).WithMany(p => p.Bookings)
                 .HasForeignKey(d => d.UserId)

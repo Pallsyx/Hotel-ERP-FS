@@ -58,6 +58,8 @@ public class LossAndDamagesController : ControllerBase
             ItemName = ld.RoomInventory?.Equipment?.Name ?? "Không xác định",
             Quantity = ld.Quantity,
             PenaltyAmount = ld.PenaltyAmount,
+            PriceIfLost = ld.RoomInventory != null ? ld.RoomInventory.PriceIfLost : 0,
+            Category = ld.RoomInventory != null && ld.RoomInventory.Equipment != null ? ld.RoomInventory.Equipment.Category : "Khác",
             Description = ld.Description,
             CreatedAt = ld.CreatedAt,
             EvidenceImageUrl = ld.EvidenceImageUrl,
@@ -139,6 +141,7 @@ public class LossAndDamagesController : ControllerBase
         public int EquipmentId { get; set; }
         public int Quantity { get; set; }
         public string? Description { get; set; }
+        public decimal? PenaltyAmount { get; set; }
     }
 
     public class EditDamageRequest
@@ -307,7 +310,7 @@ public class LossAndDamagesController : ControllerBase
             return BadRequest("Vật tư không nằm trong danh sách kiểm kê của phòng này.");
 
         // 2. Tạo phiếu đền bù
-        decimal penaltyAmount = req.Quantity * inventory.PriceIfLost;
+        decimal penaltyAmount = req.PenaltyAmount ?? (req.Quantity * inventory.PriceIfLost);
         var damage = new LossAndDamage
         {
             RoomId = req.RoomId,

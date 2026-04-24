@@ -231,6 +231,7 @@ CREATE TABLE [dbo].[Bookings](
 	[payment_status] [nvarchar](50) NOT NULL DEFAULT 'UNPAID',
 	[status] [nvarchar](50) NULL DEFAULT 'Pending',
 	[notes] [nvarchar](1000) NULL,
+	[deposit_amount] [decimal](18, 2) NOT NULL DEFAULT 0,
 	[is_points_awarded] [bit] DEFAULT 0,
 	[created_at] [datetime] NOT NULL DEFAULT GETDATE(),
 	[updated_at] [datetime] NULL

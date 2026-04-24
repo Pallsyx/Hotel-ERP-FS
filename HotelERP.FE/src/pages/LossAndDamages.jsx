@@ -1,10 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import * as signalR from '@microsoft/signalr';
 import axios from 'axios';
+import axiosClient from '../api/axiosClient';
 import { 
   Table, Button, DatePicker, 
   Space, Card, Row, Col, Typography, message, 
-  Select, InputNumber, Form, Input, Modal, Image, Upload
+  Select, InputNumber, Form, Input, Modal, Image, Upload, Radio, Divider
 } from 'antd';
 import { 
   AppstoreOutlined, SearchOutlined, ReloadOutlined,
@@ -13,7 +14,7 @@ import {
 } from '@ant-design/icons';
 
 const { RangePicker } = DatePicker;
-const { Text } = Typography;
+const { Text, Title } = Typography;
 const { Option } = Select;
 
 // --- MOCK DATA ---
@@ -56,9 +57,21 @@ export default function LossAndDamages() {
   const [uploadFile, setUploadFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
 
-  // Các state cho thao tác Lọc ngày
   const [selectedDates, setSelectedDates] = useState(null);
   const [appliedDates, setAppliedDates] = useState(null);
+
+  // --- NEW STATE FOR CREATION ---
+  const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
+  const [rooms, setRooms] = useState([]);
+  const [roomInventories, setRoomInventories] = useState([]);
+  const [selectedRoomId, setSelectedRoomId] = useState(null);
+  const [selectedInventory, setSelectedInventory] = useState(null);
+  const [compensationType, setCompensationType] = useState('percentage'); // 'percentage', 'custom'
+  const [editCompensationType, setEditCompensationType] = useState('percentage'); 
+  const [isFixed100Pct, setIsFixed100Pct] = useState(false);
+  const [isEditFixed100Pct, setIsEditFixed100Pct] = useState(false);
+  const [createForm] = Form.useForm();
+  // ------------------------------
 
   const handleApplyFilter = () => {
     setAppliedDates(selectedDates);
@@ -95,7 +108,7 @@ export default function LossAndDamages() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const response = await axios.get("https://localhost:7100/api/LossAndDamages");
+      const response = await axiosClient.get("/LossAndDamages");
       setData(response.data.data);
       setStats(response.data.stats);
       setLastUpdated(new Date().toLocaleTimeString('vi-VN', { hour12: false }));
@@ -112,14 +125,151 @@ export default function LossAndDamages() {
     fetchData(); // Load lần đầu khi mở
   }, []);
 
+  // --- NEW HANDLERS FOR CREATION ---
+  const handleOpenCreateModal = async () => {
+    setIsCreateModalVisible(true);
+    setLoading(true);
+    try {
+      const response = await axiosClient.get("/Rooms");
+      setRooms(response.data.data);
+    } catch (error) {
+      message.error("Lỗi khi tải danh sách phòng!");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRoomChange = async (roomId) => {
+    setSelectedRoomId(roomId);
+    createForm.setFieldsValue({ equipmentId: undefined });
+    setRoomInventories([]);
+    setSelectedInventory(null);
+    try {
+      const response = await axiosClient.get(`/rooms/${roomId}/inventories`);
+      setRoomInventories(response.data.data || []);
+    } catch (error) {
+      message.error("Lỗi khi tải vật tư của phòng!");
+    }
+  };
+
+  const handleInventoryChange = (inventoryId) => {
+    const item = roomInventories.find(ri => ri.id === inventoryId);
+    setSelectedInventory(item);
+    
+    // Nếu là đồ ăn, thức uống, minibar, hoặc sản phẩm giá trị nhỏ hơn 100k
+    const isConsumable = item && (
+      item.category === 'Đồ ăn' || 
+      item.category === 'Đồ uống' || 
+      item.category === 'Minibar' ||
+      item.priceIfLost <= 50000
+    );
+
+    if (isConsumable) {
+      setIsFixed100Pct(true);
+      setCompensationType('percentage');
+      createForm.setFieldsValue({ percentageValue: 100 });
+    } else {
+      setIsFixed100Pct(false);
+      setCompensationType('percentage');
+      createForm.setFieldsValue({ percentageValue: 100 });
+    }
+  };
+
+  const handleCreate = async () => {
+    try {
+      const values = await createForm.validateFields();
+      const finalPenaltyAmount = calculatePenaltyAmount(values.quantity);
+      
+      const payload = {
+        roomId: values.roomId,
+        equipmentId: selectedInventory.equipmentId, // Lấy từ inventory đã chọn
+        quantity: values.quantity,
+        description: values.description,
+        penaltyAmount: finalPenaltyAmount
+      };
+
+      await axiosClient.post("/LossAndDamages", payload);
+      message.success('Đã báo cáo đền bù thành công!');
+      setIsCreateModalVisible(false);
+      createForm.resetFields();
+      setSelectedInventory(null);
+      setCompensationType('percentage');
+      fetchData();
+    } catch (error) {
+      console.error(error);
+      message.error('Lỗi khi gửi báo cáo!');
+    }
+  };
+
+  const calculatePenaltyAmount = (quantity) => {
+    if (!selectedInventory) return 0;
+    const basePrice = selectedInventory.priceIfLost * (quantity || 0);
+    
+    if (compensationType === 'percentage') {
+      const pct = createForm.getFieldValue('percentageValue') || 0;
+      return (basePrice * pct) / 100;
+    }
+    if (compensationType === 'custom') {
+      return createForm.getFieldValue('customAmount') || 0;
+    }
+    return basePrice;
+  };
+
+  // Lắng nghe thay đổi để cập nhật preview tiền
+  const qty = Form.useWatch('quantity', createForm);
+  const pctVal = Form.useWatch('percentageValue', createForm);
+  const customAmt = Form.useWatch('customAmount', createForm);
+  const currentPenaltyPreview = useMemo(() => calculatePenaltyAmount(qty), [qty, pctVal, customAmt, selectedInventory, compensationType]);
+
+  // --- LOGIC TÍNH TOÁN CHO MODAL SỬA ---
+  const editQty = Form.useWatch('quantity', form);
+  const editPctVal = Form.useWatch('editPercentageValue', form);
+  
+  useEffect(() => {
+    if (isEditModalVisible && editingRecord) {
+      const basePrice = editingRecord.priceIfLost || 0;
+      const totalBase = basePrice * (editQty || 0);
+      
+      if (editCompensationType === 'percentage') {
+        const finalAmt = (totalBase * (editPctVal || 0)) / 100;
+        form.setFieldsValue({ penaltyAmount: finalAmt });
+      }
+    }
+  }, [editQty, editPctVal, editCompensationType, isEditModalVisible, editingRecord]);
+  // ------------------------------------
+  // ---------------------------------
+
   const handleEdit = (record) => {
     setEditingRecord(record);
     setUploadFile(null);
     setPreviewUrl(record.evidenceImageUrl || null);
+    
+    // Tính toán xem có bị khóa cứng không dựa vào category và priceIfLost
+    const isConsumable = record.category === 'Đồ ăn' || 
+                         record.category === 'Đồ uống' || 
+                         record.category === 'Minibar' || 
+                         (record.priceIfLost && record.priceIfLost <= 50000);
+    setIsEditFixed100Pct(isConsumable);
+
+    let pct = 100;
+    if (record.priceIfLost && record.quantity && record.penaltyAmount > 0) {
+      pct = Math.round((record.penaltyAmount / (record.priceIfLost * record.quantity)) * 100);
+    } else if (record.penaltyAmount === 0) {
+      pct = 0;
+    }
+    
+    // Khóa cứng thì ép về 100%
+    if (isConsumable) {
+      pct = 100;
+    }
+
+    setEditCompensationType('percentage');
+
     form.setFieldsValue({
       quantity: record.quantity,
       description: record.description,
-      penaltyAmount: record.penaltyAmount
+      penaltyAmount: record.penaltyAmount,
+      editPercentageValue: pct
     });
     setIsEditModalVisible(true);
   };
@@ -142,7 +292,7 @@ export default function LossAndDamages() {
       okButtonProps: { danger: true },
       onOk: async () => {
         try {
-          await axios.delete(`https://localhost:7100/api/LossAndDamages/${editingRecord.id}/image`);
+          await axiosClient.delete(`/LossAndDamages/${editingRecord.id}/image`);
           setPreviewUrl(null);
           setEditingRecord(prev => ({...prev, evidenceImageUrl: null}));
           message.success('Xóa ảnh thành công!');
@@ -158,13 +308,23 @@ export default function LossAndDamages() {
   const handleUpdate = async () => {
     try {
       const values = await form.validateFields();
-      await axios.put(`https://localhost:7100/api/LossAndDamages/${editingRecord.id}`, values);
+      
+      // Nếu người dùng chọn dùng bộ tính toán (không phải nhập tay hoàn toàn vào PenaltyAmount cũ)
+      // Ở đây ta đơn giản hoá: Nếu họ đang dùng UI mới thì tính lại.
+      let finalPenaltyAmount = values.penaltyAmount; 
+      if (editCompensationType !== 'custom_legacy') {
+          // Logic tính toán cho Edit (cần PriceIfLost của món đồ đó)
+          // Lưu ý: record cũ có thể không có link trực tiếp tới PriceIfLost hiện tại trong state
+          // Nên ta ưu tiên dùng giá trị người dùng nhập trong form.
+      }
+
+      await axiosClient.put(`/LossAndDamages/${editingRecord.id}`, values);
       
       // Tiền hành upload ảnh nếu có file mới được chọn
       if (uploadFile) {
         const formData = new FormData();
         formData.append('file', uploadFile);
-        await axios.post(`https://localhost:7100/api/LossAndDamages/${editingRecord.id}/image`, formData, {
+        await axiosClient.post(`/LossAndDamages/${editingRecord.id}/image`, formData, {
             headers: { 'Content-Type': 'multipart/form-data' }
         });
       }
@@ -191,7 +351,7 @@ export default function LossAndDamages() {
       okButtonProps: { danger: true },
       onOk: async () => {
         try {
-          await axios.delete(`https://localhost:7100/api/LossAndDamages/${id}`);
+          await axiosClient.delete(`/LossAndDamages/${id}`);
           setData(prev => prev.filter(item => item.id !== id));
           message.success('Đã xóa thành công!');
           fetchData(); // Cập nhật lại Stats
@@ -348,33 +508,43 @@ export default function LossAndDamages() {
                 bordered={false} 
                 className="shadow-sm border border-gray-100 rounded-xl h-full"
               >
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-                  <Space className="w-full sm:w-auto flex flex-wrap gap-2">
-                    <RangePicker 
-                      format="DD/MM/YYYY" 
-                      placeholder={['Từ ngày', 'Đến ngày']} 
-                      size="middle" 
-                      className="rounded-md" 
-                      value={selectedDates}
-                      onChange={(dates) => setSelectedDates(dates)}
-                    />
-                    <Button 
-                      type="primary" 
-                      icon={<SearchOutlined />} 
-                      className="bg-blue-600 rounded-md"
-                      onClick={handleApplyFilter}
-                    >
-                      Lọc dữ liệu
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                    <Space className="w-full sm:w-auto flex flex-wrap gap-2">
+                      <Button 
+                        type="primary" 
+                        danger
+                        icon={<PlusOutlined />} 
+                        onClick={handleOpenCreateModal}
+                        className="rounded-md"
+                      >
+                        Báo cáo sự cố mới
+                      </Button>
+                      <Divider type="vertical" />
+                      <RangePicker 
+                        format="DD/MM/YYYY" 
+                        placeholder={['Từ ngày', 'Đến ngày']} 
+                        size="middle" 
+                        className="rounded-md" 
+                        value={selectedDates}
+                        onChange={(dates) => setSelectedDates(dates)}
+                      />
+                      <Button 
+                        type="primary" 
+                        icon={<SearchOutlined />} 
+                        className="bg-blue-600 rounded-md"
+                        onClick={handleApplyFilter}
+                      >
+                        Lọc dữ liệu
+                      </Button>
+                    </Space>
+                    <Button onClick={() => {
+                      setSelectedDates(null);
+                      setAppliedDates(null);
+                      fetchData();
+                    }} icon={<ReloadOutlined />} className="rounded-md hover:text-blue-600 hover:border-blue-600">
+                      Làm mới
                     </Button>
-                  </Space>
-                  <Button onClick={() => {
-                    setSelectedDates(null);
-                    setAppliedDates(null);
-                    fetchData();
-                  }} icon={<ReloadOutlined />} className="rounded-md hover:text-blue-600 hover:border-blue-600">
-                    Làm mới
-                  </Button>
-                </div>
+                  </div>
 
                 <Table 
                   columns={columns} 
@@ -397,20 +567,46 @@ export default function LossAndDamages() {
             cancelText="Hủy"
           >
             <Form form={form} layout="vertical">
-              <Form.Item 
-                name="quantity" 
-                label="Số lượng hỏng (*)" 
-                rules={[{ required: true, message: 'Vui lòng nhập số lượng!' }]}
-              >
-                <InputNumber min={1} className="w-full" />
-              </Form.Item>
+              <Row gutter={16}>
+                <Col span={8}>
+                  <Form.Item 
+                    name="quantity" 
+                    label="Số lượng hỏng (*)" 
+                    rules={[{ required: true, message: 'Vui lòng nhập số lượng!' }]}
+                  >
+                    <InputNumber min={1} className="w-full" />
+                  </Form.Item>
+                </Col>
+                <Col span={16}>
+                   <Form.Item label="Hình thức đền bù">
+                    <Radio.Group value={editCompensationType} onChange={e => setEditCompensationType(e.target.value)} disabled={isEditFixed100Pct}>
+                      <Radio value="percentage">% Giá trị</Radio>
+                      <Radio value="custom">Nhập tiền</Radio>
+                    </Radio.Group>
+                    {isEditFixed100Pct && <div className="text-orange-500 text-xs mt-1">Sản phẩm tiêu hao phạt cố định 100%</div>}
+                  </Form.Item>
+                </Col>
+              </Row>
+
+              {editCompensationType === 'percentage' && (
+                <Form.Item name="editPercentageValue" label="Phần trăm phạt (%)" rules={[{ required: true }]} initialValue={100}>
+                  <InputNumber min={isEditFixed100Pct ? 100 : 8} max={200} step={5} className="w-full" disabled={isEditFixed100Pct} formatter={value => `${value}%`} parser={value => value.replace('%', '')} />
+                </Form.Item>
+              )}
 
               <Form.Item 
                 name="penaltyAmount" 
-                label="Tiền phạt (VND) (Tùy chỉnh)" 
-                help="Cứ để trống hệ thống sẽ tự tính lại nếu bạn đổi Số lượng"
+                label={editCompensationType === 'custom' ? "Số tiền phạt (VND)" : "Tiền phạt dự kiến (Tự động)"}
               >
-                <InputNumber min={0} step={1000} className="w-full" placeholder="Ví dụ: 50000" />
+                <InputNumber 
+                    min={0} 
+                    step={1000} 
+                    className="w-full" 
+                    placeholder="Ví dụ: 50000"
+                    disabled={editCompensationType !== 'custom'}
+                    formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} 
+                    parser={value => value.replace(/\$\s?|(,*)/g, '')}
+                />
               </Form.Item>
 
               <Form.Item 
@@ -450,6 +646,84 @@ export default function LossAndDamages() {
                      />
                    </div>
                 )}
+              </Form.Item>
+            </Form>
+          </Modal>
+
+          {/* MODAL THÊM MỚI BÁO CÁO ĐỀN BÙ */}
+          <Modal
+            title={<Title level={4}><WarningOutlined className="text-red-500 mr-2" /> Báo cáo Thất thoát & Đền bù</Title>}
+            open={isCreateModalVisible}
+            onOk={handleCreate}
+            onCancel={() => setIsCreateModalVisible(false)}
+            okText="Gửi báo cáo"
+            cancelText="Hủy"
+            width={600}
+          >
+            <Form form={createForm} layout="vertical" initialValues={{ quantity: 1, percentageValue: 100 }}>
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Item name="roomId" label="Chọn Phòng (*)" rules={[{ required: true }]}>
+                    <Select placeholder="Chọn phòng..." onChange={handleRoomChange} showSearch optionFilterProp="children">
+                      {rooms.map(r => <Option key={r.id} value={r.id}>{r.roomNumber}</Option>)}
+                    </Select>
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="equipmentId" label="Vật tư hỏng/mất (*)" rules={[{ required: true }]}>
+                    <Select 
+                      placeholder="Chọn món đồ..." 
+                      disabled={!selectedRoomId && roomInventories.length === 0}
+                      onChange={handleInventoryChange}
+                    >
+                      {roomInventories.map(ri => (
+                        <Option key={ri.id} value={ri.id}>
+                          {ri.itemName} (Giá gốc: {ri.priceIfLost.toLocaleString()}đ)
+                        </Option>
+                      ))}
+                    </Select>
+                  </Form.Item>
+                </Col>
+              </Row>
+
+              <Row gutter={16}>
+                <Col span={8}>
+                  <Form.Item name="quantity" label="Số lượng (*)" rules={[{ required: true }]}>
+                    <InputNumber min={1} className="w-full" />
+                  </Form.Item>
+                </Col>
+                <Col span={16}>
+                  <Form.Item label="Hình thức đền bù">
+                    <Radio.Group value={compensationType} onChange={e => setCompensationType(e.target.value)} disabled={isFixed100Pct}>
+                      <Radio value="percentage">% Giá trị</Radio>
+                      <Radio value="custom">Nhập tiền</Radio>
+                    </Radio.Group>
+                    {isFixed100Pct && <div className="text-orange-500 text-xs mt-1">Sản phẩm tiêu hao phạt cố định 100%</div>}
+                  </Form.Item>
+                </Col>
+              </Row>
+
+              {compensationType === 'percentage' && (
+                <Form.Item name="percentageValue" label="Phần trăm phạt (%)" rules={[{ required: true }]}>
+                  <InputNumber min={isFixed100Pct ? 100 : 8} max={200} step={5} className="w-full" disabled={isFixed100Pct} formatter={value => `${value}%`} parser={value => value.replace('%', '')} />
+                </Form.Item>
+              )}
+
+              {compensationType === 'custom' && (
+                <Form.Item name="customAmount" label="Số tiền phạt cụ thể (VND)" rules={[{ required: true }]}>
+                  <InputNumber min={0} step={1000} className="w-full" formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} parser={value => value.replace(/\$\s?|(,*)/g, '')} />
+                </Form.Item>
+              )}
+
+              <div className="bg-red-50 p-4 rounded-lg mb-4 border border-red-100 flex justify-between items-center">
+                <Text strong className="text-red-700">TỔNG TIỀN PHẠT DỰ KIẾN:</Text>
+                <Title level={3} style={{ margin: 0, color: '#cf1322' }}>
+                  {currentPenaltyPreview.toLocaleString('vi-VN')} đ
+                </Title>
+              </div>
+
+              <Form.Item name="description" label="Mô tả chi tiết / Nguyên nhân">
+                <Input.TextArea rows={2} placeholder="Ví dụ: Khách làm vỡ, khách lấy mang về..." />
               </Form.Item>
             </Form>
           </Modal>

@@ -290,6 +290,11 @@ using (var scope = app.Services.CreateScope())
     recurringJobManager.AddOrUpdate("PurgeOldAuditLogs",
         () => scope.ServiceProvider.GetRequiredService<IAuditLogService>().PurgeOldLogsAsync(),
         "0 17 * * *"); // 17:00 UTC = 00:00 Vietnam (UTC+7)
+
+    // Job quét và vô hiệu hóa Voucher đã quá hạn, chạy mỗi ngày lúc 00:00 UTC (07:00 VN)
+    recurringJobManager.AddOrUpdate("ExpireVouchersJob",
+        () => scope.ServiceProvider.GetRequiredService<IVoucherService>().ExpireVouchersJobAsync(CancellationToken.None),
+        Cron.Daily);
 }
 
 app.UseHttpsRedirection(); 
