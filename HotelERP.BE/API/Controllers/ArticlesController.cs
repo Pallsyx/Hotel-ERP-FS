@@ -59,6 +59,21 @@ public class ArticlesController : ControllerBase
         var article = await _context.Articles
             .Include(a => a.Category)
             .Include(a => a.Author)
+            .Select(a => new ArticleResponseDto
+            {
+                Id = a.Id,
+                Title = a.Title,
+                Slug = a.Slug,
+                Summary = a.Summary,
+                Content = a.Content,
+                ThumbnailUrl = a.ThumbnailUrl,
+                PublishedAt = a.PublishedAt,
+                CategoryName = a.Category != null ? a.Category.Name : null,
+                Tags = a.Tags,
+                MetaTitle = a.MetaTitle,
+                MetaDescription = a.MetaDescription,
+                Status = a.Status
+            })
             .FirstOrDefaultAsync(a => a.Slug == slug);
 
         if (article == null)

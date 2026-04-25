@@ -1776,10 +1776,19 @@ namespace HotelERP.BE.Application.Services
                 ? prefix + newLine.Trim()
                 : visibleNotes.Trim() + Environment.NewLine + prefix + newLine.Trim();
 
-            return string.IsNullOrWhiteSpace(systemToken)
+            var result = string.IsNullOrWhiteSpace(systemToken)
                 ? appended
                 : systemToken + Environment.NewLine + appended;
+
+            // Giữ tối đa 8000 ký tự để an toàn với DB (cắt log cũ, giữ log mới nhất)
+            const int MaxNoteLength = 8000;
+            if (result.Length > MaxNoteLength)
+            {
+                result = "...(log cũ đã được cắt bớt)..." + Environment.NewLine + result[^(MaxNoteLength - 50)..];
+            }
+            return result;
         }
+
 
         private static string Normalize(string? value)
         {

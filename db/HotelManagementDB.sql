@@ -346,6 +346,9 @@ CREATE TABLE [dbo].[Reviews](
 CREATE TABLE [dbo].[Article_Categories](
 	[id] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
 	[name] [nvarchar](255) NOT NULL,
+	[status] [nvarchar](20) NOT NULL DEFAULT 'ACTIVE',
+	[created_at] [datetime] NOT NULL DEFAULT GETDATE(),
+	[updated_at] [datetime] NULL,
 	[is_active] [bit] NULL DEFAULT 1
 );
 
@@ -359,7 +362,10 @@ CREATE TABLE [dbo].[Articles](
 	[content] [nvarchar](max) NULL,
 	[thumbnail_url] [nvarchar](max) NULL,
 	[thumbnail_public_id] [nvarchar](255) NULL,
-	[status] [nvarchar](20) NOT NULL DEFAULT 'ACTIVE',
+	[tags] [nvarchar](500) NULL,
+	[meta_title] [nvarchar](255) NULL,
+	[meta_description] [nvarchar](500) NULL,
+	[status] [nvarchar](50) NOT NULL DEFAULT 'Draft',
 	[is_published] [bit] NULL DEFAULT 0,
 	[published_at] [datetime] NULL DEFAULT GETDATE(),
 	[is_active] [bit] NULL DEFAULT 1,
@@ -2511,3 +2517,60 @@ BEGIN
     END
 END;
 GO
+
+-- ========================================================================
+-- 7. EF CORE MIGRATION HISTORY & INITIALIZATION
+-- ========================================================================
+IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
+BEGIN
+    CREATE TABLE [__EFMigrationsHistory] (
+        [MigrationId] nvarchar(150) NOT NULL,
+        [ProductVersion] nvarchar(32) NOT NULL,
+        CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY ([MigrationId])
+    );
+END
+GO
+
+-- Chèn bản ghi migration để EF Core không chạy lại các migration đã gộp
+IF NOT EXISTS (SELECT 1 FROM [__EFMigrationsHistory] WHERE [MigrationId] = N'20260424140949_AddDepositAmount')
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260424140949_AddDepositAmount', N'10.0.5');
+END
+GO
+
+-- Đồng bộ trạng thái bài viết (Dựa trên db_admin_reset)
+UPDATE [dbo].[Articles] SET [status] = 'Published' WHERE [id] <= 10;
+GO
+
+EXEC sp_msforeachtable 'ALTER TABLE ? CHECK CONSTRAINT ALL';
+GO
+
+-- =============================================
+-- 8. MỞ RỘNG CỘT notes CỦA Invoices LÊN NVARCHAR(MAX)
+--    (Tránh lỗi 500 khi audit log tích lũy quá 1000 ký tự)
+-- =============================================
+IF COL_LENGTH('dbo.Invoices', 'notes') IS NOT NULL
+BEGIN
+    ALTER TABLE [dbo].[Invoices] ALTER COLUMN [notes] NVARCHAR(MAX) NULL;
+    PRINT 'Đã mở rộng cột notes của Invoices thành NVARCHAR(MAX)';
+END
+GO
+
+-- =============================================
+-- 9. THÊM CỘT THIẾU CHO BẢNG Articles & Article_Categories
+--    (Tránh lỗi 500 Invalid column name khi query bài viết)
+-- =============================================
+IF COL_LENGTH('dbo.Articles', 'tags') IS NULL
+    ALTER TABLE [dbo].[Articles] ADD [tags] NVARCHAR(MAX) NULL;
+IF COL_LENGTH('dbo.Articles', 'meta_title') IS NULL
+    ALTER TABLE [dbo].[Articles] ADD [meta_title] NVARCHAR(500) NULL;
+IF COL_LENGTH('dbo.Articles', 'meta_description') IS NULL
+    ALTER TABLE [dbo].[Articles] ADD [meta_description] NVARCHAR(1000) NULL;
+
+IF COL_LENGTH('dbo.Article_Categories', 'updated_at') IS NULL
+    ALTER TABLE [dbo].[Article_Categories] ADD [updated_at] DATETIME NULL;
+GO
+PRINT 'Đã thêm cột còn thiếu vào Articles và Article_Categories';
+GO
+

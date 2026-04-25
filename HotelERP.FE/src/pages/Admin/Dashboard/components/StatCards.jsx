@@ -7,27 +7,27 @@ import {
   CheckCircleOutlined,
   WarningOutlined,
   ToolOutlined,
-  FileTextOutlined
+  FileTextOutlined,
 } from '@ant-design/icons';
 
 const { Title } = Typography;
 
+/**
+ * StatCards nhận các prop `canX` từ Dashboard (đã tính toán theo role).
+ * Không tự tính role nữa để tránh logic phân tán.
+ */
 const StatCards = ({
-  roles,
   receptionStats,
   housekeepingStats,
   invoiceStats,
+  canReception,
+  canHousekeeping,
+  canFinance,
 }) => {
-  const { user } = roles;
-  const isAdmin = user?.roleName === 'Admin' || user?.fullName === 'Admin';
-  // Lấy các phân quyền phụ (nếu có logic phân thêm, nhưng trước mắt theo Admin/Receptionist/Housekeeping)
-  const isReceptionist = isAdmin || roles.permissions?.includes('MANAGE_BOOKINGS') || user?.roleName === 'Receptionist';
-  const isHousekeeping = isAdmin || roles.permissions?.includes('UPDATE_ROOM_STATUS') || user?.roleName === 'Housekeeping';
-  const isManager = isAdmin || roles.permissions?.includes('MANAGE_INVOICES') || user?.roleName === 'Manager';
-
   return (
     <>
-      {isReceptionist && (
+      {/* ── MODULE LỄ TÂN ── */}
+      {canReception && (
         <div style={{ marginBottom: 24 }}>
           <Title level={5}>Tình hình Lễ tân (Hôm nay)</Title>
           <Row gutter={[16, 16]}>
@@ -62,11 +62,12 @@ const StatCards = ({
         </div>
       )}
 
-      {isHousekeeping && (
+      {/* ── MODULE BUỒNG PHÒNG ── */}
+      {canHousekeeping && (
         <div style={{ marginBottom: 24 }}>
           <Title level={5}>Tình trạng Buồng phòng</Title>
           <Row gutter={[16, 16]}>
-            <Col xs={24} sm={8}>
+            <Col xs={24} sm={6}>
               <Card hoverable bordered={false} style={{ background: '#f9f0ff' }}>
                 <Statistic
                   title="Phòng trống (Sẵn sàng)"
@@ -75,16 +76,16 @@ const StatCards = ({
                 />
               </Card>
             </Col>
-            <Col xs={24} sm={8}>
+            <Col xs={24} sm={6}>
               <Card hoverable bordered={false} style={{ background: '#fff2e8' }}>
                 <Statistic
-                  title="Phòng chưa dọn (Dirty)"
+                  title="Chưa dọn (Dirty)"
                   value={housekeepingStats.dirty}
                   prefix={<WarningOutlined style={{ color: '#fa541c' }} />}
                 />
               </Card>
             </Col>
-            <Col xs={24} sm={8}>
+            <Col xs={24} sm={6}>
               <Card hoverable bordered={false} style={{ background: '#fffbe6' }}>
                 <Statistic
                   title="Đang bảo trì"
@@ -93,11 +94,21 @@ const StatCards = ({
                 />
               </Card>
             </Col>
+            <Col xs={24} sm={6}>
+              <Card hoverable bordered={false} style={{ background: '#e6f7ff' }}>
+                <Statistic
+                  title="Có khách (Occupied)"
+                  value={housekeepingStats.occupied}
+                  prefix={<HomeOutlined style={{ color: '#1890ff' }} />}
+                />
+              </Card>
+            </Col>
           </Row>
         </div>
       )}
 
-      {isManager && (
+      {/* ── MODULE TÀI CHÍNH ── */}
+      {canFinance && (
         <div style={{ marginBottom: 24 }}>
           <Title level={5}>Tài chính & Hiệu suất</Title>
           <Row gutter={[16, 16]}>
@@ -115,8 +126,8 @@ const StatCards = ({
             <Col xs={24} sm={12}>
               <Card hoverable bordered={false}>
                 <Statistic
-                  title="Đã thanh toán (VND)"
-                  value={invoiceStats.totalPaid}
+                  title="Doanh thu hôm nay (VND)"
+                  value={invoiceStats.todayRevenue}
                   precision={0}
                   valueStyle={{ color: '#52c41a' }}
                   prefix={<FileTextOutlined style={{ color: '#52c41a' }} />}

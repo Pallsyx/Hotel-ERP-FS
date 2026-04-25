@@ -30,6 +30,7 @@ public partial class Voucher
 
     public int? UsageLimit { get; set; }
     
+    [NotMapped]
     public string? Reason { get; set; }
 
     [NotMapped]

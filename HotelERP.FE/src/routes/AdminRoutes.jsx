@@ -35,21 +35,27 @@ const Placeholder = ({ title }) => (
   </div>
 );
 
+// Danh sách các role được phép vào khu vực Admin
+const ADMIN_ALLOWED_ROLES = ['Admin', 'Manager', 'Receptionist', 'Housekeeping', 'Accountant'];
+
 const ProtectedRoute = ({ children }) => {
-  const { isAuthenticated, user, permissions } = useAuthStore((state) => state);
-  
+  const { isAuthenticated, user } = useAuthStore((state) => state);
+
+  // Chưa đăng nhập → về trang đăng nhập
   if (!isAuthenticated) {
     return <Navigate to='/login' replace />;
   }
 
-  // KICK USER THƯỜNG KHỎI ADMIN
-  if (user?.roleName === 'User' || (permissions && permissions.includes('User'))) {
-    message.warning('Bạn không có quyền truy cập khu vực quản trị!');
+  // Kiểm tra role: nếu role không nằm trong danh sách được phép → đá ra trang chủ
+  const roleName = user?.roleName;
+  if (!roleName || !ADMIN_ALLOWED_ROLES.includes(roleName)) {
+    message.warning(`Tài khoản "${user?.fullName || 'của bạn'}" (${roleName || 'Không có quyền'}) không có quyền truy cập khu vực quản trị!`);
     return <Navigate to='/' replace />;
   }
 
   return children;
 };
+
 
 const AdminRoutes = () => {
   return (

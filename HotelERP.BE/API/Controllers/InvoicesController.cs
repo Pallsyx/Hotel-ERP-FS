@@ -27,9 +27,25 @@ namespace HotelERP.BE.API.Controllers
             [FromQuery] int? bookingId,
             CancellationToken cancellationToken)
         {
-            var result = await _invoiceService.GetAllInvoicesAsync(searchTerm, fromDate, toDate, status, bookingId, cancellationToken);
-            return Ok(result);
+            try
+            {
+                var result = await _invoiceService.GetAllInvoicesAsync(searchTerm, fromDate, toDate, status, bookingId, cancellationToken);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                // Log chi tiết lỗi để debug
+                Console.Error.WriteLine($"[InvoicesController.GetAll] EXCEPTION: {ex}");
+                return StatusCode(500, new
+                {
+                    message = "Lỗi server khi lấy danh sách hóa đơn.",
+                    error = ex.Message,
+                    innerError = ex.InnerException?.Message,
+                    stackTrace = ex.StackTrace
+                });
+            }
         }
+
 
         [HttpGet("{invoiceId:int}")]
         public async Task<IActionResult> GetInvoice(int invoiceId, CancellationToken cancellationToken)

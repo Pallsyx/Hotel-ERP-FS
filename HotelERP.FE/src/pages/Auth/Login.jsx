@@ -10,7 +10,7 @@ const parseJwt = (token) => {
   try {
     const base64Url = token.split('.')[1];
     const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+    const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function (c) {
       return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
     }).join(''));
     return JSON.parse(jsonPayload);
@@ -44,26 +44,53 @@ const Login = () => {
       let userPermissions = decodedToken.permission || [];
       // Nếu user chỉ có đúng 1 quyền, JWT sẽ trả về dạng chuỗi thay vì mảng -> Ép nó thành mảng
       if (typeof userPermissions === 'string') {
-        userPermissions = [userPermissions]; 
+        userPermissions = [userPermissions];
       }
 
       // Trích xuất tên và role (Tùy theo cấu hình ClaimTypes của C#)
+      // ⚠️ ASP.NET Core có thể trả về role dạng mảng ["Admin","Admin"] → lấy phần tử đầu tiên
+      const rawRole = decodedToken["http://schemas.microsoft.com/ws/2008/06/identity/claims/role"]
+        || decodedToken.role
+        || "Admin";
+      const resolvedRole = Array.isArray(rawRole) ? rawRole[0] : rawRole;
+
+      // ⚠️ ASP.NET Core JwtSecurityTokenHandler rút gọn ClaimTypes.Name → "unique_name"
+      //    ClaimTypes.Email → "email"
+      const fullName =
+        decodedToken["unique_name"]                                                                   // ASP.NET JwtSecurityTokenHandler
+        || decodedToken["http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name"]                // Trường hợp không rút gọn
+        || decodedToken.name
+        || decodedToken.fullName
+        || null;
+
+      const email =
+        decodedToken["email"]
+        || decodedToken["http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"]
+        || null;
+
+      console.log("👤 Token keys:", Object.keys(decodedToken));
+      console.log("👤 fullName =", fullName, "| email =", email);
+
       const userData = {
-        fullName: decodedToken["http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name"] || decodedToken.name || "Admin",
-        roleName: decodedToken["http://schemas.microsoft.com/ws/2008/06/identity/claims/role"] || decodedToken.role || "Admin"
+        fullName: fullName,
+        email: email,
+        roleName: resolvedRole,
       };
+
 
       // 3. Đẩy vào Store
       loginStore(userData, accessToken, refreshToken, userPermissions);
-      
+
       message.success('Đăng nhập thành công!');
 
       // 4. PHÂN LUỒNG ROUTING THEO ROLE
-      if (userData.roleName === 'User' || userPermissions.includes('User')) {
-        navigate('/'); // Khách hàng bình thường về trang chủ
+      // Chuyển hướng: Guest về Home, còn lại (Admin/Staff) vào Admin Dashboard
+      if (userData.roleName === 'Guest' || userPermissions.includes('Guest')) {
+        navigate('/');
       } else {
-        navigate('/admin/dashboard'); // Admin/Lễ tân vào Dashboard Admin
+        navigate('/admin/dashboard');
       }
+
     } catch (error) {
       console.error("❌ Lỗi đăng nhập:", error);
       message.error(error.response?.data?.message || 'Đăng nhập thất bại!');
@@ -73,7 +100,7 @@ const Login = () => {
   return (
     <div className="min-h-screen flex items-center justify-center relative bg-[#262b3f]">
       {/* Background Image with Overlay */}
-      <div 
+      <div
         className="absolute inset-0 z-0 opacity-20"
         style={{
           backgroundImage: "url('https://images.unsplash.com/photo-1542314831-c6a4d4586f37?q=80&w=2000&auto=format&fit=crop')",
@@ -89,36 +116,36 @@ const Login = () => {
         </div>
 
         <Form name="login_form" onFinish={onFinish} layout="vertical">
-          <Form.Item 
-            name="email" 
+          <Form.Item
+            name="email"
             rules={[{ required: true, message: 'Vui lòng nhập tài khoản!' }]}
           >
-            <Input 
-              prefix={<UserOutlined className="text-[#b4976c]" />} 
-              placeholder="Email" 
-              size="large" 
+            <Input
+              prefix={<UserOutlined className="text-[#b4976c]" />}
+              placeholder="Email"
+              size="large"
               className="bg-white/5 border-white/10 text-white placeholder-gray-500 hover:border-[#b4976c] focus:border-[#b4976c]"
               style={{ colorScheme: 'dark' }}
             />
           </Form.Item>
 
-          <Form.Item 
-            name="password" 
+          <Form.Item
+            name="password"
             rules={[{ required: true, message: 'Vui lòng nhập mật khẩu!' }]}
           >
-            <Input.Password 
-              prefix={<LockOutlined className="text-[#b4976c]" />} 
-              placeholder="Mật khẩu" 
-              size="large" 
+            <Input.Password
+              prefix={<LockOutlined className="text-[#b4976c]" />}
+              placeholder="Mật khẩu"
+              size="large"
               className="bg-white/5 border-white/10 text-white placeholder-gray-500 hover:border-[#b4976c] focus:border-[#b4976c]"
               style={{ colorScheme: 'dark' }}
             />
           </Form.Item>
 
           <Form.Item>
-            <Button 
-              type="primary" 
-              htmlType="submit" 
+            <Button
+              type="primary"
+              htmlType="submit"
               className="w-full h-12 bg-[#b4976c] hover:bg-[#8e7654] border-none text-white font-bold tracking-wider rounded-lg transition-colors mt-2"
             >
               ĐĂNG NHẬP
@@ -132,7 +159,7 @@ const Login = () => {
             </span>
           </div>
         </Form>
-      </div> 
+      </div>
     </div>
   );
 };

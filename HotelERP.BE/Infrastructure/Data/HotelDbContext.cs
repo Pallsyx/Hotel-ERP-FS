@@ -174,6 +174,15 @@ public partial class HotelDbContext : DbContext
             entity.Property(e => e.UpdatedAt)
                 .HasColumnType("datetime")
                 .HasColumnName("updated_at");
+            // Các cột bổ sung - thêm vào DB bằng ALTER TABLE nếu chưa có
+            entity.Property(e => e.Tags)
+                .HasColumnName("tags");
+            entity.Property(e => e.MetaTitle)
+                .HasMaxLength(500)
+                .HasColumnName("meta_title");
+            entity.Property(e => e.MetaDescription)
+                .HasMaxLength(1000)
+                .HasColumnName("meta_description");
 
             entity.HasOne(d => d.Author).WithMany(p => p.Articles)
                 .HasForeignKey(d => d.AuthorId)
@@ -183,6 +192,7 @@ public partial class HotelDbContext : DbContext
                 .HasForeignKey(d => d.CategoryId)
                 .HasConstraintName("FK_Articles_ArticleCategories");
         });
+
 
         modelBuilder.Entity<ArticleCategory>(entity =>
         {
@@ -449,7 +459,7 @@ public partial class HotelDbContext : DbContext
                 .HasColumnType("decimal(18, 2)")
                 .HasColumnName("manual_adjustment_amount");
             entity.Property(e => e.Notes)
-                .HasMaxLength(1000)
+                // NVARCHAR(MAX) - không giới hạn để tránh lỗi khi Notes tích lũy nhiều audit text
                 .HasColumnName("notes");
             entity.Property(e => e.PaidAt)
                 .HasColumnType("datetime")
@@ -1214,6 +1224,8 @@ public partial class HotelDbContext : DbContext
             entity.Ignore(e => e.Status);
             entity.Ignore(e => e.CreatedAt);
             entity.Ignore(e => e.UpdatedAt);
+            entity.Ignore(e => e.Reason);  // Không có cột Reason trong DB
+
         });
         modelBuilder.Entity<RefreshToken>(entity =>
         {

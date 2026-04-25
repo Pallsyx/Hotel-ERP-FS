@@ -1,24 +1,83 @@
 import React, { useEffect, useState } from 'react';
 import { Typography, Row, Col, message, Spin } from 'antd';
+import {
+  DashboardOutlined,
+  CrownOutlined,
+  IdcardOutlined,
+  FormatPainterOutlined,
+  FileTextOutlined,
+  GiftOutlined,
+} from '@ant-design/icons';
 import { useAuthStore } from '../../../store/authStore';
 import bookingManagementApi from '../../../api/bookingManagementApi';
 import { roomInventoryApi } from '../../../api/roomInventoryApi';
 import { invoiceApi } from '../../../api/invoiceApi';
+import voucherApi from '../../../api/voucherApi';
 
 import StatCards from './components/StatCards';
 import RoomStatusChart from './components/RoomStatusChart';
 import RevenueChart from './components/RevenueChart';
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
+
+// ==========================================
+// ROLE → MODULE MAPPING
+// Định nghĩa rõ ràng: role nào thấy gì
+// ==========================================
+const ROLE_CONFIG = {
+  Admin: {
+    label: 'Quản trị viên',
+    icon: <CrownOutlined />,
+    color: '#722ed1',
+    description: 'Toàn quyền xem và quản lý toàn bộ hệ thống.',
+    modules: ['reception', 'housekeeping', 'finance', 'vouchers', 'roomChart', 'revenueChart'],
+  },
+  Manager: {
+    label: 'Quản lý',
+    icon: <DashboardOutlined />,
+    color: '#1890ff',
+    description: 'Xem tổng quan tài chính, lễ tân và tình trạng phòng.',
+    modules: ['reception', 'housekeeping', 'finance', 'vouchers', 'roomChart', 'revenueChart'],
+  },
+  Receptionist: {
+    label: 'Lễ tân',
+    icon: <IdcardOutlined />,
+    color: '#13c2c2',
+    description: 'Quản lý đặt phòng, khách đến và khách trả phòng.',
+    modules: ['reception', 'housekeeping'],
+  },
+  Housekeeping: {
+    label: 'Buồng phòng',
+    icon: <FormatPainterOutlined />,
+    color: '#52c41a',
+    description: 'Theo dõi và cập nhật trạng thái dọn phòng.',
+    modules: ['housekeeping', 'roomChart'],
+  },
+  Accountant: {
+    label: 'Kế toán',
+    icon: <FileTextOutlined />,
+    color: '#fa8c16',
+    description: 'Xem dữ liệu tài chính và hóa đơn.',
+    modules: ['finance', 'vouchers', 'revenueChart'],
+  },
+};
 
 const Dashboard = () => {
   const { user, permissions } = useAuthStore();
   const [loading, setLoading] = useState(true);
 
-  // States dữ liệu thực tế
   const [receptionStats, setReceptionStats] = useState({ arrivals: 0, inHouse: 0, departures: 0 });
   const [housekeepingStats, setHousekeepingStats] = useState({ available: 0, dirty: 0, maintenance: 0, occupied: 0 });
   const [invoiceStats, setInvoiceStats] = useState({ totalRevenue: 0, todayRevenue: 0, totalPaid: 0 });
+  const [voucherStats, setVoucherStats] = useState({ total: 0, active: 0, expired: 0 });
+
+  // Xác định role và config hiển thị
+  const roleName = user?.roleName || 'Guest';
+  const roleConfig = ROLE_CONFIG[roleName] || null;
+  const allowedModules = roleConfig?.modules || [];
+
+  // Helper: kiểm tra module có được hiện không
+  const can = (module) => allowedModules.includes(module);
 
   useEffect(() => {
     fetchDashboardData();
@@ -27,91 +86,173 @@ const Dashboard = () => {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
+      const fetches = [];
 
-      // 1. Phục vụ Lễ tân
-      const [arrRes, inHouseRes, depRes] = await Promise.all([
-        bookingManagementApi.getTodayArrivals(),
-        bookingManagementApi.getInHouseGuests(),
-        bookingManagementApi.getTodayDepartures()
-      ]);
-      setReceptionStats({
-        arrivals: arrRes?.data?.count ?? arrRes?.data?.data?.length ?? 0,
-        inHouse: inHouseRes?.data?.count ?? inHouseRes?.data?.data?.length ?? 0,
-        departures: depRes?.data?.count ?? depRes?.data?.data?.length ?? 0,
-      });
-
-      // 2. Phục vụ Buồng phòng
-      const roomsRes = await roomInventoryApi.getRooms();
-      if (roomsRes?.data) {
-        const rooms = roomsRes.data.data || roomsRes.data;
-        let available = 0, dirty = 0, maintenance = 0, occupied = 0;
-        if (Array.isArray(rooms)) {
-          rooms.forEach((r) => {
-            const st = (r.status || '').toLowerCase();
-            if (st === 'available') available++;
-            else if (st === 'dirty') dirty++;
-            else if (st === 'maintenance' || st === 'out_of_order') maintenance++;
-            else if (st === 'occupied') occupied++;
-          });
-        }
-        setHousekeepingStats({ available, dirty, maintenance, occupied });
+      // Chỉ gọi API cần thiết theo role
+      if (can('reception')) {
+        fetches.push(
+          Promise.all([
+            bookingManagementApi.getTodayArrivals(),
+            bookingManagementApi.getInHouseGuests(),
+            bookingManagementApi.getTodayDepartures(),
+          ]).then(([arrRes, inHouseRes, depRes]) => {
+            setReceptionStats({
+              arrivals: arrRes?.data?.count ?? arrRes?.data?.data?.length ?? 0,
+              inHouse: inHouseRes?.data?.count ?? inHouseRes?.data?.data?.length ?? 0,
+              departures: depRes?.data?.count ?? depRes?.data?.data?.length ?? 0,
+            });
+          })
+        );
       }
 
-      // 3. Phục vụ Quản lý hóa đơn
-      const invRes = await invoiceApi.getSummary();
-      if (invRes?.data) {
-        // Backend có thể trả về trực tiếp Object hoặc bọc trong { data: ... }
-        const invData = invRes.data.data || invRes.data;
-        setInvoiceStats({
-          totalRevenue: invData.totalRevenueAllTime || 0,
-          todayRevenue: invData.todayRevenue || 0,
-          totalPaid: invData.totalRevenueAllTime || 0 // Tạm mượn do API Paid=Total
-        });
+      if (can('housekeeping') || can('roomChart')) {
+        fetches.push(
+          roomInventoryApi.getRooms().then((roomsRes) => {
+            if (roomsRes?.data) {
+              const rooms = roomsRes.data.data || roomsRes.data;
+              let available = 0, dirty = 0, maintenance = 0, occupied = 0;
+              if (Array.isArray(rooms)) {
+                rooms.forEach((r) => {
+                  const st = (r.status || '').toLowerCase();
+                  if (st === 'available') available++;
+                  else if (st === 'dirty') dirty++;
+                  else if (st === 'maintenance' || st === 'out_of_order') maintenance++;
+                  else if (st === 'occupied') occupied++;
+                });
+              }
+              setHousekeepingStats({ available, dirty, maintenance, occupied });
+            }
+          })
+        );
       }
 
+      if (can('finance') || can('revenueChart')) {
+        fetches.push(
+          invoiceApi.getSummary().then((invRes) => {
+            if (invRes?.data) {
+              const invData = invRes.data.data || invRes.data;
+              setInvoiceStats({
+                totalRevenue: invData.totalRevenueAllTime || 0,
+                todayRevenue: invData.todayRevenue || 0,
+                totalPaid: invData.totalRevenueAllTime || 0,
+              });
+            }
+          })
+        );
+      }
+
+      if (can('vouchers')) {
+        fetches.push(
+          voucherApi.getAll({ pageSize: 1000 }).then((vRes) => {
+            const list = vRes?.data || vRes?.items || [];
+            if (Array.isArray(list)) {
+              const now = new Date();
+              const active = list.filter(
+                (v) => v.status === 'Active' && (!v.validTo || new Date(v.validTo) >= now)
+              ).length;
+              const expired = list.filter(
+                (v) => v.status === 'Expired' || (v.validTo && new Date(v.validTo) < now)
+              ).length;
+              setVoucherStats({ total: list.length, active, expired });
+            }
+          }).catch(() => {}) // Voucher không bắt buộc thành công
+        );
+      }
+
+      await Promise.allSettled(fetches);
     } catch (error) {
       console.error('Error fetching dashboard data', error);
-      message.error('Không thể tải dữ liệu Dashboard thực tế!');
+      message.error('Không thể tải một số dữ liệu Dashboard!');
     } finally {
       setLoading(false);
     }
   };
 
   const rolesObj = { user, permissions };
-  const isAdmin = user?.roleName === 'Admin' || user?.fullName === 'Admin';
-  const isHousekeeping = isAdmin || permissions?.includes('UPDATE_ROOM_STATUS') || user?.roleName === 'Housekeeping';
-  const isManager = isAdmin || permissions?.includes('MANAGE_INVOICES') || user?.roleName === 'Manager';
 
   return (
-    <Spin spinning={loading} size="large" tip="Đang tải dữ liệu thực tế...">
+    <Spin spinning={loading} size="large" tip="Đang tải dữ liệu...">
       <div style={{ padding: 24 }}>
-        <Title level={3} style={{ marginBottom: 24, color: '#1890ff' }}>
-          Dashboard Hoạt Động Khách Sạn
-        </Title>
-        
-        {/* Module Thẻ Thống kê (View theo Role) */}
+
+        {/* ── TIÊU ĐỀ & ROLE BADGE ── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+          <Title level={3} style={{ margin: 0, color: '#1890ff' }}>
+            Dashboard Hoạt Động Khách Sạn
+          </Title>
+          {roleConfig && (
+            <span
+              style={{
+                background: roleConfig.color,
+                color: '#fff',
+                padding: '2px 12px',
+                borderRadius: 20,
+                fontSize: 13,
+                fontWeight: 600,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              {roleConfig.icon} {roleConfig.label}
+            </span>
+          )}
+        </div>
+
+
+        {/* ── MODULE: THỐNG KÊ LỄ TÂN & HOUSEKEEPING & TÀI CHÍNH ── */}
         <StatCards
           roles={rolesObj}
           receptionStats={receptionStats}
           housekeepingStats={housekeepingStats}
           invoiceStats={invoiceStats}
+          canReception={can('reception')}
+          canHousekeeping={can('housekeeping')}
+          canFinance={can('finance')}
         />
 
+        {/* ── MODULE: VOUCHER (Admin / Manager / Accountant) ── */}
+        {can('vouchers') && (
+          <div style={{ marginBottom: 24 }}>
+            <Title level={5} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <GiftOutlined style={{ color: '#eb2f96' }} /> Quản lý Voucher
+            </Title>
+            <Row gutter={[16, 16]}>
+              <Col xs={24} sm={8}>
+                <div style={{ background: '#fff0f6', border: '1px solid #ffadd2', borderRadius: 8, padding: '16px 20px' }}>
+                  <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>Tổng số Voucher</div>
+                  <div style={{ fontSize: 28, fontWeight: 700, color: '#eb2f96' }}>{voucherStats.total}</div>
+                </div>
+              </Col>
+              <Col xs={24} sm={8}>
+                <div style={{ background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 8, padding: '16px 20px' }}>
+                  <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>Đang hoạt động</div>
+                  <div style={{ fontSize: 28, fontWeight: 700, color: '#52c41a' }}>{voucherStats.active}</div>
+                </div>
+              </Col>
+              <Col xs={24} sm={8}>
+                <div style={{ background: '#fff1f0', border: '1px solid #ffa39e', borderRadius: 8, padding: '16px 20px' }}>
+                  <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>Đã hết hạn / Tắt</div>
+                  <div style={{ fontSize: 28, fontWeight: 700, color: '#ff4d4f' }}>{voucherStats.expired}</div>
+                </div>
+              </Col>
+            </Row>
+          </div>
+        )}
+
+        {/* ── BIỂU ĐỒ ── */}
         <Row gutter={[24, 24]}>
-          {/* Module Housekeeping / Admin sẽ thấy Pie Chart tỷ lệ phòng */}
-          {isHousekeeping && (
+          {can('roomChart') && (
             <Col xs={24} md={12} lg={10}>
               <RoomStatusChart {...housekeepingStats} />
             </Col>
           )}
-
-          {/* Module Manager / Admin sẽ thấy biểu đồ doanh thu */}
-          {isManager && (
+          {can('revenueChart') && (
             <Col xs={24} md={12} lg={14}>
               <RevenueChart todayRevenue={invoiceStats.todayRevenue} totalRevenue={invoiceStats.totalRevenue} />
             </Col>
           )}
         </Row>
+
       </div>
     </Spin>
   );

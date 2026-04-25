@@ -228,7 +228,7 @@ const MainLayout = () => {
             <NotificationBell />
             <Dropdown menu={userMenu} placement="bottomRight" arrow>
               <Button type="text" icon={<UserOutlined />}>
-                Xin chào, {user?.fullName || 'Admin'}
+                Xin chào, {user?.fullName || user?.username || user?.email || 'Bạn'}
               </Button>
             </Dropdown>
           </Header>
