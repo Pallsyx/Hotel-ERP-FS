@@ -174,79 +174,121 @@ public class EquipmentsController(HotelDbContext context) : ControllerBase
             await file.CopyToAsync(stream);
             using var workbook = new ClosedXML.Excel.XLWorkbook(stream);
             var worksheet = workbook.Worksheet(1);
-            var rows = worksheet.RowsUsed().Skip(1); // Skip header
+            var allRows = worksheet.RowsUsed().ToList();
 
-            foreach (var row in rows)
+            if (allRows.Count < 2)
+                return BadRequest(new { success = false, message = "File Excel không có dữ liệu!" });
+
+            // ── Bước 1: Đọc tiêu đề cột từ hàng đầu tiên ──────────────────────
+            var headerRow = allRows[0];
+            var colMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+            var headerAliases = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
             {
-                if (row == null) continue;
+                ["ItemCode"]         = new[] { "Mã Vật Tư", "Ma Vat Tu", "ItemCode", "Mã VT", "Ma VT", "Mã", "Ma" },
+                ["Name"]             = new[] { "Tên Vật Tư", "Ten Vat Tu", "Tên", "Ten", "Name", "Tên SP", "Ten SP" },
+                ["Category"]         = new[] { "Danh Mục", "Danh Muc", "Category", "Loại", "Loai", "DM" },
+                ["Unit"]             = new[] { "Đơn Vị Tính", "Don Vi Tinh", "ĐVT", "DVT", "Unit", "Đơn Vị", "Don Vi" },
+                ["TotalQuantity"]    = new[] { "Tổng Số Lượng", "Tong So Luong", "Số Lượng", "So Luong", "SL", "Quantity", "TotalQuantity", "Tổng SL" },
+                ["BasePrice"]        = new[] { "Giá Nhập", "Gia Nhap", "BasePrice", "Giá", "Gia", "Đơn Giá", "Don Gia" },
+                ["DefaultPriceIfLost"] = new[] { "Giá Bồi Thường", "Gia Boi Thuong", "DefaultPriceIfLost", "Giá Đền Bù", "Gia Den Bu", "Bồi Thường" },
+                ["Supplier"]         = new[] { "Nhà Cung Cấp", "Nha Cung Cap", "Supplier", "NCC", "Nhà Cung Cap" },
+            };
 
-                var itemCode = row.Cell(1)?.Value.ToString()?.Trim() ?? "";
-                var name = row.Cell(2)?.Value.ToString()?.Trim() ?? "";
+            int lastCol = headerRow.LastCellUsed()?.Address.ColumnNumber ?? 20;
+            for (int col = 1; col <= lastCol; col++)
+            {
+                var header = headerRow.Cell(col).Value.ToString().Trim();
+                if (string.IsNullOrEmpty(header)) continue;
+
+                foreach (var (field, aliases) in headerAliases)
+                {
+                    if (!colMap.ContainsKey(field) &&
+                        aliases.Any(a => string.Equals(a, header, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        colMap[field] = col;
+                        break;
+                    }
+                }
+            }
+
+            // ── Bước 2: Xử lý từng hàng dữ liệu ───────────────────────────────
+            string GetCell(ClosedXML.Excel.IXLRow row, string field)
+            {
+                if (!colMap.TryGetValue(field, out int col)) return "";
+                return row.Cell(col).Value.ToString().Trim();
+            }
+
+            var culture = System.Globalization.CultureInfo.InvariantCulture;
+
+            foreach (var row in allRows.Skip(1))
+            {
+                var itemCode = GetCell(row, "ItemCode");
+                var name     = GetCell(row, "Name");
 
                 if (string.IsNullOrEmpty(itemCode) && string.IsNullOrEmpty(name)) continue;
 
-                var category = row.Cell(3)?.Value.ToString()?.Trim() ?? "";
-                var unit = row.Cell(4)?.Value.ToString()?.Trim() ?? "";
-                var totalQuantityStr = row.Cell(5)?.Value.ToString()?.Trim();
-                var basePriceStr = row.Cell(6)?.Value.ToString()?.Trim();
-                var defaultPriceStr = row.Cell(7)?.Value.ToString()?.Trim();
-                var supplier = row.Cell(8)?.Value.ToString()?.Trim();
+                var category         = GetCell(row, "Category");
+                var unit             = GetCell(row, "Unit");
+                var totalQuantityStr = GetCell(row, "TotalQuantity");
+                var basePriceStr     = GetCell(row, "BasePrice");
+                var defaultPriceStr  = GetCell(row, "DefaultPriceIfLost");
+                var supplier         = GetCell(row, "Supplier");
 
+                // ── Tìm item đã tồn tại (chỉ tìm trong bản ghi đang hoạt động) ─
                 HotelERP.BE.Domain.Models.Equipment? existing = null;
                 if (!string.IsNullOrEmpty(itemCode))
-                {
-                    existing = await context.Equipments.FirstOrDefaultAsync(e => e.ItemCode == itemCode);
-                }
-                
+                    existing = await context.Equipments.FirstOrDefaultAsync(e => e.ItemCode == itemCode && e.IsActive);
+
                 if (existing == null && !string.IsNullOrEmpty(name))
-                {
-                    existing = await context.Equipments.FirstOrDefaultAsync(e => e.Name == name);
-                }
+                    existing = await context.Equipments.FirstOrDefaultAsync(e => e.Name == name && e.IsActive);
 
                 if (existing != null)
                 {
-                    if (!string.IsNullOrEmpty(name)) existing.Name = name;
+                    // Cập nhật thông tin (giữ nguyên nếu cột không có trong file)
+                    if (!string.IsNullOrEmpty(name))     existing.Name     = name;
                     if (!string.IsNullOrEmpty(category)) existing.Category = category;
-                    if (!string.IsNullOrEmpty(unit)) existing.Unit = unit;
+                    if (!string.IsNullOrEmpty(unit))     existing.Unit     = unit;
                     if (!string.IsNullOrEmpty(supplier)) existing.Supplier = supplier;
 
-                    if (!string.IsNullOrEmpty(totalQuantityStr) && int.TryParse(totalQuantityStr, out int tq)) 
+                    // Cộng thêm số lượng nhập vào
+                    if (!string.IsNullOrEmpty(totalQuantityStr) && int.TryParse(totalQuantityStr, out int tq) && tq > 0)
                         existing.TotalQuantity += tq;
-                    
-                    if (!string.IsNullOrEmpty(basePriceStr) && decimal.TryParse(basePriceStr, out decimal bp)) 
+
+                    if (!string.IsNullOrEmpty(basePriceStr) && decimal.TryParse(basePriceStr, System.Globalization.NumberStyles.Any, culture, out decimal bp))
                         existing.BasePrice = bp;
-                    
-                    if (!string.IsNullOrEmpty(defaultPriceStr) && decimal.TryParse(defaultPriceStr, out decimal dp)) 
+
+                    if (!string.IsNullOrEmpty(defaultPriceStr) && decimal.TryParse(defaultPriceStr, System.Globalization.NumberStyles.Any, culture, out decimal dp))
                         existing.DefaultPriceIfLost = dp;
 
-                    existing.IsActive = true;
+                    existing.IsActive  = true;
                     existing.UpdatedAt = DateTime.UtcNow;
                 }
                 else
                 {
-                    var newCode = !string.IsNullOrEmpty(itemCode) ? itemCode : $"VT-{Guid.NewGuid().ToString().Substring(0, 6).ToUpper()}";
-                    var newName = !string.IsNullOrEmpty(name) ? name : newCode;
+                    // Tạo mới
+                    var newCode     = !string.IsNullOrEmpty(itemCode) ? itemCode : $"VT-{Guid.NewGuid().ToString()[..6].ToUpper()}";
+                    var newName     = !string.IsNullOrEmpty(name)     ? name     : newCode;
                     var newCategory = !string.IsNullOrEmpty(category) ? category : "Khác";
-                    var newUnit = !string.IsNullOrEmpty(unit) ? unit : "Cái";
-                    
-                    int.TryParse(totalQuantityStr ?? "0", out int totalQuantity);
-                    decimal.TryParse(basePriceStr ?? "0", out decimal basePrice);
-                    decimal.TryParse(defaultPriceStr ?? "0", out decimal defaultPrice);
+                    var newUnit     = !string.IsNullOrEmpty(unit)     ? unit     : "Cái";
 
-                    var eq = new HotelERP.BE.Domain.Models.Equipment
+                    int.TryParse(totalQuantityStr ?? "0", out int totalQuantity);
+                    decimal.TryParse(basePriceStr    ?? "0", System.Globalization.NumberStyles.Any, culture, out decimal basePrice);
+                    decimal.TryParse(defaultPriceStr ?? "0", System.Globalization.NumberStyles.Any, culture, out decimal defaultPrice);
+
+                    context.Equipments.Add(new HotelERP.BE.Domain.Models.Equipment
                     {
-                        ItemCode = newCode,
-                        Name = newName,
-                        Category = newCategory,
-                        Unit = newUnit,
-                        TotalQuantity = totalQuantity,
-                        BasePrice = basePrice,
+                        ItemCode           = newCode,
+                        Name               = newName,
+                        Category           = newCategory,
+                        Unit               = newUnit,
+                        TotalQuantity      = totalQuantity,
+                        BasePrice          = basePrice,
                         DefaultPriceIfLost = defaultPrice,
-                        Supplier = supplier,
-                        IsActive = true,
-                        CreatedAt = DateTime.UtcNow
-                    };
-                    context.Equipments.Add(eq);
+                        Supplier           = supplier,
+                        IsActive           = true,
+                        CreatedAt          = DateTime.UtcNow
+                    });
                 }
                 successCount++;
             }
