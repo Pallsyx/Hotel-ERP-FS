@@ -5,6 +5,7 @@ import HomePage from './pages/Home/HomePage';
 
 // 1. THÊM DÒNG NÀY: Import trang Login của bạn vào đây
 import LoginPage from './pages/Auth/Login';
+import RegisterPage from './pages/Auth/Register';
 import NewsPage from './pages/Home/NewsPage';
 
 function App() {
@@ -19,6 +20,9 @@ function App() {
 
         {/* 2. THÊM DÒNG NÀY: Đăng ký hộ khẩu cho trang đăng nhập */}
         <Route path="/login" element={<LoginPage />} />
+
+        {/* Trang đăng ký tài khoản */}
+        <Route path="/register" element={<RegisterPage />} />
 
         {/* Toàn bộ các trang Admin của bạn sẽ được dời vào nhánh "/admin" */}
         <Route path="/admin/*" element={<AdminRoutes />} />

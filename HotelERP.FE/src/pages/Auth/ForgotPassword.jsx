@@ -46,15 +46,29 @@ const ForgotPassword = () => {
   };
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#f0f2f5' }}>
-      <Card title={step === 1 ? "QUÊN MẬT KHẨU" : "ĐẶT LẠI MẬT KHẨU"} style={{ width: 400, textAlign: 'center' }}>
+    <div className="min-h-screen flex items-center justify-center relative bg-[#262b3f]">
+      {/* Background Image with Overlay */}
+      <div 
+        className="absolute inset-0 z-0 opacity-20"
+        style={{
+          backgroundImage: "url('https://images.unsplash.com/photo-1542314831-c6a4d4586f37?q=80&w=2000&auto=format&fit=crop')",
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }}
+      ></div>
+
+      <div className="z-10 w-full max-w-md p-8 bg-[#32384d]/90 backdrop-blur-md rounded-2xl shadow-2xl border border-white/10 my-8">
+        <div className="text-center mb-8">
+          <h1 className="text-[#b4976c] text-3xl font-serif tracking-widest uppercase mb-2">Asteria</h1>
+          <p className="text-gray-400 text-sm tracking-widest uppercase">{step === 1 ? "Quên mật khẩu" : "Đặt lại mật khẩu"}</p>
+        </div>
         
         {/* ===================== BƯỚC 1: FORM NHẬP EMAIL ===================== */}
         {step === 1 && (
           <Form name="forgot_form" onFinish={handleSendOtp} layout="vertical">
-            <Text type="secondary" style={{ display: 'block', marginBottom: 20 }}>
+            <p className="text-gray-300 text-sm mb-6 text-center">
               Nhập email bạn đã đăng ký, chúng tôi sẽ gửi mã OTP gồm 6 chữ số để khôi phục tài khoản.
-            </Text>
+            </p>
             
             <Form.Item 
               name="email" 
@@ -63,32 +77,60 @@ const ForgotPassword = () => {
                 { type: 'email', message: 'Email không hợp lệ!' }
               ]}
             >
-              <Input prefix={<MailOutlined />} placeholder="Nhập Email của bạn" size="large" />
+              <Input 
+                prefix={<MailOutlined className="text-[#b4976c]" />} 
+                placeholder="Nhập Email của bạn" 
+                size="large" 
+                className="bg-white/5 border-white/10 text-white placeholder-gray-500 hover:border-[#b4976c] focus:border-[#b4976c]"
+                style={{ colorScheme: 'dark' }}
+              />
             </Form.Item>
 
             <Form.Item>
-              <Button type="primary" htmlType="submit" block size="large" loading={loading}>
-                Gửi mã xác nhận
+              <Button 
+                type="primary" 
+                htmlType="submit" 
+                loading={loading}
+                className="w-full h-12 bg-[#b4976c] hover:bg-[#8e7654] border-none text-white font-bold tracking-wider rounded-lg transition-colors mt-2"
+              >
+                GỬI MÃ XÁC NHẬN
               </Button>
             </Form.Item>
             
-            <Link to="/login"><ArrowLeftOutlined /> Quay lại đăng nhập</Link>
+            <div className="text-center mt-4">
+              <Link to="/login" className="text-[#b4976c] hover:text-[#8e7654] font-bold transition-colors">
+                <ArrowLeftOutlined className="mr-2" /> Quay lại đăng nhập
+              </Link>
+            </div>
           </Form>
         )}
 
         {/* ===================== BƯỚC 2: FORM NHẬP OTP & PASS MỚI ===================== */}
         {step === 2 && (
           <Form name="reset_form" onFinish={handleResetPassword} layout="vertical">
-            <Text type="success" style={{ display: 'block', marginBottom: 20 }}>
-              Mã OTP đã được gửi đến: <b>{emailToReset}</b> (Có hiệu lực 5 phút)
-            </Text>
+            <p className="text-[#b4976c] text-sm mb-6 text-center bg-[#b4976c]/10 p-3 rounded-lg border border-[#b4976c]/20">
+              Mã OTP đã được gửi đến: <br/><b className="text-white">{emailToReset}</b><br/>(Có hiệu lực 5 phút)
+            </p>
 
             <Form.Item name="otpCode" rules={[{ required: true, message: 'Vui lòng nhập mã OTP!' }]}>
-              <Input prefix={<KeyOutlined />} placeholder="Nhập mã OTP 6 số" size="large" maxLength={6} />
+              <Input 
+                prefix={<KeyOutlined className="text-[#b4976c]" />} 
+                placeholder="Nhập mã OTP 6 số" 
+                size="large" 
+                maxLength={6} 
+                className="bg-white/5 border-white/10 text-white placeholder-gray-500 hover:border-[#b4976c] focus:border-[#b4976c]"
+                style={{ colorScheme: 'dark' }}
+              />
             </Form.Item>
 
             <Form.Item name="newPassword" rules={[{ required: true, message: 'Vui lòng nhập mật khẩu mới!' }]}>
-              <Input.Password prefix={<LockOutlined />} placeholder="Mật khẩu mới" size="large" />
+              <Input.Password 
+                prefix={<LockOutlined className="text-[#b4976c]" />} 
+                placeholder="Mật khẩu mới" 
+                size="large" 
+                className="bg-white/5 border-white/10 text-white placeholder-gray-500 hover:border-[#b4976c] focus:border-[#b4976c]"
+                style={{ colorScheme: 'dark' }}
+              />
             </Form.Item>
 
             <Form.Item 
@@ -106,20 +148,35 @@ const ForgotPassword = () => {
                 }),
               ]}
             >
-              <Input.Password prefix={<LockOutlined />} placeholder="Xác nhận mật khẩu mới" size="large" />
+              <Input.Password 
+                prefix={<LockOutlined className="text-[#b4976c]" />} 
+                placeholder="Xác nhận mật khẩu mới" 
+                size="large" 
+                className="bg-white/5 border-white/10 text-white placeholder-gray-500 hover:border-[#b4976c] focus:border-[#b4976c]"
+                style={{ colorScheme: 'dark' }}
+              />
             </Form.Item>
 
             <Form.Item>
-              <Button type="primary" htmlType="submit" block size="large" loading={loading}>
-                Xác nhận đổi mật khẩu
+              <Button 
+                type="primary" 
+                htmlType="submit" 
+                loading={loading}
+                className="w-full h-12 bg-[#b4976c] hover:bg-[#8e7654] border-none text-white font-bold tracking-wider rounded-lg transition-colors mt-2"
+              >
+                XÁC NHẬN ĐỔI MẬT KHẨU
               </Button>
             </Form.Item>
             
-            <a onClick={() => setStep(1)}><ArrowLeftOutlined /> Nhập lại Email khác</a>
+            <div className="text-center mt-4">
+              <a onClick={() => setStep(1)} className="text-gray-400 hover:text-white cursor-pointer transition-colors">
+                <ArrowLeftOutlined className="mr-2" /> Nhập lại Email khác
+              </a>
+            </div>
           </Form>
         )}
 
-      </Card> 
+      </div> 
     </div>
   );
 };

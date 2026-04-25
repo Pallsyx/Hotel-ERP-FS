@@ -109,16 +109,15 @@ public class ReviewController(HotelDbContext context, ICloudinaryService cloudin
             decodedReason = WebUtility.UrlDecode(reasonValues.ToString());
         }
 
-        AuditLog auditLog = new()
-        {
-            Action = "HIDE_REVIEW",
-            TableName = "Reviews",
-            RecordId = id,
-            Reason = decodedReason,
-            CreatedAt = DateTime.UtcNow
-        };
-
-        context.AuditLogs.Add(auditLog);
+        await context.AddAuditLogAsync(
+            userId: actingUserId,
+            roleName: actingRole,
+            actionType: "HIDE_REVIEW",
+            entityType: "Reviews",
+            message: $"Ẩn đánh giá #{id}: {decodedReason}",
+            contextParams: new { reviewId = id },
+            changes: new { oldData = new { Status = "APPROVED" }, newData = new { Status = "HIDDEN" } }
+        );
         await context.SaveChangesAsync();
 
         return Ok(new { message = "Đã ẩn đánh giá và ghi log thành công." });

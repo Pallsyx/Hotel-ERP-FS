@@ -42,6 +42,26 @@
     @apply bg-[#b4976c]/90 backdrop-blur-sm text-white px-8 py-3 text-[11px] uppercase tracking-[0.2em] font-bold hover:bg-[#b4976c] transition rounded-full;
 }
 
+/* Auth Buttons Group */
+.navbar-auth-group {
+    @apply flex items-center gap-3;
+}
+
+.btn-login-outline {
+    @apply border border-white/70 text-white px-6 py-2.5 text-[11px] uppercase tracking-[0.15em] font-bold rounded-full backdrop-blur-sm transition-all duration-300;
+    background: transparent;
+}
+.btn-login-outline:hover {
+    @apply border-white bg-white/10;
+}
+
+.btn-register-filled {
+    @apply bg-[#b4976c] text-white px-6 py-2.5 text-[11px] uppercase tracking-[0.15em] font-bold rounded-full transition-all duration-300 shadow-lg;
+}
+.btn-register-filled:hover {
+    @apply bg-[#c9a97b] shadow-[0_0_20px_rgba(180,151,108,0.5)];
+}
+
 .hero-title-container {
     @apply relative z-10 px-4 max-w-5xl mt-[-100px];
 }

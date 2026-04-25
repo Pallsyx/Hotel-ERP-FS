@@ -30,12 +30,33 @@ const Register = () => {
   };
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#f0f2f5' }}>
-      <Card title="ĐĂNG KÝ TÀI KHOẢN" style={{ width: 400, textAlign: 'center' }}>
+    <div className="min-h-screen flex items-center justify-center relative bg-[#262b3f]">
+      {/* Background Image with Overlay */}
+      <div 
+        className="absolute inset-0 z-0 opacity-20"
+        style={{
+          backgroundImage: "url('https://images.unsplash.com/photo-1542314831-c6a4d4586f37?q=80&w=2000&auto=format&fit=crop')",
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }}
+      ></div>
+
+      <div className="z-10 w-full max-w-md p-8 bg-[#32384d]/90 backdrop-blur-md rounded-2xl shadow-2xl border border-white/10 my-8">
+        <div className="text-center mb-8">
+          <h1 className="text-[#b4976c] text-3xl font-serif tracking-widest uppercase mb-2">Asteria</h1>
+          <p className="text-gray-400 text-sm tracking-widest uppercase">Đăng ký tài khoản</p>
+        </div>
+
         <Form name="register_form" onFinish={onFinish} layout="vertical">
           
           <Form.Item name="fullName" rules={[{ required: true, message: 'Vui lòng nhập họ và tên!' }]}>
-            <Input prefix={<UserOutlined />} placeholder="Họ và Tên" size="large" />
+            <Input 
+              prefix={<UserOutlined className="text-[#b4976c]" />} 
+              placeholder="Họ và Tên" 
+              size="large" 
+              className="bg-white/5 border-white/10 text-white placeholder-gray-500 hover:border-[#b4976c] focus:border-[#b4976c]"
+              style={{ colorScheme: 'dark' }}
+            />
           </Form.Item>
 
           <Form.Item 
@@ -45,11 +66,23 @@ const Register = () => {
               { type: 'email', message: 'Email không đúng định dạng!' }
             ]}
           >
-            <Input prefix={<MailOutlined />} placeholder="Email" size="large" />
+            <Input 
+              prefix={<MailOutlined className="text-[#b4976c]" />} 
+              placeholder="Email" 
+              size="large" 
+              className="bg-white/5 border-white/10 text-white placeholder-gray-500 hover:border-[#b4976c] focus:border-[#b4976c]"
+              style={{ colorScheme: 'dark' }}
+            />
           </Form.Item>
 
           <Form.Item name="password" rules={[{ required: true, message: 'Vui lòng nhập mật khẩu!' }]}>
-            <Input.Password prefix={<LockOutlined />} placeholder="Mật khẩu" size="large" />
+            <Input.Password 
+              prefix={<LockOutlined className="text-[#b4976c]" />} 
+              placeholder="Mật khẩu" 
+              size="large" 
+              className="bg-white/5 border-white/10 text-white placeholder-gray-500 hover:border-[#b4976c] focus:border-[#b4976c]"
+              style={{ colorScheme: 'dark' }}
+            />
           </Form.Item>
 
           <Form.Item 
@@ -67,18 +100,32 @@ const Register = () => {
               }),
             ]}
           >
-            <Input.Password prefix={<LockOutlined />} placeholder="Xác nhận mật khẩu" size="large" />
+            <Input.Password 
+              prefix={<LockOutlined className="text-[#b4976c]" />} 
+              placeholder="Xác nhận mật khẩu" 
+              size="large" 
+              className="bg-white/5 border-white/10 text-white placeholder-gray-500 hover:border-[#b4976c] focus:border-[#b4976c]"
+              style={{ colorScheme: 'dark' }}
+            />
           </Form.Item>
 
           <Form.Item>
-            <Button type="primary" htmlType="submit" style={{ width: '100%' }} size="large" loading={loading}>
-              Đăng ký ngay
+            <Button 
+              type="primary" 
+              htmlType="submit" 
+              loading={loading}
+              className="w-full h-12 bg-[#b4976c] hover:bg-[#8e7654] border-none text-white font-bold tracking-wider rounded-lg transition-colors mt-2"
+            >
+              ĐĂNG KÝ NGAY
             </Button>
           </Form.Item>
           
-          <Text>Đã có tài khoản? <Link to="/login">Đăng nhập tại đây</Link></Text>
+          <div className="text-center text-sm mt-4">
+            <span className="text-gray-400">Đã có tài khoản? </span>
+            <Link to="/login" className="text-[#b4976c] hover:text-[#8e7654] font-bold transition-colors">Đăng nhập tại đây</Link>
+          </div>
         </Form>
-      </Card> 
+      </div> 
     </div>
   );
 };

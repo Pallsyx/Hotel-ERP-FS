@@ -1,5 +1,6 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { message } from 'antd';
 
 import RoomManagement from '../pages/Admin/RoomManagement';
 import Dashboard from '../pages/Admin/Dashboard/Dashboard';
@@ -35,8 +36,19 @@ const Placeholder = ({ title }) => (
 );
 
 const ProtectedRoute = ({ children }) => {
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  return isAuthenticated ? children : <Navigate to='/login' replace />;
+  const { isAuthenticated, user, permissions } = useAuthStore((state) => state);
+  
+  if (!isAuthenticated) {
+    return <Navigate to='/login' replace />;
+  }
+
+  // KICK USER THƯỜNG KHỎI ADMIN
+  if (user?.roleName === 'User' || (permissions && permissions.includes('User'))) {
+    message.warning('Bạn không có quyền truy cập khu vực quản trị!');
+    return <Navigate to='/' replace />;
+  }
+
+  return children;
 };
 
 const AdminRoutes = () => {

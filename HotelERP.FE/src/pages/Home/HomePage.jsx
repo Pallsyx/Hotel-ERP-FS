@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import './HomePage.css';
 import AttractionMap from '../../components/Map/AttractionMap';
 import articleApi from '../../api/articleApi';
 
 export default function HomePage() {
+    const navigate = useNavigate();
     // Lấy ngày hiện tại (real time) theo chuẩn yyyy-mm-dd để gắn vào input date
     const today = new Date().toLocaleDateString('en-CA'); // 'en-CA' trả về format YYYY-MM-DD tương thích với input type="date"
     // ---------------------------------------------------------
@@ -120,9 +122,22 @@ export default function HomePage() {
                         <a href="/news" className="nav-item">Tin Tức</a>
                         <a href="#contact" className="nav-item">Liên Hệ</a>
                     </nav>
-                    <button className="btn-book-now">
-                        Đặt Phòng Ngay
-                    </button>
+                    <div className="navbar-auth-group">
+                        <button
+                            id="btn-login"
+                            className="btn-login-outline"
+                            onClick={() => navigate('/login')}
+                        >
+                            Đăng Nhập
+                        </button>
+                        <button
+                            id="btn-register"
+                            className="btn-register-filled"
+                            onClick={() => navigate('/register')}
+                        >
+                            Đăng Ký
+                        </button>
+                    </div>
                 </header>
 
                 {/* Navigation Arrows */}

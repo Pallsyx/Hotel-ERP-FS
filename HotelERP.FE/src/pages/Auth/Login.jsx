@@ -57,7 +57,13 @@ const Login = () => {
       loginStore(userData, accessToken, refreshToken, userPermissions);
       
       message.success('Đăng nhập thành công!');
-      navigate('/admin/room-types');
+
+      // 4. PHÂN LUỒNG ROUTING THEO ROLE
+      if (userData.roleName === 'User' || userPermissions.includes('User')) {
+        navigate('/'); // Khách hàng bình thường về trang chủ
+      } else {
+        navigate('/admin/dashboard'); // Admin/Lễ tân vào Dashboard Admin
+      }
     } catch (error) {
       console.error("❌ Lỗi đăng nhập:", error);
       message.error(error.response?.data?.message || 'Đăng nhập thất bại!');
@@ -65,30 +71,68 @@ const Login = () => {
   };
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#f0f2f5' }}>
-      <Card title="ĐĂNG NHẬP HOTEL ERP" style={{ width: 400, textAlign: 'center' }}>
-        <Form name="login_form" onFinish={onFinish}>
-          <Form.Item name="email" rules={[{ required: true, message: 'Vui lòng nhập tài khoản!' }]}>
-            <Input prefix={<UserOutlined />} placeholder="Email" size="large" />
+    <div className="min-h-screen flex items-center justify-center relative bg-[#262b3f]">
+      {/* Background Image with Overlay */}
+      <div 
+        className="absolute inset-0 z-0 opacity-20"
+        style={{
+          backgroundImage: "url('https://images.unsplash.com/photo-1542314831-c6a4d4586f37?q=80&w=2000&auto=format&fit=crop')",
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }}
+      ></div>
+
+      <div className="z-10 w-full max-w-md p-8 bg-[#32384d]/90 backdrop-blur-md rounded-2xl shadow-2xl border border-white/10">
+        <div className="text-center mb-8">
+          <h1 className="text-[#b4976c] text-3xl font-serif tracking-widest uppercase mb-2">Asteria</h1>
+          <p className="text-gray-400 text-sm tracking-widest uppercase">Đăng nhập hệ thống</p>
+        </div>
+
+        <Form name="login_form" onFinish={onFinish} layout="vertical">
+          <Form.Item 
+            name="email" 
+            rules={[{ required: true, message: 'Vui lòng nhập tài khoản!' }]}
+          >
+            <Input 
+              prefix={<UserOutlined className="text-[#b4976c]" />} 
+              placeholder="Email" 
+              size="large" 
+              className="bg-white/5 border-white/10 text-white placeholder-gray-500 hover:border-[#b4976c] focus:border-[#b4976c]"
+              style={{ colorScheme: 'dark' }}
+            />
           </Form.Item>
-          <Form.Item name="password" rules={[{ required: true, message: 'Vui lòng nhập mật khẩu!' }]}>
-            <Input.Password prefix={<LockOutlined />} placeholder="Mật khẩu" size="large" />
+
+          <Form.Item 
+            name="password" 
+            rules={[{ required: true, message: 'Vui lòng nhập mật khẩu!' }]}
+          >
+            <Input.Password 
+              prefix={<LockOutlined className="text-[#b4976c]" />} 
+              placeholder="Mật khẩu" 
+              size="large" 
+              className="bg-white/5 border-white/10 text-white placeholder-gray-500 hover:border-[#b4976c] focus:border-[#b4976c]"
+              style={{ colorScheme: 'dark' }}
+            />
           </Form.Item>
+
           <Form.Item>
-            <Button type="primary" htmlType="submit" style={{ width: '100%' }} size="large">
-              Đăng nhập
+            <Button 
+              type="primary" 
+              htmlType="submit" 
+              className="w-full h-12 bg-[#b4976c] hover:bg-[#8e7654] border-none text-white font-bold tracking-wider rounded-lg transition-colors mt-2"
+            >
+              ĐĂNG NHẬP
             </Button>
           </Form.Item>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10 }}>
-            <Link to="/forgot-password" style={{ color: '#1890ff' }}>Quên mật khẩu?</Link>
-            <span>
-              Chưa có tài khoản? <Link to="/register" style={{ fontWeight: 'bold' }}>Đăng ký</Link>
+          <div className="flex justify-between items-center text-sm mt-4">
+            <Link to="/forgot-password" className="text-gray-400 hover:text-[#b4976c] transition-colors">Quên mật khẩu?</Link>
+            <span className="text-gray-400">
+              Chưa có tài khoản? <Link to="/register" className="text-[#b4976c] hover:text-[#8e7654] font-bold ml-1 transition-colors">Đăng ký</Link>
             </span>
           </div>
-
         </Form>
-      </Card> 
+      </div> 
     </div>
   );
 };
