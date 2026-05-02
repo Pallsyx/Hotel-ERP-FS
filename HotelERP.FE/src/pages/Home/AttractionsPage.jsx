@@ -1,50 +1,110 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { GoogleMap, useJsApiLoader, Marker, DirectionsRenderer, InfoWindow } from '@react-google-maps/api';
-import { Select, Input, Button, Card, Tag, Typography, Spin, Row, Col, Space } from 'antd';
-import { SearchOutlined, EnvironmentOutlined, CarOutlined, RightOutlined } from '@ant-design/icons';
+import { GoogleMap, useJsApiLoader, Marker, DirectionsRenderer } from '@react-google-maps/api';
+import { Select, Input, Tag, Spin } from 'antd';
+import { SearchOutlined, EnvironmentOutlined } from '@ant-design/icons';
 import attractionApi from '../../api/attractionApi';
-import './HomePage.css'; // Reusing global header/footer styles from HomePage.css
 
-const { Title, Text, Paragraph } = Typography;
 const { Option } = Select;
 
-const containerStyle = {
-  width: '100%',
-  height: '100%',
-  borderRadius: '12px'
-};
+const GOLD = '#b8956a';
+const DARK = '#111111';
 
-// Hotel Asteria Location
-const hotelLocation = {
-  lat: 10.948386, 
-  lng: 106.790938
-};
+const containerStyle = { width: '100%', height: '100%', borderRadius: 4 };
+const hotelLocation  = { lat: 10.948386, lng: 106.790938 };
+const mapOptions     = { disableDefaultUI: false, zoomControl: true, streetViewControl: false, mapTypeControl: false };
 
-const mapOptions = {
-  disableDefaultUI: false,
-  zoomControl: true,
-  streetViewControl: false,
-  mapTypeControl: false,
-};
+/* ─── Shared Navbar (same as NewsPage) ─────────────────────── */
+function LotteHeader({ activePage = '' }) {
+  const navigate = useNavigate();
+  const [scrolled, setScrolled] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  useEffect(() => {
+    const fn = () => setScrolled(window.scrollY > 50);
+    window.addEventListener('scroll', fn);
+    return () => window.removeEventListener('scroll', fn);
+  }, []);
+  const links = [
+    { label: 'Trang Chủ', href: '/' }, { label: 'Giới Thiệu', href: '/#about' },
+    { label: 'Phòng', href: '/#rooms' }, { label: 'Tin Tức', href: '/news' },
+    { label: 'Khám Phá', href: '/attractions' }, { label: 'Liên Hệ', href: '/#contact' },
+  ];
+  return (
+    <header style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50, background: scrolled || mobileOpen ? DARK : 'linear-gradient(to bottom, rgba(0,0,0,0.75), transparent)', transition: 'background 400ms' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px', height: 64 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }} onClick={() => navigate('/')}>
+          <div style={{ width: 32, height: 32, border: '1px solid white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Playfair Display', serif", fontSize: 15, color: 'white' }}>A</div>
+          <span style={{ color: 'white', fontSize: 12, fontWeight: 500, letterSpacing: '0.2em', textTransform: 'uppercase' }}>Asteria Resort</span>
+        </div>
+        <nav style={{ display: 'none', alignItems: 'center' }} className="lg-nav-attr">
+          {links.map(link => (
+            <a key={link.label} href={link.href}
+              style={{ fontSize: 11, fontWeight: 500, letterSpacing: '1.5px', textTransform: 'uppercase', color: activePage === link.label ? GOLD : 'rgba(255,255,255,0.8)', textDecoration: 'none', padding: '0 16px', height: 64, display: 'flex', alignItems: 'center', borderBottom: activePage === link.label ? `2px solid ${GOLD}` : '2px solid transparent', transition: 'color 300ms' }}
+              onMouseEnter={e => { if (activePage !== link.label) e.target.style.color = GOLD; }}
+              onMouseLeave={e => { if (activePage !== link.label) e.target.style.color = 'rgba(255,255,255,0.8)'; }}>
+              {link.label}
+            </a>
+          ))}
+        </nav>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <a href="/login" style={{ fontSize: 10, fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'white', background: `linear-gradient(135deg, #c9a97a, #9a7b52)`, padding: '9px 20px', borderRadius: 2, textDecoration: 'none' }}>Đặt Phòng</a>
+          <button onClick={() => setMobileOpen(!mobileOpen)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'white', fontSize: 20 }}>{mobileOpen ? '✕' : '☰'}</button>
+        </div>
+      </div>
+      {mobileOpen && (
+        <div style={{ background: DARK, padding: '12px 32px 20px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+          {links.map(link => <a key={link.label} href={link.href} style={{ display: 'block', color: 'rgba(255,255,255,0.75)', textDecoration: 'none', padding: '10px 0', fontSize: 13, fontWeight: 500, letterSpacing: '1px', textTransform: 'uppercase', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>{link.label}</a>)}
+        </div>
+      )}
+      <style>{`.lg-nav-attr { display: none !important; } @media(min-width: 1024px) { .lg-nav-attr { display: flex !important; } }`}</style>
+    </header>
+  );
+}
 
+function LotteFooter() {
+  return (
+    <footer style={{ background: '#0a0a0a', color: '#71717a', padding: '48px 24px 24px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+      <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexWrap: 'wrap', gap: 40, justifyContent: 'space-between', marginBottom: 40 }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <div style={{ width: 30, height: 30, border: '1px solid white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Playfair Display', serif", fontSize: 13, color: 'white' }}>A</div>
+            <span style={{ color: 'white', fontSize: 11, fontWeight: 600, letterSpacing: '0.2em', textTransform: 'uppercase' }}>Asteria Resort</span>
+          </div>
+          <p style={{ fontSize: 12, color: '#71717a', lineHeight: 1.8 }}>Số 10, Huỳnh Văn Nghệ, phường Bửu Long,<br />TP. Biên Hòa, tỉnh Đồng Nai</p>
+          <p style={{ fontSize: 12, color: '#71717a', marginTop: 6 }}>📞 0987 244 924</p>
+        </div>
+        <div>
+          <h4 style={{ color: 'white', fontSize: 10, fontWeight: 700, letterSpacing: '0.25em', textTransform: 'uppercase', marginBottom: 16 }}>Liên Hệ</h4>
+          {['Về chúng tôi', 'Tuyển dụng', 'Điều khoản sử dụng', 'Chính sách bảo mật'].map(t => (
+            <div key={t} style={{ marginBottom: 10 }}><a href="#" style={{ color: '#71717a', fontSize: 12, textDecoration: 'none' }}>{t}</a></div>
+          ))}
+        </div>
+      </div>
+      <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 20, textAlign: 'center', fontSize: 11, color: '#3f3f46' }}>
+        © 2026 ASTERIA RESORT. All rights reserved.
+      </div>
+    </footer>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════ */
+/*  ATTRACTIONS PAGE                                            */
+/* ═══════════════════════════════════════════════════════════ */
 export default function AttractionsPage() {
   const navigate = useNavigate();
-  const [attractions, setAttractions] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('All');
-  
-  // Maps State
+  const [attractions,        setAttractions]        = useState([]);
+  const [loading,            setLoading]            = useState(true);
+  const [searchTerm,         setSearchTerm]         = useState('');
+  const [selectedCategory,   setSelectedCategory]   = useState('All');
   const [selectedAttraction, setSelectedAttraction] = useState(null);
   const [directionsResponse, setDirectionsResponse] = useState(null);
-  const [distance, setDistance] = useState('');
-  const [duration, setDuration] = useState('');
-  const [travelMode, setTravelMode] = useState('DRIVING'); // DRIVING, WALKING, TWO_WHEELER
+  const [distance,           setDistance]           = useState('');
+  const [duration,           setDuration]           = useState('');
+  const [travelMode,         setTravelMode]         = useState('DRIVING');
 
   const { isLoaded } = useJsApiLoader({
     id: 'google-map-script',
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '',
   });
 
   useEffect(() => {
@@ -56,321 +116,167 @@ export default function AttractionsPage() {
   const fetchAttractions = async () => {
     setLoading(true);
     try {
-      const response = await attractionApi.getAll();
-      const activeAttractions = response.data.filter(a => a.status !== 'INACTIVE');
-      setAttractions(activeAttractions);
-    } catch (error) {
-      console.error("Lỗi khi tải điểm đến:", error);
-    } finally {
-      setLoading(false);
-    }
+      const res = await attractionApi.getAll();
+      setAttractions(res.data.filter(a => a.status !== 'INACTIVE'));
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
   };
 
-  const calculateRoute = async (destination) => {
-    if (!destination || !destination.latitude || !destination.longitude) return;
-    
+  const calculateRoute = async (dest) => {
+    if (!dest?.latitude || !dest?.longitude) return;
     // eslint-disable-next-line no-undef
-    const directionsService = new google.maps.DirectionsService();
-    
+    const svc = new google.maps.DirectionsService();
     try {
-      const results = await directionsService.route({
+      const results = await svc.route({
         origin: hotelLocation,
-        destination: { lat: destination.latitude, lng: destination.longitude },
+        destination: { lat: dest.latitude, lng: dest.longitude },
         // eslint-disable-next-line no-undef
         travelMode: google.maps.TravelMode[travelMode],
       });
-      
       setDirectionsResponse(results);
       setDistance(results.routes[0].legs[0].distance.text);
       setDuration(results.routes[0].legs[0].duration.text);
-    } catch (error) {
-      console.error("Directions request failed due to", error);
-    }
+    } catch (err) { console.error(err); }
   };
 
-  const handleCardClick = (attraction) => {
-    setSelectedAttraction(attraction);
-    calculateRoute(attraction);
+  const handleCardClick = (item) => {
+    setSelectedAttraction(item);
+    calculateRoute(item);
     window.scrollTo({ top: 300, behavior: 'smooth' });
   };
 
-  // Nếu đổi phương tiện di chuyển, tính lại đường đi
-  useEffect(() => {
-    if (selectedAttraction) {
-      calculateRoute(selectedAttraction);
-    }
-  }, [travelMode]);
-
-  // Lọc dữ liệu
-  const filteredAttractions = attractions.filter(item => {
-    const matchName = item.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchCategory = selectedCategory === 'All' || item.type === selectedCategory;
-    return matchName && matchCategory;
-  });
+  useEffect(() => { if (selectedAttraction) calculateRoute(selectedAttraction); }, [travelMode]);
 
   const categories = ['All', ...new Set(attractions.map(a => a.type).filter(Boolean))];
+  const filtered   = attractions.filter(i => {
+    const matchName = i.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchCat  = selectedCategory === 'All' || i.type === selectedCategory;
+    return matchName && matchCat;
+  });
 
   return (
-    <div className="home-container bg-gray-50 min-h-screen">
-      {/* 1. TOP HEADER BARS */}
-      <div className="top-bar">
-          <div className="top-bar-left">
-              <span>📍 Asteria Resort, 123 Đường Ven Biển, Nha Trang</span>
-              <span>📞 +84 123 456 789</span>
-          </div>
-          <div className="top-bar-right">
-              <a href="#">Về chúng tôi</a>
-              <a href="#">Liên hệ</a>
-              <span>Ngôn ngữ: Tiếng Việt 🇻🇳</span>
-          </div>
-      </div>
+    <div style={{ background: '#fafafa', minHeight: '100vh', fontFamily: "'Inter', sans-serif" }}>
+      <LotteHeader activePage="Khám Phá" />
 
-      <header className="main-header">
-          <div className="logo-container cursor-pointer" onClick={() => navigate('/')}>
-              <h1 className="logo-text">ASTERIA</h1>
-              <p className="logo-subtext">LUXURY RESORT & SPA</p>
-          </div>
-          <nav className="nav-menu">
-              <a onClick={() => navigate('/')}>TRANG CHỦ</a>
-              <a href="#">PHÒNG & SUITE</a>
-              <a href="#">DỊCH VỤ</a>
-              <a href="#">NHÀ HÀNG</a>
-              <a href="#">SPA</a>
-              <a onClick={() => navigate('/news')}>TIN TỨC</a>
-              <a onClick={() => navigate('/attractions')} className="active">KHÁM PHÁ</a>
-          </nav>
-          <div className="header-actions">
-              <button className="btn-book-now" onClick={() => navigate('/booking/search')}>
-                  ĐẶT PHÒNG NGAY
-              </button>
-          </div>
-      </header>
-
-      {/* Hero Banner */}
-      <div className="relative h-[40vh] min-h-[300px] flex items-center justify-center bg-[#262b3f] overflow-hidden">
-        <div className="absolute inset-0 bg-black/40 z-10"></div>
-        <img 
-          src="https://images.unsplash.com/photo-1596436889106-be35e843f6a6?q=80&w=2000" 
-          alt="Khám phá điểm đến" 
-          className="absolute inset-0 w-full h-full object-cover"
-        />
-        <div className="relative z-20 text-center px-4">
-          <h1 className="text-4xl md:text-5xl font-serif text-white mb-4 shadow-sm">Khám Phá Điểm Đến Lân Cận</h1>
-          <p className="text-lg text-white/90 max-w-2xl mx-auto font-light">
-            Asteria Resort không chỉ là nơi nghỉ dưỡng hoàn hảo mà còn là điểm xuất phát tuyệt vời để bạn khám phá những kỳ quan và nét văn hóa độc đáo của địa phương.
+      {/* Hero */}
+      <div style={{ position: 'relative', height: 360, background: DARK, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <img src="https://images.unsplash.com/photo-1596436889106-be35e843f6a6?q=80&w=2000&auto=format&fit=crop"
+          alt="Attractions" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.3 }} />
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(17,17,17,0.85), rgba(17,17,17,0.4))' }} />
+        <div style={{ position: 'relative', zIndex: 10, textAlign: 'center', padding: '0 24px', marginTop: 64 }}>
+          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.3em', textTransform: 'uppercase', color: GOLD, marginBottom: 16 }}>ĐIỂM ĐẾN LÂN CẬN</p>
+          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 40, color: 'white', lineHeight: 1.2, marginBottom: 12 }}>Khám Phá Xung Quanh</h1>
+          <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 14, maxWidth: 540, margin: '0 auto' }}>
+            Asteria Resort là điểm xuất phát tuyệt vời để khám phá những kỳ quan và nét văn hóa độc đáo của địa phương.
           </p>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-12">
-        <Row gutter={[32, 32]}>
-          
-          {/* Lưới Điểm Đến */}
-          <Col xs={24} lg={12} xl={10}>
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-6 sticky top-6">
-              <h2 className="text-2xl font-serif text-[#262b3f] mb-6">Tìm kiếm điểm đến</h2>
-              
-              <div className="flex flex-col gap-4 mb-6">
-                <Input 
-                  size="large" 
-                  placeholder="Nhập tên địa điểm..." 
-                  prefix={<SearchOutlined className="text-gray-400" />}
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="rounded-lg"
-                />
-                <div className="flex flex-wrap gap-2">
-                  {categories.map(cat => (
-                    <Tag.CheckableTag
-                      key={cat}
-                      checked={selectedCategory === cat}
-                      onChange={() => setSelectedCategory(cat)}
-                      className={`text-sm px-4 py-1.5 rounded-full border ${selectedCategory === cat ? 'bg-[#b4976c] text-white border-[#b4976c]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#b4976c]'}`}
-                    >
-                      {cat === 'All' ? 'Tất cả' : cat}
-                    </Tag.CheckableTag>
-                  ))}
-                </div>
-              </div>
+      {/* Main content */}
+      <div style={{ maxWidth: 1280, margin: '0 auto', padding: '32px 24px 64px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }} className="attr-grid">
+          <style>{`@media(max-width:768px){ .attr-grid { grid-template-columns: 1fr !important; } }`}</style>
 
-              {/* Danh sách cuộn */}
-              <div className="overflow-y-auto pr-2" style={{ maxHeight: 'calc(100vh - 450px)', minHeight: '400px' }}>
-                {loading ? (
-                  <div className="flex justify-center items-center h-40"><Spin size="large" /></div>
-                ) : filteredAttractions.length === 0 ? (
-                  <div className="text-center py-10 text-gray-500">Không tìm thấy địa điểm nào phù hợp.</div>
-                ) : (
-                  <div className="flex flex-col gap-4">
-                    {filteredAttractions.map(item => (
-                      <div 
-                        key={item.id} 
-                        className={`flex gap-4 p-3 rounded-xl cursor-pointer transition-all duration-300 border ${selectedAttraction?.id === item.id ? 'border-[#b4976c] bg-[#fdfbf7] shadow-md' : 'border-gray-100 hover:border-[#b4976c]/50 hover:bg-gray-50'}`}
-                        onClick={() => handleCardClick(item)}
-                      >
-                        <img 
-                          src={item.imageUrl || 'https://via.placeholder.com/150'} 
-                          alt={item.name} 
-                          className="w-24 h-24 object-cover rounded-lg shadow-sm"
-                        />
-                        <div className="flex-1">
-                          <div className="flex justify-between items-start mb-1">
-                            <h3 className="text-lg font-serif text-[#262b3f] leading-tight m-0">{item.name}</h3>
-                            {item.type && <Tag color="gold" className="m-0 border-none">{item.type}</Tag>}
-                          </div>
-                          <Paragraph ellipsis={{ rows: 2 }} className="text-sm text-gray-500 m-0 mt-1">
-                            {item.description}
-                          </Paragraph>
-                          {item.distanceKm && (
-                            <div className="text-xs text-[#b4976c] mt-2 font-medium flex items-center gap-1">
-                              <EnvironmentOutlined /> Cách resort {item.distanceKm} km
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+          {/* LEFT — Search & List */}
+          <div style={{ background: 'white', borderRadius: 4, padding: 24, border: '1px solid #f0f0f0', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', position: 'sticky', top: 80, maxHeight: 'calc(100vh - 120px)', display: 'flex', flexDirection: 'column' }}>
+            <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, color: '#18181b', marginBottom: 20 }}>Tìm kiếm điểm đến</h2>
+
+            {/* Search input */}
+            <div style={{ position: 'relative', marginBottom: 14 }}>
+              <SearchOutlined style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#a1a1aa', zIndex: 1 }} />
+              <input type="text" placeholder="Nhập tên địa điểm..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+                style={{ width: '100%', padding: '10px 12px 10px 36px', fontSize: 13, border: '1px solid #e5e7eb', borderRadius: 4, outline: 'none' }}
+                onFocus={e => e.target.style.borderColor = GOLD} onBlur={e => e.target.style.borderColor = '#e5e7eb'} />
             </div>
-          </Col>
 
-          {/* Bản đồ & Thông tin chỉ đường */}
-          <Col xs={24} lg={12} xl={14}>
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden sticky top-6 h-[calc(100vh-100px)] min-h-[600px] flex flex-col">
-              
-              {/* Header của Bản đồ */}
-              <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center z-10">
-                <div>
-                  <h3 className="text-lg font-medium text-[#262b3f] m-0">
-                    {selectedAttraction ? `Đường đi đến: ${selectedAttraction.name}` : 'Bản đồ Khám phá'}
-                  </h3>
-                  {selectedAttraction && distance && duration && (
-                    <p className="text-sm text-gray-500 m-0 mt-1">
-                      Khoảng cách: <span className="font-semibold text-gray-800">{distance}</span> • Thời gian: <span className="font-semibold text-gray-800">{duration}</span>
-                    </p>
-                  )}
-                </div>
+            {/* Category filter */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 20 }}>
+              {categories.map(cat => (
+                <button key={cat} onClick={() => setSelectedCategory(cat)}
+                  style={{ padding: '5px 14px', borderRadius: 999, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: '1px solid', background: selectedCategory === cat ? DARK : 'transparent', color: selectedCategory === cat ? 'white' : '#71717a', borderColor: selectedCategory === cat ? DARK : '#e5e7eb', transition: 'all 200ms' }}>
+                  {cat === 'All' ? 'Tất cả' : cat}
+                </button>
+              ))}
+            </div>
 
-                {selectedAttraction && (
-                  <Select 
-                    value={travelMode} 
-                    onChange={setTravelMode}
-                    style={{ width: 130 }}
-                    options={[
-                      { value: 'DRIVING', label: '🚗 Ô tô' },
-                      { value: 'TWO_WHEELER', label: '🛵 Xe máy' },
-                      { value: 'WALKING', label: '🚶 Đi bộ' },
-                    ]}
-                  />
-                )}
-              </div>
-
-              {/* Khung Bản đồ */}
-              <div className="flex-1 relative">
-                {isLoaded ? (
-                  <GoogleMap
-                    mapContainerStyle={containerStyle}
-                    center={selectedAttraction ? { lat: selectedAttraction.latitude, lng: selectedAttraction.longitude } : hotelLocation}
-                    zoom={13}
-                    options={mapOptions}
-                  >
-                    {/* Điểm xuất phát (Resort) */}
-                    <Marker 
-                      position={hotelLocation} 
-                      icon={{
-                        url: "http://maps.google.com/mapfiles/ms/icons/blue-dot.png"
-                      }}
-                      title="Asteria Resort"
-                    />
-
-                    {/* Các điểm đến (Nếu chưa chọn điểm nào để chỉ đường, hiển thị tất cả) */}
-                    {!directionsResponse && attractions.map(item => (
-                      <Marker
-                        key={item.id}
-                        position={{ lat: item.latitude, lng: item.longitude }}
-                        onClick={() => handleCardClick(item)}
-                        animation={selectedAttraction?.id === item.id ? 1 : 0} // BOUNCE
-                      />
-                    ))}
-
-                    {/* Chỉ đường */}
-                    {directionsResponse && (
-                      <DirectionsRenderer 
-                        directions={directionsResponse} 
-                        options={{
-                          suppressMarkers: false,
-                          polylineOptions: {
-                            strokeColor: "#b4976c",
-                            strokeWeight: 5,
-                            strokeOpacity: 0.8
-                          }
-                        }}
-                      />
-                    )}
-                  </GoogleMap>
-                ) : (
-                  <div className="flex justify-center items-center h-full">
-                    <Spin size="large" />
+            {/* List */}
+            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {loading ? (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><Spin size="large" /></div>
+              ) : filtered.length === 0 ? (
+                <p style={{ textAlign: 'center', color: '#71717a', padding: '40px 0', fontSize: 13 }}>Không tìm thấy địa điểm phù hợp.</p>
+              ) : filtered.map(item => (
+                <div key={item.id} onClick={() => handleCardClick(item)}
+                  style={{ display: 'flex', gap: 14, padding: 12, borderRadius: 4, cursor: 'pointer', border: `1px solid ${selectedAttraction?.id === item.id ? GOLD : '#f0f0f0'}`, background: selectedAttraction?.id === item.id ? '#fdf8f3' : 'white', transition: 'all 200ms' }}>
+                  <img src={item.imageUrl || 'https://images.unsplash.com/photo-1597435877854-c2cbfa9cc2c2?w=200'} alt={item.name} style={{ width: 88, height: 88, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
+                      <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 15, color: '#18181b', lineHeight: 1.3, margin: 0 }}>{item.name}</h3>
+                      {item.type && <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: GOLD, background: '#fdf3e7', padding: '2px 8px', borderRadius: 2, flexShrink: 0 }}>{item.type}</span>}
+                    </div>
+                    <p style={{ fontSize: 12, color: '#71717a', lineHeight: 1.6, margin: 0, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{item.description}</p>
+                    {item.distanceKm && <p style={{ fontSize: 11, color: GOLD, marginTop: 6, margin: 0 }}><EnvironmentOutlined /> Cách resort {item.distanceKm} km</p>}
                   </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* RIGHT — Map */}
+          <div style={{ background: 'white', borderRadius: 4, border: '1px solid #f0f0f0', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', overflow: 'hidden', display: 'flex', flexDirection: 'column', position: 'sticky', top: 80, height: 'calc(100vh - 120px)', minHeight: 600 }}>
+            {/* Map header */}
+            <div style={{ padding: '14px 20px', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fafafa' }}>
+              <div>
+                <h3 style={{ fontSize: 14, fontWeight: 600, color: '#18181b', margin: 0 }}>
+                  {selectedAttraction ? `Đường đi: ${selectedAttraction.name}` : 'Bản đồ Khám phá'}
+                </h3>
+                {selectedAttraction && distance && duration && (
+                  <p style={{ fontSize: 12, color: '#71717a', margin: '2px 0 0' }}>
+                    Khoảng cách: <strong style={{ color: '#18181b' }}>{distance}</strong> • Thời gian: <strong style={{ color: '#18181b' }}>{duration}</strong>
+                  </p>
                 )}
               </div>
-              
-              {/* Box Đặt phòng */}
               {selectedAttraction && (
-                <div className="p-6 bg-[#262b3f] text-white flex flex-col sm:flex-row justify-between items-center gap-4">
-                  <div>
-                    <h4 className="text-xl font-serif mb-1 text-[#b4976c]">Sẵn sàng cho chuyến đi?</h4>
-                    <p className="text-white/80 text-sm m-0">Đặt phòng tại Asteria Resort để bắt đầu hành trình khám phá {selectedAttraction.name}.</p>
-                  </div>
-                  <button 
-                    onClick={() => navigate('/booking/search')}
-                    className="px-6 py-3 bg-[#b4976c] hover:bg-[#9c825a] text-white font-medium tracking-wide rounded-md transition-colors whitespace-nowrap flex items-center gap-2"
-                  >
-                    ĐẶT PHÒNG NGAY <RightOutlined className="text-xs" />
-                  </button>
-                </div>
+                <Select value={travelMode} onChange={setTravelMode} style={{ width: 120 }} size="small"
+                  options={[{ value: 'DRIVING', label: '🚗 Ô tô' }, { value: 'TWO_WHEELER', label: '🛵 Xe máy' }, { value: 'WALKING', label: '🚶 Đi bộ' }]} />
               )}
             </div>
-          </Col>
 
-        </Row>
+            {/* Map */}
+            <div style={{ flex: 1, position: 'relative' }}>
+              {isLoaded ? (
+                <GoogleMap mapContainerStyle={containerStyle} center={selectedAttraction ? { lat: selectedAttraction.latitude, lng: selectedAttraction.longitude } : hotelLocation} zoom={13} options={mapOptions}>
+                  <Marker position={hotelLocation} icon={{ url: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png' }} title="Asteria Resort" />
+                  {!directionsResponse && attractions.map(item => (
+                    <Marker key={item.id} position={{ lat: item.latitude, lng: item.longitude }} onClick={() => handleCardClick(item)} animation={selectedAttraction?.id === item.id ? 1 : 0} />
+                  ))}
+                  {directionsResponse && (
+                    <DirectionsRenderer directions={directionsResponse} options={{ suppressMarkers: false, polylineOptions: { strokeColor: GOLD, strokeWeight: 5, strokeOpacity: 0.8 } }} />
+                  )}
+                </GoogleMap>
+              ) : (
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}><Spin size="large" /></div>
+              )}
+            </div>
+
+            {/* Book CTA */}
+            {selectedAttraction && (
+              <div style={{ padding: '18px 24px', background: DARK, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+                <div>
+                  <h4 style={{ fontFamily: "'Playfair Display', serif", fontSize: 17, color: GOLD, margin: '0 0 4px' }}>Sẵn sàng cho chuyến đi?</h4>
+                  <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', margin: 0 }}>Đặt phòng tại Asteria để bắt đầu hành trình khám phá {selectedAttraction.name}.</p>
+                </div>
+                <button onClick={() => navigate('/booking/search')}
+                  style={{ padding: '10px 22px', background: `linear-gradient(135deg, #c9a97a, #9a7b52)`, color: 'white', border: 'none', borderRadius: 2, fontSize: 10, fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  ĐẶT PHÒNG NGAY →
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
-      {/* FOOTER */}
-      <footer className="footer-section">
-          <div className="footer-content">
-              <div className="footer-col">
-                  <h3 className="footer-logo">ASTERIA</h3>
-                  <p className="footer-desc">
-                      Khu nghỉ dưỡng đẳng cấp 5 sao mang đến trải nghiệm lưu trú hoàn hảo với dịch vụ tận tâm và không gian sang trọng bậc nhất.
-                  </p>
-              </div>
-              <div className="footer-col">
-                  <h4>Liên Hệ</h4>
-                  <p>📍 123 Đường Ven Biển, TP. Nha Trang</p>
-                  <p>📞 +84 123 456 789</p>
-                  <p>✉️ reservation@asteria.com</p>
-              </div>
-              <div className="footer-col">
-                  <h4>Liên Kết</h4>
-                  <p><a href="#">Về chúng tôi</a></p>
-                  <p><a href="#">Tuyển dụng</a></p>
-                  <p><a href="#">Điều khoản sử dụng</a></p>
-                  <p><a href="#">Chính sách bảo mật</a></p>
-              </div>
-              <div className="footer-col">
-                  <h4>Nhận Ưu Đãi</h4>
-                  <p>Đăng ký email để nhận những thông báo khuyến mãi mới nhất.</p>
-                  <div className="newsletter">
-                      <input type="email" placeholder="Email của bạn..." />
-                      <button>Gửi</button>
-                  </div>
-              </div>
-          </div>
-          <div className="footer-bottom">
-              <p>&copy; 2026 Asteria Resort. All rights reserved.</p>
-          </div>
-      </footer>
+      <LotteFooter />
     </div>
   );
 }
