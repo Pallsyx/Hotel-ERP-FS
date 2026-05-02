@@ -11,26 +11,31 @@ import {
   ResponsiveContainer
 } from 'recharts';
 
-const RevenueChart = ({ totalRevenue, todayRevenue }) => {
-  // Vì Backend hiện chưa có API lấy doanh thu theo từng ngày trong lịch sử (chỉ có Today và Total)
-  // Dummy data được sinh ra dựa trên todayRevenue để hiển thị minh họa, kết hợp dữ liệu thật.
+const RevenueChart = ({ totalRevenue, todayRevenue, last7Days }) => {
   
-  const mockDailyAvg = todayRevenue > 0 ? todayRevenue : 5000000;
-  
-  const data = [
-    { day: 'T2', revenue: mockDailyAvg * 0.8 },
-    { day: 'T3', revenue: mockDailyAvg * 1.1 },
-    { day: 'T4', revenue: mockDailyAvg * 0.9 },
-    { day: 'T5', revenue: mockDailyAvg * 1.2 },
-    { day: 'T6', revenue: mockDailyAvg * 1.5 },
-    { day: 'T7', revenue: mockDailyAvg * 2.0 },
-    { day: 'CN (Hôm nay)', revenue: todayRevenue > 0 ? todayRevenue : mockDailyAvg * 1.8 }
-  ];
+  let data = [];
+  if (last7Days && last7Days.length > 0) {
+    data = last7Days.map(item => ({
+      day: item.dayName,
+      revenue: item.revenue || 0
+    }));
+  } else {
+    // Fallback nếu không có dữ liệu
+    data = [
+      { day: 'T2', revenue: 0 },
+      { day: 'T3', revenue: 0 },
+      { day: 'T4', revenue: 0 },
+      { day: 'T5', revenue: 0 },
+      { day: 'T6', revenue: 0 },
+      { day: 'T7', revenue: 0 },
+      { day: 'CN (Hôm nay)', revenue: todayRevenue > 0 ? todayRevenue : 0 }
+    ];
+  }
 
   const formatVND = (value) => `${new Intl.NumberFormat('vi-VN').format(value)} đ`;
 
   return (
-    <Card title="Doanh thu 7 ngày gần nhất (Minh họa + Thực tế hôm nay)" bordered={false} hoverable>
+    <Card title="Doanh thu 7 ngày gần nhất" bordered={false} hoverable>
       <ResponsiveContainer width="100%" height={300}>
         <BarChart
           data={data}

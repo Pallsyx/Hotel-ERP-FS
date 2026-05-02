@@ -5,14 +5,16 @@ import {
 } from 'antd';
 import { 
   UserOutlined, UploadOutlined, LockOutlined, 
-  PhoneOutlined, MailOutlined 
+  PhoneOutlined, MailOutlined, ArrowLeftOutlined
 } from '@ant-design/icons';
 import axios from 'axios';
-import { useAuthStore } from '../../store/authStore'; // Điều chỉnh đường dẫn tới authStore của bạn cho đúng
+import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '../../store/authStore';
 
 const { Title } = Typography;
 
 const UserProfile = () => {
+  const navigate = useNavigate();
   const [formInfo] = Form.useForm();
   const [formPassword] = Form.useForm();
   
@@ -128,17 +130,55 @@ const UserProfile = () => {
   };
 
   return (
-    <div style={{ padding: '24px', background: '#fcfbf7', minHeight: '80vh' }}>
-      <Row gutter={[24, 24]}>
-        
-        {/* ==================================================== */}
-        {/* CỘT TRÁI: THÔNG TIN CÁ NHÂN & AVATAR                 */}
-        {/* ==================================================== */}
-        <Col xs={24} md={14}>
-          <Card loading={loading} title={<Title level={4} style={{ margin: 0 }}>Hồ Sơ Cá Nhân</Title>} bordered={false} style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-            
-            {/* Vùng Avatar */}
-            <div style={{ textAlign: 'center', marginBottom: 24 }}>
+    <div className="min-h-screen bg-[#262b3f] flex flex-col font-serif">
+      <header className="px-6 py-4 border-b border-white/10 flex justify-between items-center backdrop-blur-sm bg-[#262b3f]/80 fixed top-0 w-full z-10">
+        <div className="text-2xl font-bold tracking-widest text-[#d4af37] cursor-pointer" onClick={() => navigate('/')}>
+          ASTERIA
+        </div>
+        <button onClick={() => navigate('/')} className="text-[#b4976c] hover:text-[#d4af37] transition-colors flex items-center gap-2 text-sm uppercase tracking-wider bg-transparent border-none cursor-pointer">
+          <ArrowLeftOutlined /> Về trang chủ
+        </button>
+      </header>
+
+      <div style={{ padding: '24px', background: 'transparent', minHeight: '80vh', marginTop: '80px', maxWidth: '1200px', marginLeft: 'auto', marginRight: 'auto', width: '100%' }}>
+        <style>
+          {`
+            .ant-form-item-label > label {
+              color: rgba(255, 255, 255, 0.85) !important;
+            }
+            .ant-divider {
+              border-color: rgba(255, 255, 255, 0.1) !important;
+            }
+            .ant-input, .ant-input-password {
+              background: rgba(255, 255, 255, 0.05) !important;
+              border-color: rgba(255, 255, 255, 0.2) !important;
+              color: white !important;
+            }
+            .ant-input::placeholder {
+              color: rgba(255, 255, 255, 0.3) !important;
+            }
+            .ant-input-affix-wrapper {
+              background: rgba(255, 255, 255, 0.05) !important;
+              border-color: rgba(255, 255, 255, 0.2) !important;
+            }
+            .ant-input-affix-wrapper > input.ant-input {
+              background: transparent !important;
+            }
+            .ant-input-affix-wrapper .anticon {
+              color: #b4976c !important;
+            }
+          `}
+        </style>
+        <Row gutter={[24, 24]}>
+          
+          {/* ==================================================== */}
+          {/* CỘT TRÁI: THÔNG TIN CÁ NHÂN & AVATAR                 */}
+          {/* ==================================================== */}
+          <Col xs={24} md={14}>
+            <Card loading={loading} title={<Title level={4} style={{ margin: 0, color: '#d4af37' }}>Hồ Sơ Cá Nhân</Title>} bordered={false} style={{ background: 'rgba(38,43,63,0.6)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.1)', color: 'white' }} styles={{ header: { borderBottom: '1px solid rgba(255,255,255,0.1)' } }}>
+              
+              {/* Vùng Avatar */}
+              <div style={{ textAlign: 'center', marginBottom: 24 }}>
               <Avatar 
                 size={110} 
                 src={avatarUrl} 
@@ -193,7 +233,7 @@ const UserProfile = () => {
         {/* CỘT PHẢI: ĐỔI MẬT KHẨU                               */}
         {/* ==================================================== */}
         <Col xs={24} md={10}>
-          <Card title={<Title level={4} style={{ margin: 0 }}>Bảo Mật / Đổi Mật Khẩu</Title>} bordered={false} style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+          <Card title={<Title level={4} style={{ margin: 0, color: '#d4af37' }}>Bảo Mật / Đổi Mật Khẩu</Title>} bordered={false} style={{ background: 'rgba(38,43,63,0.6)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.1)', color: 'white' }} styles={{ header: { borderBottom: '1px solid rgba(255,255,255,0.1)' } }}>
             <Form form={formPassword} layout="vertical" onFinish={handleChangePassword}>
               <Form.Item 
                 label="Mật khẩu hiện tại" 
@@ -243,6 +283,7 @@ const UserProfile = () => {
         </Col>
 
       </Row>
+      </div>
     </div>
   );
 };

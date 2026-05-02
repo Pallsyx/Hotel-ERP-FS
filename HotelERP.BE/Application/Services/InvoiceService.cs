@@ -1116,15 +1116,43 @@ namespace HotelERP.BE.Application.Services
                                  || x.Status == "Partially_checked_out",
                     cancellationToken);
 
+            var last7Days = Enumerable.Range(0, 7).Select(i => today.AddDays(-6 + i)).ToList();
+            var last7DaysRevenue = last7Days.Select(date => new
+            {
+                Date = date.ToString("yyyy-MM-dd"),
+                DayName = GetVietnameseDayOfWeek(date),
+                Revenue = Money(paidInvoices
+                    .Where(x => (x.PaidAt ?? x.CreatedAt ?? DateTime.MinValue).Date == date)
+                    .Sum(x => x.FinalTotal ?? 0m))
+            }).ToList();
+
             return new
             {
                 TotalRevenueAllTime = Money(paidInvoices.Sum(x => x.FinalTotal ?? 0m)),
                 TodayRevenue = Money(paidInvoices
                     .Where(x => (x.PaidAt ?? x.CreatedAt ?? DateTime.MinValue).Date == today)
                     .Sum(x => x.FinalTotal ?? 0m)),
+                Last7DaysRevenue = last7DaysRevenue,
                 TotalInvoices = invoices.Count,
                 PaidInvoices = paidInvoices.Count,
                 ActiveBookings = activeBookings
+            };
+        }
+
+        private string GetVietnameseDayOfWeek(DateTime date)
+        {
+            if (date.Date == DateTime.Today) return "Hôm nay";
+            
+            return date.DayOfWeek switch
+            {
+                DayOfWeek.Monday => "T2",
+                DayOfWeek.Tuesday => "T3",
+                DayOfWeek.Wednesday => "T4",
+                DayOfWeek.Thursday => "T5",
+                DayOfWeek.Friday => "T6",
+                DayOfWeek.Saturday => "T7",
+                DayOfWeek.Sunday => "CN",
+                _ => ""
             };
         }
 

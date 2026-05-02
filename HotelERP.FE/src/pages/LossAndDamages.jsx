@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import * as signalR from '@microsoft/signalr';
 import axios from 'axios';
+import axiosClient from '../api/axiosClient';
 import {
   Table, Button, DatePicker,
   Space, Card, Row, Col, Typography, message,
@@ -15,33 +16,6 @@ import {
 const { RangePicker } = DatePicker;
 const { Text, Title } = Typography;
 const { Option } = Select;
-
-// --- MOCK DATA ---
-const mockBookings = [
-  { id: '102', roomName: 'Phòng 102' },
-  { id: '103', roomName: 'Phòng 103' },
-  { id: 'BK001', roomName: 'Phòng 101' },
-  { id: 'BK002', roomName: 'Phòng 205 (VIP)' },
-];
-
-const mockRoomItems = [
-  { id: 'IT01', name: 'Khăn tắm', price: 150000 },
-  { id: 'IT02', name: 'Cốc thủy tinh', price: 50000 },
-  { id: 'IT03', name: 'Điều khiển TV', price: 300000 },
-  { id: 'IT04', name: 'Bình siêu tốc Sunhouse', price: 350000 },
-  { id: 'IT05', name: 'Nước ngọt Coca Cola 320ml', price: 20000 },
-  { id: 'IT06', name: 'Bánh Oreo 133g', price: 30000 },
-  { id: 'IT07', name: 'Nước suối Lavie 500ml', price: 15000 },
-];
-
-const INITIAL_DATA = [
-  { id: 38, roomNumber: '102', itemName: 'Nước ngọt Coca Cola 320ml', quantity: 1, penaltyAmount: 20000, description: '', createdAt: '2026-03-28T04:14:00', evidenceImageUrl: null },
-  { id: 35, roomNumber: '102', itemName: 'Ấm đun nước siêu tốc Sunhouse', quantity: 1, penaltyAmount: 350000, description: '', createdAt: '2026-03-28T03:04:00', evidenceImageUrl: null },
-  { id: 34, roomNumber: '102', itemName: 'Bánh Oreo 133g', quantity: 1, penaltyAmount: 30000, description: 'khách dùng', createdAt: '2026-03-28T01:28:00', evidenceImageUrl: null },
-  { id: 26, roomNumber: '103', itemName: 'Bánh Oreo 133g', quantity: 1, penaltyAmount: 30000, description: '', createdAt: '2026-03-27T15:18:00', evidenceImageUrl: null },
-  { id: 25, roomNumber: '103', itemName: 'Nước ngọt Coca Cola 320ml', quantity: 2, penaltyAmount: 20000, description: '', createdAt: '2026-03-27T15:16:00', evidenceImageUrl: null },
-  { id: 24, roomNumber: '103', itemName: 'Nước suối Lavie 500ml', quantity: 1, penaltyAmount: 15000, description: '', createdAt: '2026-03-27T13:05:00', evidenceImageUrl: null },
-];
 
 export default function LossAndDamages() {
   const [data, setData] = useState([]);
@@ -66,7 +40,7 @@ export default function LossAndDamages() {
   const [selectedRoomId, setSelectedRoomId] = useState(null);
   const [selectedInventory, setSelectedInventory] = useState(null);
   const [compensationType, setCompensationType] = useState('percentage'); // 'percentage', 'custom'
-  const [editCompensationType, setEditCompensationType] = useState('percentage'); 
+  const [editCompensationType, setEditCompensationType] = useState('percentage');
   const [isFixed100Pct, setIsFixed100Pct] = useState(false);
   const [isEditFixed100Pct, setIsEditFixed100Pct] = useState(false);
   const [createForm] = Form.useForm();
@@ -153,11 +127,11 @@ export default function LossAndDamages() {
   const handleInventoryChange = (inventoryId) => {
     const item = roomInventories.find(ri => ri.id === inventoryId);
     setSelectedInventory(item);
-    
+
     // Nếu là đồ ăn, thức uống, minibar, hoặc sản phẩm giá trị nhỏ hơn 100k
     const isConsumable = item && (
-      item.category === 'Đồ ăn' || 
-      item.category === 'Đồ uống' || 
+      item.category === 'Đồ ăn' ||
+      item.category === 'Đồ uống' ||
       item.category === 'Minibar' ||
       item.priceIfLost <= 50000
     );
@@ -177,7 +151,7 @@ export default function LossAndDamages() {
     try {
       const values = await createForm.validateFields();
       const finalPenaltyAmount = calculatePenaltyAmount(values.quantity);
-      
+
       const payload = {
         roomId: values.roomId,
         equipmentId: selectedInventory.equipmentId, // Lấy từ inventory đã chọn
@@ -202,7 +176,7 @@ export default function LossAndDamages() {
   const calculatePenaltyAmount = (quantity) => {
     if (!selectedInventory) return 0;
     const basePrice = selectedInventory.priceIfLost * (quantity || 0);
-    
+
     if (compensationType === 'percentage') {
       const pct = createForm.getFieldValue('percentageValue') || 0;
       return (basePrice * pct) / 100;
@@ -222,12 +196,12 @@ export default function LossAndDamages() {
   // --- LOGIC TÍNH TOÁN CHO MODAL SỬA ---
   const editQty = Form.useWatch('quantity', form);
   const editPctVal = Form.useWatch('editPercentageValue', form);
-  
+
   useEffect(() => {
     if (isEditModalVisible && editingRecord) {
       const basePrice = editingRecord.priceIfLost || 0;
       const totalBase = basePrice * (editQty || 0);
-      
+
       if (editCompensationType === 'percentage') {
         const finalAmt = (totalBase * (editPctVal || 0)) / 100;
         form.setFieldsValue({ penaltyAmount: finalAmt });
@@ -241,12 +215,12 @@ export default function LossAndDamages() {
     setEditingRecord(record);
     setUploadFile(null);
     setPreviewUrl(record.evidenceImageUrl || null);
-    
+
     // Tính toán xem có bị khóa cứng không dựa vào category và priceIfLost
-    const isConsumable = record.category === 'Đồ ăn' || 
-                         record.category === 'Đồ uống' || 
-                         record.category === 'Minibar' || 
-                         (record.priceIfLost && record.priceIfLost <= 50000);
+    const isConsumable = record.category === 'Đồ ăn' ||
+      record.category === 'Đồ uống' ||
+      record.category === 'Minibar' ||
+      (record.priceIfLost && record.priceIfLost <= 50000);
     setIsEditFixed100Pct(isConsumable);
 
     let pct = 100;
@@ -255,7 +229,7 @@ export default function LossAndDamages() {
     } else if (record.penaltyAmount === 0) {
       pct = 0;
     }
-    
+
     // Khóa cứng thì ép về 100%
     if (isConsumable) {
       pct = 100;
@@ -306,13 +280,13 @@ export default function LossAndDamages() {
   const handleUpdate = async () => {
     try {
       const values = await form.validateFields();
-      await axios.put(`https://localhost:7100/api/LossAndDamages/${editingRecord.id}`, values);
-      
+      await axiosClient.put(`/LossAndDamages/${editingRecord.id}`, values);
+
       // Tiền hành upload ảnh nếu có file mới được chọn
       if (uploadFile) {
         const formData = new FormData();
         formData.append('file', uploadFile);
-        await axios.post(`https://localhost:7100/api/LossAndDamages/${editingRecord.id}/image`, formData, {
+        await axiosClient.post(`/LossAndDamages/${editingRecord.id}/image`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
       }

@@ -16,6 +16,7 @@ namespace HotelERP.BE.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Microsoft.AspNetCore.Authorization.Authorize]
 public class LossAndDamagesController : ControllerBase
 {
     private readonly HotelDbContext _context;

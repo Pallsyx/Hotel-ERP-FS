@@ -12,6 +12,11 @@ body {
   /* Màu nền xám nhẹ chuẩn của Ant Design */
 }
 
+/* Ghi đè Font cho toàn bộ giao diện của User (Customer facing) */
+.font-serif, .font-serif *, .homepage-wrapper, .homepage-wrapper * {
+  font-family: "Times New Roman", Times, serif !important;
+}
+
 /* ==================== ARTICLE MODAL ==================== */
 .article-modal-overlay {
     @apply fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-300;

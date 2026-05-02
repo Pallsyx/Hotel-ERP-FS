@@ -6,7 +6,9 @@ import HomePage from './pages/Home/HomePage';
 // 1. THÊM DÒNG NÀY: Import trang Login của bạn vào đây
 import LoginPage from './pages/Auth/Login';
 import RegisterPage from './pages/Auth/Register';
+import ForgotPasswordPage from './pages/Auth/ForgotPassword';
 import NewsPage from './pages/Home/NewsPage';
+import UserProfile from './pages/Profile/UserProfile';
 
 function App() {
   return (
@@ -23,6 +25,12 @@ function App() {
 
         {/* Trang đăng ký tài khoản */}
         <Route path="/register" element={<RegisterPage />} />
+
+        {/* Trang quên mật khẩu */}
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+
+        {/* Trang thông tin cá nhân */}
+        <Route path="/profile" element={<UserProfile />} />
 
         {/* Toàn bộ các trang Admin của bạn sẽ được dời vào nhánh "/admin" */}
         <Route path="/admin/*" element={<AdminRoutes />} />

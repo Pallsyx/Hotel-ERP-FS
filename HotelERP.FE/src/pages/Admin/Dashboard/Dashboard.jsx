@@ -7,12 +7,14 @@ import {
   FormatPainterOutlined,
   FileTextOutlined,
   GiftOutlined,
+  WarningOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from '../../../store/authStore';
 import bookingManagementApi from '../../../api/bookingManagementApi';
 import { roomInventoryApi } from '../../../api/roomInventoryApi';
 import { invoiceApi } from '../../../api/invoiceApi';
 import voucherApi from '../../../api/voucherApi';
+import axiosClient from '../../../api/axiosClient';
 
 import StatCards from './components/StatCards';
 import RoomStatusChart from './components/RoomStatusChart';
@@ -30,14 +32,14 @@ const ROLE_CONFIG = {
     icon: <CrownOutlined />,
     color: '#722ed1',
     description: 'Toàn quyền xem và quản lý toàn bộ hệ thống.',
-    modules: ['reception', 'housekeeping', 'finance', 'vouchers', 'roomChart', 'revenueChart'],
+    modules: ['reception', 'housekeeping', 'finance', 'vouchers', 'roomChart', 'revenueChart', 'damages'],
   },
   Manager: {
     label: 'Quản lý',
     icon: <DashboardOutlined />,
     color: '#1890ff',
     description: 'Xem tổng quan tài chính, lễ tân và tình trạng phòng.',
-    modules: ['reception', 'housekeeping', 'finance', 'vouchers', 'roomChart', 'revenueChart'],
+    modules: ['reception', 'housekeeping', 'finance', 'vouchers', 'roomChart', 'revenueChart', 'damages'],
   },
   Receptionist: {
     label: 'Lễ tân',
@@ -51,7 +53,7 @@ const ROLE_CONFIG = {
     icon: <FormatPainterOutlined />,
     color: '#52c41a',
     description: 'Theo dõi và cập nhật trạng thái dọn phòng.',
-    modules: ['housekeeping', 'roomChart'],
+    modules: ['housekeeping', 'roomChart', 'damages'],
   },
   Accountant: {
     label: 'Kế toán',
@@ -70,6 +72,7 @@ const Dashboard = () => {
   const [housekeepingStats, setHousekeepingStats] = useState({ available: 0, dirty: 0, maintenance: 0, occupied: 0 });
   const [invoiceStats, setInvoiceStats] = useState({ totalRevenue: 0, todayRevenue: 0, totalPaid: 0 });
   const [voucherStats, setVoucherStats] = useState({ total: 0, active: 0, expired: 0 });
+  const [damageStats, setDamageStats] = useState({ totalIncidents: 0, totalAmount: 0, totalQuantity: 0 });
 
   // Xác định role và config hiển thị
   const roleName = user?.roleName || 'Guest';
@@ -135,6 +138,7 @@ const Dashboard = () => {
                 totalRevenue: invData.totalRevenueAllTime || 0,
                 todayRevenue: invData.todayRevenue || 0,
                 totalPaid: invData.totalRevenueAllTime || 0,
+                last7Days: invData.last7DaysRevenue || []
               });
             }
           })
@@ -156,6 +160,16 @@ const Dashboard = () => {
               setVoucherStats({ total: list.length, active, expired });
             }
           }).catch(() => {}) // Voucher không bắt buộc thành công
+        );
+      }
+
+      if (can('damages')) {
+        fetches.push(
+          axiosClient.get('/LossAndDamages').then((res) => {
+            if (res?.data?.stats) {
+              setDamageStats(res.data.stats);
+            }
+          }).catch(() => {}) // Không bắt buộc thành công
         );
       }
 
@@ -239,6 +253,35 @@ const Dashboard = () => {
           </div>
         )}
 
+        {/* ── MODULE: THẤT THOÁT ĐỀN BÙ (Admin / Manager / Housekeeping) ── */}
+        {can('damages') && (
+          <div style={{ marginBottom: 24 }}>
+            <Title level={5} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <WarningOutlined style={{ color: '#faad14' }} /> Thất Thoát & Đền Bù
+            </Title>
+            <Row gutter={[16, 16]}>
+              <Col xs={24} sm={8}>
+                <div style={{ background: '#fffbe6', border: '1px solid #ffe58f', borderRadius: 8, padding: '16px 20px' }}>
+                  <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>Tổng sự cố ghi nhận</div>
+                  <div style={{ fontSize: 28, fontWeight: 700, color: '#faad14' }}>{damageStats.totalIncidents}</div>
+                </div>
+              </Col>
+              <Col xs={24} sm={8}>
+                <div style={{ background: '#fff1f0', border: '1px solid #ffa39e', borderRadius: 8, padding: '16px 20px' }}>
+                  <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>Tổng số món hỏng / mất</div>
+                  <div style={{ fontSize: 28, fontWeight: 700, color: '#ff4d4f' }}>{damageStats.totalQuantity}</div>
+                </div>
+              </Col>
+              <Col xs={24} sm={8}>
+                <div style={{ background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 8, padding: '16px 20px' }}>
+                  <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>Tổng tiền phạt (VND)</div>
+                  <div style={{ fontSize: 28, fontWeight: 700, color: '#52c41a' }}>{damageStats.totalAmount.toLocaleString('vi-VN')}</div>
+                </div>
+              </Col>
+            </Row>
+          </div>
+        )}
+
         {/* ── BIỂU ĐỒ ── */}
         <Row gutter={[24, 24]}>
           {can('roomChart') && (
@@ -248,7 +291,7 @@ const Dashboard = () => {
           )}
           {can('revenueChart') && (
             <Col xs={24} md={12} lg={14}>
-              <RevenueChart todayRevenue={invoiceStats.todayRevenue} totalRevenue={invoiceStats.totalRevenue} />
+              <RevenueChart todayRevenue={invoiceStats.todayRevenue} totalRevenue={invoiceStats.totalRevenue} last7Days={invoiceStats.last7Days} />
             </Col>
           )}
         </Row>

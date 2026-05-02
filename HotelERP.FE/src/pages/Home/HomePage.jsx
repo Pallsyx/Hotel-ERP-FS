@@ -1,11 +1,45 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '../../store/authStore';
+import { Dropdown, Avatar, Space } from 'antd';
+import { UserOutlined, LogoutOutlined, DashboardOutlined, DownOutlined } from '@ant-design/icons';
 import './HomePage.css';
 import AttractionMap from '../../components/Map/AttractionMap';
 import articleApi from '../../api/articleApi';
 
 export default function HomePage() {
     const navigate = useNavigate();
+    const { user, isAuthenticated, logout } = useAuthStore();
+    
+    // User dropdown menu items
+    const userMenuItems = [
+        {
+            key: 'profile',
+            icon: <UserOutlined />,
+            label: 'Hồ sơ cá nhân',
+            onClick: () => navigate('/profile')
+        },
+        ...(user?.roleName !== 'Guest' ? [{
+            key: 'admin',
+            icon: <DashboardOutlined />,
+            label: 'Quản trị hệ thống',
+            onClick: () => navigate('/admin/dashboard')
+        }] : []),
+        {
+            type: 'divider'
+        },
+        {
+            key: 'logout',
+            icon: <LogoutOutlined />,
+            label: 'Đăng xuất',
+            danger: true,
+            onClick: () => {
+                logout();
+                navigate('/');
+            }
+        }
+    ];
+
     // Lấy ngày hiện tại (real time) theo chuẩn yyyy-mm-dd để gắn vào input date
     const today = new Date().toLocaleDateString('en-CA'); // 'en-CA' trả về format YYYY-MM-DD tương thích với input type="date"
     // ---------------------------------------------------------
@@ -123,20 +157,34 @@ export default function HomePage() {
                         <a href="#contact" className="nav-item">Liên Hệ</a>
                     </nav>
                     <div className="navbar-auth-group">
-                        <button
-                            id="btn-login"
-                            className="btn-login-outline"
-                            onClick={() => navigate('/login')}
-                        >
-                            Đăng Nhập
-                        </button>
-                        <button
-                            id="btn-register"
-                            className="btn-register-filled"
-                            onClick={() => navigate('/register')}
-                        >
-                            Đăng Ký
-                        </button>
+                        {isAuthenticated && user ? (
+                            <Dropdown menu={{ items: userMenuItems }} placement="bottomRight" trigger={['click']}>
+                                <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 8px', borderRadius: '20px', backgroundColor: 'rgba(255,255,255,0.1)' }}>
+                                    <Avatar size="small" icon={<UserOutlined />} style={{ backgroundColor: '#d4af37' }} />
+                                    <span style={{ color: 'white', fontSize: '14px', fontWeight: '500' }}>
+                                        Xin chào, <strong style={{ color: '#d4af37' }}>{user.fullName || user.userName || 'Quý khách'}</strong>
+                                    </span>
+                                    <DownOutlined style={{ color: 'white', fontSize: '12px' }} />
+                                </div>
+                            </Dropdown>
+                        ) : (
+                            <>
+                                <button
+                                    id="btn-login"
+                                    className="btn-login-outline"
+                                    onClick={() => navigate('/login')}
+                                >
+                                    Đăng Nhập
+                                </button>
+                                <button
+                                    id="btn-register"
+                                    className="btn-register-filled"
+                                    onClick={() => navigate('/register')}
+                                >
+                                    Đăng Ký
+                                </button>
+                            </>
+                        )}
                     </div>
                 </header>
 
@@ -332,8 +380,8 @@ export default function HomePage() {
             </section>
 
             {/* ==================== 5.5 ATTRACTIONS ==================== */}
-            <section className="bg-[#262b3f] py-16 px-8 border-t border-white/5">
-                <div className="max-w-7xl mx-auto">
+            <section className="bg-[#262b3f] py-16 px-8 border-t border-white/5 w-full flex justify-center">
+                <div className="w-full max-w-7xl">
                     <div className="text-center mb-12">
                         <p className="text-[#b4976c] tracking-[0.2em] uppercase text-[10px] font-bold mb-4">Khám Phá</p>
                         <h2 className="text-4xl font-serif text-white leading-snug">Các Điểm Đến Lân Cận</h2>
