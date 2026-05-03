@@ -28,33 +28,86 @@ public class BookingEngineController : ControllerBase
     //  SEARCH & HOLD
     // ==========================================
     
+    // POST api/BookingEngine/search  –– public, khách vãng lai được phép tìm kiếm
     [HttpPost("search")]
-    [Authorize(Policy = PermissionKeys.ManageBookings)]
-    public async Task<IActionResult> Search([FromBody] SearchRoomRequest request) 
+    public async Task<IActionResult> Search([FromBody] SearchRoomRequest request)
     {
-        // 1. Lấy dữ liệu từ Database, BẮT BUỘC dùng .Include() và .Where()
+        // ── Validation ───────────────────────────────────────────────────────────
+        if (request.CheckInDate.Date >= request.CheckOutDate.Date)
+            return BadRequest(new { success = false, message = "Ngày trả phòng phải sau ngày nhận phòng." });
+
+        if (request.CheckInDate.Date < DateTime.Today)
+            return BadRequest(new { success = false, message = "Ngày nhận phòng không được ở trong quá khứ." });
+
+        int nights = (int)(request.CheckOutDate.Date - request.CheckInDate.Date).TotalDays;
+
+        // ── Lấy room_id đã bị đặt (overlap) ─────────────────────────────────────
+        // Overlap condition: bd.CheckInDate < req.CheckOut  AND  bd.CheckOutDate > req.CheckIn
+        var bookedRoomIds = await _context.BookingDetails
+            .Where(bd =>
+                bd.RoomId.HasValue &&
+                (bd.Status == "confirmed" || bd.Status == "checked_in" || bd.Status == "pending") &&
+                bd.CheckInDate.Date  < request.CheckOutDate.Date &&
+                bd.CheckOutDate.Date > request.CheckInDate.Date)
+            .Select(bd => bd.RoomId!.Value)
+            .Distinct()
+            .ToListAsync();
+
+        // ── Query room types phù hợp sức chứa ───────────────────────────────────
         var roomTypes = await _context.RoomTypes
-        .Include(rt => rt.Rooms) // 👉 Lấy kèm danh sách phòng (Fix lỗi không có phòng)
-        .Where(rt => rt.CapacityAdults >= request.AdultsCount) // 👉 Lọc người lớn (Fix lỗi sai sức chứa)
-        .ToListAsync();
+            .Include(rt => rt.Rooms)
+            .Include(rt => rt.RoomImages)
+            .Include(rt => rt.RoomTypeAmenities)
+                .ThenInclude(rta => rta.Amenity)
+            .Where(rt =>
+                rt.Status == "active" &&
+                rt.DeletedAt == null &&
+                rt.CapacityAdults   >= request.AdultsCount &&
+                rt.CapacityChildren >= request.ChildrenCount)
+            .OrderBy(rt => rt.BasePrice)
+            .ToListAsync();
 
-    // 2. Map dữ liệu trả về cho Frontend (Đảm bảo chữ cái đầu viết thường giống React)
-        var result = roomTypes.Select(rt => new {
-        id = rt.Id,
-        name = rt.Name,
-        basePrice = rt.BasePrice,
-        capacityAdults = rt.CapacityAdults,
-        capacityChildren = rt.CapacityChildren,
-        rooms = rt.Rooms.Select(r => new {
-            id = r.Id,
-            roomNumber = r.RoomNumber,
-            floor = r.Floor,
-            status = r.Status // Đảm bảo DB lưu là "Available" hoặc "Occupied"
-        }).ToList()
-    }).ToList();
+        // ── Tính số phòng còn trống sau khi trừ phòng đã bị block ───────────────
+        var available = roomTypes
+            .Select(rt =>
+            {
+                var freeRooms = rt.Rooms
+                    .Where(r => r.Status == "Available" && r.DeletedAt == null && !bookedRoomIds.Contains(r.Id))
+                    .ToList();
 
-    return Ok(result);
+                return new AvailableRoomTypeResponse
+                {
+                    RoomTypeId        = rt.Id,
+                    Name              = rt.Name,
+                    Description       = rt.Description,
+                    BedType           = rt.BedType,
+                    SizeSqm           = rt.SizeSqm,
+                    BasePrice         = rt.BasePrice,
+                    CapacityAdults    = rt.CapacityAdults,
+                    CapacityChildren  = rt.CapacityChildren,
+                    AvailableCount    = freeRooms.Count,
+                    ImageUrl          = rt.RoomImages.FirstOrDefault(i => i.IsPrimary)?.ImageUrl ?? rt.ImageUrl,
+                    SampleRoomNumbers = freeRooms.Take(3).Select(r => r.RoomNumber).ToList(),
+                    Amenities         = rt.RoomTypeAmenities.Select(rta => rta.Amenity.Name).ToList(),
+                };
+            })
+            .Where(r => r.AvailableCount >= request.RoomsRequested)
+            .ToList();
+
+        return Ok(new {
+            success = true,
+            searchParams = new {
+                checkIn  = request.CheckInDate.ToString("yyyy-MM-dd"),
+                checkOut = request.CheckOutDate.ToString("yyyy-MM-dd"),
+                nights,
+                adults   = request.AdultsCount,
+                children = request.ChildrenCount,
+                rooms    = request.RoomsRequested,
+            },
+            availableRooms = available,
+        });
     }
+
 
     [HttpPost("hold")]
     [Authorize] // Phải đăng nhập mới được giữ phòng

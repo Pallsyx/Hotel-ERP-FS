@@ -7,6 +7,7 @@ import HomePage from './pages/Home/HomePage';
 import LoginPage from './pages/Auth/Login';
 import NewsPage from './pages/Home/NewsPage';
 import AttractionsPage from './pages/Home/AttractionsPage';
+import SearchResultsPage from './pages/Home/SearchResultsPage';
 
 function App() {
   return (
@@ -23,6 +24,9 @@ function App() {
 
         {/* 2. THÊM DÒNG NÀY: Đăng ký hộ khẩu cho trang đăng nhập */}
         <Route path="/login" element={<LoginPage />} />
+
+        {/* Kết quả tìm kiếm phòng */}
+        <Route path="/rooms/search-results" element={<SearchResultsPage />} />
 
         {/* Toàn bộ các trang Admin của bạn sẽ được dời vào nhánh "/admin" */}
         <Route path="/admin/*" element={<AdminRoutes />} />

@@ -25,9 +25,12 @@ function LotteHeader({ activePage = '' }) {
     return () => window.removeEventListener('scroll', fn);
   }, []);
   const links = [
-    { label: 'Trang Chủ', href: '/' }, { label: 'Giới Thiệu', href: '/#about' },
-    { label: 'Phòng', href: '/#rooms' }, { label: 'Tin Tức', href: '/news' },
-    { label: 'Khám Phá', href: '/attractions' }, { label: 'Liên Hệ', href: '/#contact' },
+    { label: 'THƯƠNG HIỆU', href: '/' },
+    { label: 'ƯU ĐÃI ĐẶC BIỆT', href: '/#offers' },
+    { label: 'ĂN UỐNG', href: '/#dining' },
+    { label: 'TRẢI NGHIỆM', href: '/attractions' },
+    { label: 'THÀNH VIÊN', href: '/#member' },
+    { label: 'TIN TỨC', href: '/news' },
   ];
   return (
     <header style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50, background: scrolled || mobileOpen ? DARK : 'linear-gradient(to bottom, rgba(0,0,0,0.75), transparent)', transition: 'background 400ms' }}>
@@ -101,11 +104,28 @@ export default function AttractionsPage() {
   const [distance,           setDistance]           = useState('');
   const [duration,           setDuration]           = useState('');
   const [travelMode,         setTravelMode]         = useState('DRIVING');
+  const [authError,          setAuthError]          = useState(false);
 
-  const { isLoaded } = useJsApiLoader({
+  const hasApiKey = !!import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+
+  const { isLoaded, loadError } = useJsApiLoader({
     id: 'google-map-script',
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '',
   });
+
+  // Lắng nghe lỗi xác thực Google Maps (API key sai/hết hạn)
+  useEffect(() => {
+    const prev = window.gm_authFailure;
+    window.gm_authFailure = () => {
+      console.error('[AttractionMap] Google Maps auth failure — kiểm tra API key và billing.');
+      setAuthError(true);
+      if (prev) prev();
+    };
+    return () => { window.gm_authFailure = prev; };
+  }, []);
+
+  // Dùng iframe fallback nếu không có key hoặc key bị lỗi
+  const useMapFallback = authError || !!loadError || !hasApiKey;
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -156,7 +176,7 @@ export default function AttractionsPage() {
 
   return (
     <div style={{ background: '#fafafa', minHeight: '100vh', fontFamily: "'Inter', sans-serif" }}>
-      <LotteHeader activePage="Khám Phá" />
+      <LotteHeader activePage="TRẢI NGHIỆM" />
 
       {/* Hero */}
       <div style={{ position: 'relative', height: 360, background: DARK, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -244,11 +264,22 @@ export default function AttractionsPage() {
 
             {/* Map */}
             <div style={{ flex: 1, position: 'relative' }}>
-              {isLoaded ? (
-                <GoogleMap mapContainerStyle={containerStyle} center={selectedAttraction ? { lat: selectedAttraction.latitude, lng: selectedAttraction.longitude } : hotelLocation} zoom={13} options={mapOptions}>
+              {useMapFallback ? (
+                // Fallback: Google Maps Iframe (không cần API key)
+                <iframe
+                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d15668.790518386828!2d106.79093836373703!3d10.948386121980646!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3174d9e03d40cb93%3A0xe5560b4de0c92ec9!2zVHLGsOG7nW5nIMSR4bqhaSBo4buNYyBM4bqhYyBI4buTbmc!5e0!3m2!1svi!2s!4v1714000000000!5m2!1svi!2s"
+                  width="100%"
+                  height="100%"
+                  style={{ border: 0, display: 'block' }}
+                  allowFullScreen=""
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                />
+              ) : isLoaded ? (
+                <GoogleMap mapContainerStyle={containerStyle} center={selectedAttraction ? { lat: Number(selectedAttraction.latitude), lng: Number(selectedAttraction.longitude) } : hotelLocation} zoom={13} options={mapOptions}>
                   <Marker position={hotelLocation} icon={{ url: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png' }} title="Asteria Resort" />
                   {!directionsResponse && attractions.map(item => (
-                    <Marker key={item.id} position={{ lat: item.latitude, lng: item.longitude }} onClick={() => handleCardClick(item)} animation={selectedAttraction?.id === item.id ? 1 : 0} />
+                    <Marker key={item.id} position={{ lat: Number(item.latitude), lng: Number(item.longitude) }} onClick={() => handleCardClick(item)} animation={selectedAttraction?.id === item.id ? 1 : 0} />
                   ))}
                   {directionsResponse && (
                     <DirectionsRenderer directions={directionsResponse} options={{ suppressMarkers: false, polylineOptions: { strokeColor: GOLD, strokeWeight: 5, strokeOpacity: 0.8 } }} />

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import AttractionMap from '../../components/Map/AttractionMap';
 import articleApi from '../../api/articleApi';
 import attractionApi from '../../api/attractionApi';
+import RoomSearchWidget from '../../components/RoomSearch/RoomSearchWidget';
 
 const SLIDES=[
   {id:1,img:'https://images.unsplash.com/photo-1611892440504-42a792e24d32?q=80&w=2000',title:"Khong gian nghi duong dang cap,\nhoa minh cung thien nhien."},
@@ -91,8 +92,8 @@ export default function HomePage(){
             <div style={{position:'absolute',left:'clamp(40px,8vw,160px)',opacity:sc?1:0,pointerEvents:sc?'auto':'none',transition:'opacity 300ms ease',display:'flex',alignItems:'center',gap:12,cursor:'pointer'}} onClick={()=>nav('/')}>
               <div style={{width:24,height:24,border:'1px solid white',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',...SF,fontSize:11,color:'white'}}>A</div>
             </div>
-            <nav style={{display:'flex',gap:48, width:'100%', justifyContent:sc?'center':'flex-start', transition:'justify-content 300ms ease'}}>
-              {[['THƯƠNG HIỆU','/'],['ƯU ĐÃI ĐẶC BIỆT','/#offers'],['ĂN UỐNG','/#dining'],['TRẢI NGHIỆM','/attractions'],['THÀNH VIÊN','/#member'],['CỬA HÀNG TRỰC TUYẾN','/#shop']].map(([l,h], idx)=>(
+            <nav style={{display:'flex',gap:48, width:'100%', justifyContent:'center', transition:'justify-content 300ms ease'}}>
+              {[['THƯƠNG HIỆU','/'],['ƯU ĐÃI ĐẶC BIỆT','/#offers'],['ĂN UỐNG','/#dining'],['TRẢI NGHIỆM','/attractions'],['THÀNH VIÊN','/#member'],['TIN TỨC','/news']].map(([l,h], idx)=>(
                 <a key={l} href={h} style={{fontSize:11,fontWeight:500,letterSpacing:'1.5px',color:idx===0?'white':'rgba(255,255,255,.7)',textDecoration:'none',height:60,display:'flex',alignItems:'center',borderBottom:idx===0?`2px solid ${G}`:'2px solid transparent',transition:'color 300ms, border-color 300ms'}}
                   onMouseEnter={e=>{e.target.style.color='white';e.target.style.borderBottomColor=G;}}onMouseLeave={e=>{e.target.style.color=idx===0?'white':'rgba(255,255,255,.7)';e.target.style.borderBottomColor=idx===0?G:'transparent';}}>{l}</a>
               ))}
@@ -285,11 +286,11 @@ export default function HomePage(){
       </section>
 
       {/* FOOTER */}
-      <footer style={{background:'#111111',color:'rgba(255,255,255,0.7)',padding:'80px 24px 40px',fontFamily:"'Inter',sans-serif", borderTop:'1px solid rgba(255,255,255,0.1)'}}>
+      <footer style={{background:'#111111',color:'rgba(255,255,255,0.7)',padding:'80px 24px 40px',fontFamily:"'Times New Roman', Times, serif", borderTop:'1px solid rgba(255,255,255,0.1)'}}>
         <div style={{maxWidth:1200,margin:'0 auto'}}>
           {/* Header Row */}
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:64,flexWrap:'wrap',gap:24}}>
-            <h2 style={{...SF,fontSize:'clamp(24px,3vw,32px)',color:'white',letterSpacing:'1px',margin:0}}>ASTERIA RESORT</h2>
+            <h2 style={{fontSize:'clamp(24px,3vw,32px)',color:'white',letterSpacing:'1px',margin:0}}>ASTERIA RESORT</h2>
             <div style={{display:'flex',gap:24}}>
               <a href="#" style={{display:'flex',alignItems:'center',gap:8,color:'white',textDecoration:'none',fontSize:13,fontWeight:500}}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.15 2.95.93 3.81 2.25-3.24 1.98-2.73 5.86.32 7.19-.74 1.62-1.63 3.01-2.78 3.57zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>
@@ -305,7 +306,7 @@ export default function HomePage(){
           {/* Links Grid */}
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))',gap:40,marginBottom:64,borderBottom:'1px solid rgba(255,255,255,0.1)',paddingBottom:64}}>
             <div>
-              <h4 style={{...SF,color:'white',fontSize:15,letterSpacing:'1px',marginBottom:24,textTransform:'uppercase'}}>ĐIỂM ĐẾN</h4>
+              <h4 style={{color:'white',fontSize:15,letterSpacing:'1px',marginBottom:24,textTransform:'uppercase'}}>ĐIỂM ĐẾN</h4>
               <div style={{display:'flex',flexDirection:'column',gap:14}}>
                 {['Về Asteria','Thương hiệu Asteria','Liên hệ chi nhánh','Ý kiến khách hàng'].map(t=>(
                   <a key={t} href="#" style={{color:'rgba(255,255,255,0.7)',fontSize:13,textDecoration:'none',transition:'color 200ms'}} onMouseEnter={e=>e.target.style.color='white'} onMouseLeave={e=>e.target.style.color='rgba(255,255,255,0.7)'}>{t}</a>
@@ -313,7 +314,7 @@ export default function HomePage(){
               </div>
             </div>
             <div>
-              <h4 style={{...SF,color:'white',fontSize:15,letterSpacing:'1px',marginBottom:24,textTransform:'uppercase'}}>CÔNG TY</h4>
+              <h4 style={{color:'white',fontSize:15,letterSpacing:'1px',marginBottom:24,textTransform:'uppercase'}}>CÔNG TY</h4>
               <div style={{display:'flex',flexDirection:'column',gap:14}}>
                 {['Tập đoàn Asteria','Giới thiệu','Tuyển dụng','Phát triển','Học viện dịch vụ'].map(t=>(
                   <a key={t} href="#" style={{color:'rgba(255,255,255,0.7)',fontSize:13,textDecoration:'none',transition:'color 200ms'}} onMouseEnter={e=>e.target.style.color='white'} onMouseLeave={e=>e.target.style.color='rgba(255,255,255,0.7)'}>{t}</a>
@@ -321,13 +322,13 @@ export default function HomePage(){
               </div>
             </div>
             <div>
-              <h4 style={{...SF,color:'white',fontSize:15,letterSpacing:'1px',marginBottom:24,textTransform:'uppercase'}}>HOTLINE</h4>
+              <h4 style={{color:'white',fontSize:15,letterSpacing:'1px',marginBottom:24,textTransform:'uppercase'}}>HOTLINE</h4>
               <div style={{display:'flex',flexDirection:'column',gap:14}}>
                 <a href="#" style={{color:'rgba(255,255,255,0.7)',fontSize:13,textDecoration:'none',transition:'color 200ms'}} onMouseEnter={e=>e.target.style.color='white'} onMouseLeave={e=>e.target.style.color='rgba(255,255,255,0.7)'}>Hotline</a>
               </div>
             </div>
             <div>
-              <h4 style={{...SF,color:'white',fontSize:15,letterSpacing:'1px',marginBottom:24,textTransform:'uppercase'}}>ĐIỀU KHOẢN & CHÍNH SÁCH</h4>
+              <h4 style={{color:'white',fontSize:15,letterSpacing:'1px',marginBottom:24,textTransform:'uppercase'}}>ĐIỀU KHOẢN & CHÍNH SÁCH</h4>
               <div style={{display:'flex',flexDirection:'column',gap:14}}>
                 {['Điều khoản khách sạn','Điều khoản dịch vụ'].map(t=>(
                   <a key={t} href="#" style={{color:'rgba(255,255,255,0.7)',fontSize:13,textDecoration:'none',transition:'color 200ms'}} onMouseEnter={e=>e.target.style.color='white'} onMouseLeave={e=>e.target.style.color='rgba(255,255,255,0.7)'}>{t}</a>
@@ -335,7 +336,7 @@ export default function HomePage(){
               </div>
             </div>
             <div>
-              <h4 style={{...SF,color:'white',fontSize:15,letterSpacing:'1px',marginBottom:24,textTransform:'uppercase'}}>LIÊN HỆ</h4>
+              <h4 style={{color:'white',fontSize:15,letterSpacing:'1px',marginBottom:24,textTransform:'uppercase'}}>LIÊN HỆ</h4>
               <div style={{display:'flex',flexDirection:'column',gap:14,color:'rgba(255,255,255,0.7)',fontSize:13,lineHeight:1.8}}>
                 <span>Số 10, Huỳnh Văn Nghệ, phường Bửu Long, TP. Biên Hòa, tỉnh Đồng Nai</span>
                 <span>0987 244 924</span>
@@ -402,64 +403,43 @@ export default function HomePage(){
         </div>
       </div>
 
-      {/* ── FLOATING BOOKING WIDGET ── */}
-      <div style={{position:'fixed',bottom:32,right:32,zIndex:60,display:'flex',flexDirection:'column',alignItems:'flex-end'}}>
 
-        {/* Popup Form */}
-        <div style={{
-          marginBottom:20,width:360,background:'white',
-          boxShadow:'0 20px 60px rgba(0,0,0,0.3)',
-          borderRadius:4,overflow:'hidden',
-          transformOrigin:'bottom right',
-          transform:bookOpen?'scale(1) translateY(0)':'scale(0.85) translateY(24px)',
-          opacity:bookOpen?1:0,
-          pointerEvents:bookOpen?'auto':'none',
-          transition:'transform 350ms cubic-bezier(0.34,1.56,0.64,1), opacity 250ms ease',
-        }}>
-          {/* Header */}
-          <div style={{background:D,padding:'16px 24px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-            <h3 style={{...SF,color:G,fontSize:18,margin:0,letterSpacing:'.05em'}}>Tìm kiếm phòng</h3>
-            <button onClick={()=>setBookOpen(false)} style={{background:'none',border:'none',cursor:'pointer',color:'rgba(255,255,255,.5)',fontSize:18,lineHeight:1,padding:0}} onMouseEnter={e=>e.target.style.color='white'} onMouseLeave={e=>e.target.style.color='rgba(255,255,255,.5)'}>✕</button>
-          </div>
-
-          {/* Form fields */}
-          <div style={{padding:'24px',display:'flex',flexDirection:'column',gap:16}}>
-            {/* Destination */}
-            <div style={{border:'1px solid #e5e7eb',borderRadius:4,padding:'12px 16px',cursor:'text',transition:'border-color 200ms'}} onMouseEnter={e=>e.currentTarget.style.borderColor=G} onMouseLeave={e=>e.currentTarget.style.borderColor='#e5e7eb'}>
-              <label style={{display:'block',fontSize:9,fontWeight:700,letterSpacing:'.25em',textTransform:'uppercase',color:'#71717a',marginBottom:6}}>Khách sạn / Điểm đến</label>
-              <div style={{display:'flex',alignItems:'center',gap:8}}>
-                <span style={{color:'#a1a1aa',fontSize:14}}>📍</span>
-                <input type="text" placeholder="Bạn muốn đến đâu?" style={{flex:1,border:'none',outline:'none',fontSize:13,color:'#18181b',background:'transparent'}} />
-              </div>
-            </div>
-
-            {/* Dates */}
-            <div style={{border:'1px solid #e5e7eb',borderRadius:4,padding:'12px 16px',cursor:'pointer',transition:'border-color 200ms'}} onMouseEnter={e=>e.currentTarget.style.borderColor=G} onMouseLeave={e=>e.currentTarget.style.borderColor='#e5e7eb'}>
-              <label style={{display:'block',fontSize:9,fontWeight:700,letterSpacing:'.25em',textTransform:'uppercase',color:'#71717a',marginBottom:6}}>Nhận phòng - Trả phòng</label>
-              <div style={{display:'flex',alignItems:'center',gap:8}}>
-                <span style={{color:'#a1a1aa',fontSize:14}}>📅</span>
-                <span style={{fontSize:13,color:'#18181b',fontWeight:500}}>{new Date().toLocaleDateString('vi-VN',{day:'2-digit',month:'short',year:'numeric'})} - {new Date(Date.now()+86400000).toLocaleDateString('vi-VN',{day:'2-digit',month:'short',year:'numeric'})}</span>
-              </div>
-            </div>
-
-            {/* Guests */}
-            <div style={{border:'1px solid #e5e7eb',borderRadius:4,padding:'12px 16px',cursor:'pointer',transition:'border-color 200ms'}} onMouseEnter={e=>e.currentTarget.style.borderColor=G} onMouseLeave={e=>e.currentTarget.style.borderColor='#e5e7eb'}>
-              <label style={{display:'block',fontSize:9,fontWeight:700,letterSpacing:'.25em',textTransform:'uppercase',color:'#71717a',marginBottom:6}}>Khách & Phòng</label>
-              <div style={{display:'flex',alignItems:'center',gap:8}}>
-                <span style={{color:'#a1a1aa',fontSize:14}}>👥</span>
-                <span style={{fontSize:13,color:'#18181b',fontWeight:500}}>2 Người lớn, 0 Trẻ em, 1 Phòng</span>
-              </div>
-            </div>
-
-            {/* Search btn */}
-            <button style={{width:'100%',padding:'14px',background:D,color:'white',border:'none',borderRadius:4,fontSize:11,fontWeight:700,letterSpacing:'2px',textTransform:'uppercase',cursor:'pointer',transition:'background 200ms',marginTop:4}}
-              onMouseEnter={e=>e.target.style.background='#222'} onMouseLeave={e=>e.target.style.background=D}>
-              TÌM KIẾM
-            </button>
+      {/* ── MODAL OVERLAY ── */}
+      {bookOpen && (
+        <div
+          onClick={()=>setBookOpen(false)}
+          style={{
+            position:'fixed',top:0,left:0,right:0,bottom:0,
+            background:'rgba(0,0,0,0.55)',
+            display:'flex',alignItems:'center',justifyContent:'center',
+            zIndex:9998,
+            animation:'backdropIn 200ms ease',
+          }}
+        >
+          <style>{`
+            @keyframes backdropIn{from{opacity:0}to{opacity:1}}
+            @keyframes modalIn{from{opacity:0;transform:scale(0.93) translateY(12px)}to{opacity:1;transform:scale(1) translateY(0)}}
+            @media(max-width:480px){.book-modal-inner{width:100vw!important;max-height:100dvh!important;border-radius:16px 16px 0 0!important;align-self:flex-end!important;}}
+          `}</style>
+          <div
+            className="book-modal-inner"
+            onClick={e=>e.stopPropagation()}
+            style={{
+              width:'min(400px,94vw)',
+              maxHeight:'90dvh',
+              overflowY:'auto',
+              borderRadius:10,
+              animation:'modalIn 250ms cubic-bezier(0.34,1.4,0.64,1)',
+              boxShadow:'0 24px 80px rgba(0,0,0,0.35)',
+            }}
+          >
+            <RoomSearchWidget onClose={()=>setBookOpen(false)} />
           </div>
         </div>
+      )}
 
-        {/* Trigger Button */}
+      {/* ── FAB TRIGGER BUTTON ── */}
+      <div style={{position:'fixed',bottom:32,right:32,zIndex:9999}}>
         <button
           onClick={()=>setBookOpen(!bookOpen)}
           style={{

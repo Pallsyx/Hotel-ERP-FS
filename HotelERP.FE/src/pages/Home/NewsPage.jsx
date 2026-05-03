@@ -15,12 +15,12 @@ function LotteHeader({ activePage = '' }) {
   }, []);
 
   const navLinks = [
-    { label: 'Trang Chủ',  href: '/' },
-    { label: 'Giới Thiệu', href: '/#about' },
-    { label: 'Phòng',      href: '/#rooms' },
-    { label: 'Tin Tức',    href: '/news' },
-    { label: 'Khám Phá',   href: '/attractions' },
-    { label: 'Liên Hệ',   href: '/#contact' },
+    { label: 'THƯƠNG HIỆU', href: '/' },
+    { label: 'ƯU ĐÃI ĐẶC BIỆT', href: '/#offers' },
+    { label: 'ĂN UỐNG', href: '/#dining' },
+    { label: 'TRẢI NGHIỆM', href: '/attractions' },
+    { label: 'THÀNH VIÊN', href: '/#member' },
+    { label: 'TIN TỨC', href: '/news' },
   ];
 
   return (
@@ -187,7 +187,7 @@ export default function NewsPage() {
 
   return (
     <div style={{ background: '#fafafa', minHeight: '100vh', fontFamily: "'Inter', sans-serif" }}>
-      <LotteHeader activePage="Tin Tức" />
+      <LotteHeader activePage="TIN TỨC" />
 
       {/* Hero Banner */}
       <div style={{ position: 'relative', height: 420, background: '#111', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

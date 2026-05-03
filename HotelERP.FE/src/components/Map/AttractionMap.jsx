@@ -72,8 +72,8 @@ export default function AttractionMap({ height = "500px", isFooter = false }) {
     }
   }, [isFooter]);
 
-  // Nếu API Key bị lỗi, bị từ chối hoặc lỗi tải script, chuyển về bản đồ Iframe tĩnh dự phòng
-  if (authError || loadError) {
+  // Nếu API Key bị lỗi, bị từ chối, lỗi tải script, hoặc không có API Key, chuyển về bản đồ Iframe tĩnh dự phòng
+  if (authError || loadError || !import.meta.env.VITE_GOOGLE_MAPS_API_KEY) {
     return (
       <iframe
         src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d15668.790518386828!2d106.79093836373703!3d10.948386121980646!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3174d9e03d40cb93%3A0xe5560b4de0c92ec9!2zVHLGsOG7nW5nIMSR4bqhaSBo4buNYyBM4bqhYyBI4buTbmc!5e0!3m2!1svi!2s!4v1714000000000!5m2!1svi!2s"
