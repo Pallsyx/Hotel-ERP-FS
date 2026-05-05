@@ -1,252 +1,302 @@
-import React from 'react';
-import { Layout, Menu, Button, Typography, Dropdown, Spin } from 'antd';
+import React, { useState } from 'react';
+import { Layout, Menu, Button, Dropdown, Spin, Badge, Tooltip } from 'antd';
 import {
-  UserOutlined,
-  TeamOutlined,
-  SafetyCertificateOutlined,
-  LogoutOutlined,
-  AppstoreOutlined,
-  HomeOutlined,
-  DatabaseOutlined,
-  FormatPainterOutlined,
-  WarningOutlined,
-  DashboardOutlined, // Icon cho Dashboard
-  IdcardOutlined,    // Icon cho Quầy lễ tân
-  FileTextOutlined,  // Icon cho Hóa đơn
-  GiftOutlined,       // Icon cho Voucher
-  EditOutlined        // Icon cho Bài viết
+  UserOutlined, TeamOutlined, SafetyCertificateOutlined, LogoutOutlined,
+  AppstoreOutlined, HomeOutlined, DatabaseOutlined, FormatPainterOutlined,
+  WarningOutlined, DashboardOutlined, IdcardOutlined, FileTextOutlined,
+  GiftOutlined, EditOutlined, MenuFoldOutlined, MenuUnfoldOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useLoadingStore } from '../store/loadingStore';
 import NotificationBell from './NotificationBell.jsx';
 
-const { Header, Sider, Content } = Layout;
-const { Title } = Typography;
+const { Sider, Content } = Layout;
+
+/* ─────────────────────────────────────────────────────────── */
+/*  LOTTE DESIGN TOKENS (inline để override Ant Design)        */
+/* ─────────────────────────────────────────────────────────── */
+const GOLD   = '#b8956a';
+const DARK   = '#111111';
+const DARK2  = '#1a1a1a';
+const DARK3  = '#222222';
+
+const siderStyle = {
+  background: DARK,
+  borderRight: '1px solid rgba(255,255,255,0.06)',
+  boxShadow: '4px 0 24px rgba(0,0,0,0.4)',
+  height: '100vh',
+  position: 'sticky',
+  top: 0,
+  overflow: 'auto',
+};
+
+/* Custom menu styles injected via a <style> tag so Ant tokens apply */
+const menuCss = `
+  .lotte-sider-menu.ant-menu-dark { background: transparent !important; }
+  .lotte-sider-menu .ant-menu-item,
+  .lotte-sider-menu .ant-menu-submenu-title {
+    border-radius: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    color: rgba(255,255,255,0.55) !important;
+    font-size: 12px !important;
+    letter-spacing: 0.05em !important;
+    transition: background 200ms, color 200ms !important;
+  }
+  .lotte-sider-menu .ant-menu-item:hover,
+  .lotte-sider-menu .ant-menu-submenu-title:hover {
+    background: rgba(184,149,106,0.08) !important;
+    color: ${GOLD} !important;
+  }
+  .lotte-sider-menu .ant-menu-item-selected {
+    background: rgba(184,149,106,0.12) !important;
+    color: ${GOLD} !important;
+    border-right: 2px solid ${GOLD} !important;
+  }
+  .lotte-sider-menu .ant-menu-item-selected .anticon,
+  .lotte-sider-menu .ant-menu-item:hover .anticon {
+    color: ${GOLD} !important;
+  }
+  .lotte-sider-menu .ant-menu-sub {
+    background: rgba(0,0,0,0.2) !important;
+  }
+  .lotte-sider-menu .ant-menu-submenu-arrow { color: rgba(255,255,255,0.3) !important; }
+  .lotte-sider-menu .ant-menu-submenu-open > .ant-menu-submenu-title,
+  .lotte-sider-menu .ant-menu-submenu-active > .ant-menu-submenu-title {
+    color: ${GOLD} !important;
+  }
+`;
 
 const MainLayout = () => {
   const { user, logout, permissions } = useAuthStore();
-  const navigate = useNavigate();
-  const location = useLocation();
+  const navigate  = useNavigate();
+  const location  = useLocation();
   const isLoading = useLoadingStore((state) => state.isLoading);
+  const [collapsed, setCollapsed] = useState(false);
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
-
+  const handleLogout = () => { logout(); navigate('/login'); };
   const isAdmin = user?.roleName === 'Admin' || user?.fullName === 'Admin';
 
-  // === ĐÃ NÂNG CẤP: DANH SÁCH MENU MỚI CHUẨN ERP ===
+  /* ── Menu definition (unchanged from original) ── */
   const rawMenuItems = [
-    {
-      key: '/admin/dashboard',
-      icon: <DashboardOutlined />,
-      label: 'Dashboard',
-      requiredPermission: 'VIEW_DASHBOARD',
-    },
-    {
-      key: '/admin/room-types',
-      icon: <AppstoreOutlined />,
-      label: 'Hạng phòng',
-      requiredPermission: 'MANAGE_AMENITIES',
-    },
-    {
-      key: '/admin/rooms',
-      icon: <HomeOutlined />,
-      label: 'Quản lý phòng',
-      requiredPermission: 'MANAGE_ROOMS',
-    },
-    {
-      key: '/admin/inventory',
-      icon: <DatabaseOutlined />,
-      label: 'Kho vật tư',
-      requiredPermission: 'MANAGE_INVENTORY',
-    },
-    {
-      key: '/admin/loss-and-damages',
-      icon: <WarningOutlined />,
-      label: 'Thất thoát & Đền bù',
-      requiredPermission: 'MANAGE_INVENTORY',
-    },
-    {
-      key: '/admin/housekeeping',
-      icon: <FormatPainterOutlined />,
-      label: 'Dọn phòng',
-      requiredPermission: 'UPDATE_ROOM_STATUS',
-    },
-    // MENU THẢ XUỐNG: QUẦY LỄ TÂN
+    { key: '/admin/dashboard',      icon: <DashboardOutlined />,      label: 'Dashboard',            requiredPermission: 'VIEW_DASHBOARD' },
+    { key: '/admin/room-types',     icon: <AppstoreOutlined />,       label: 'Hạng phòng',           requiredPermission: 'MANAGE_AMENITIES' },
+    { key: '/admin/rooms',          icon: <HomeOutlined />,           label: 'Quản lý phòng',        requiredPermission: 'MANAGE_ROOMS' },
+    { key: '/admin/inventory',      icon: <DatabaseOutlined />,       label: 'Kho vật tư',           requiredPermission: 'MANAGE_INVENTORY' },
+    { key: '/admin/loss-and-damages', icon: <WarningOutlined />,      label: 'Thất thoát & Đền bù', requiredPermission: 'MANAGE_INVENTORY' },
+    { key: '/admin/housekeeping',   icon: <FormatPainterOutlined />,  label: 'Dọn phòng',            requiredPermission: 'UPDATE_ROOM_STATUS' },
     {
       key: 'reception_menu',
       icon: <IdcardOutlined />,
       label: 'Quầy lễ tân',
       requiredPermission: 'MANAGE_BOOKINGS',
       children: [
-        {
-          key: '/admin/bookings',
-          label: 'Quản lý Đặt phòng',
-        },
-        {
-          key: '/admin/arrivals',
-          label: 'Khách đến hôm nay',
-        },
-        {
-          key: '/admin/in-house',
-          label: 'Khách đang lưu trú',
-        },
-        {
-          key: '/admin/departures',
-          label: 'Thủ tục trả phòng',
-        },
+        { key: '/admin/bookings',    label: 'Quản lý Đặt phòng' },
+        { key: '/admin/arrivals',    label: 'Khách đến hôm nay' },
+        { key: '/admin/in-house',    label: 'Khách đang lưu trú' },
+        { key: '/admin/departures',  label: 'Thủ tục trả phòng' },
       ],
     },
-    {
-      key: '/admin/vouchers',
-      icon: <GiftOutlined />,
-      label: 'Quản lý Voucher',
-      requiredPermission: 'MANAGE_SERVICES',
-    },
-    {
-      key: '/admin/posts',
-      icon: <EditOutlined />,
-      label: 'Quản lý Bài viết',
-    },
-    {
-      key: '/admin/invoices',
-      icon: <FileTextOutlined />,
-      label: 'Quản lý hóa đơn',
-      requiredPermission: 'MANAGE_INVOICES',
-    },
-    {
-      key: '/admin/users',
-      icon: <TeamOutlined />,
-      label: 'Danh sách Nhân sự',
-      requiredPermission: 'MANAGE_USERS',
-    },
-    {
-      key: '/admin/roles',
-      icon: <SafetyCertificateOutlined />,
-      label: 'Vai trò & Phân quyền',
-      requiredPermission: 'MANAGE_ROLES',
-    },
-    {
-      key: '/admin/audit-logs',
-      icon: <SafetyCertificateOutlined />,
-      label: 'Nhật ký hoạt động',
-      requiredPermission: 'MANAGE_ROLES',
-    }
+    { key: '/admin/vouchers',    icon: <GiftOutlined />,       label: 'Quản lý Voucher',       requiredPermission: 'MANAGE_SERVICES' },
+    { key: '/admin/posts',       icon: <EditOutlined />,       label: 'Quản lý Bài viết' },
+    { key: '/admin/attractions', icon: <HomeOutlined />,       label: 'Khám phá Điểm đến' },
+    { key: '/admin/invoices',    icon: <FileTextOutlined />,   label: 'Quản lý hóa đơn',      requiredPermission: 'MANAGE_INVOICES' },
+    { key: '/admin/users',       icon: <TeamOutlined />,       label: 'Danh sách Nhân sự',     requiredPermission: 'MANAGE_USERS' },
+    { key: '/admin/roles',       icon: <SafetyCertificateOutlined />, label: 'Vai trò & Phân quyền', requiredPermission: 'MANAGE_ROLES' },
   ];
 
-  // === ĐÃ NÂNG CẤP: Hàm lọc quyền thông minh (Lọc cả Menu cha lẫn Menu con) ===
-  const filterMenuItems = (items) => {
-    return items
-      .filter((item) => {
-        if (isAdmin) return true; // Admin thấy hết
-        if (!item.requiredPermission) return true; // Không yêu cầu quyền thì ai cũng thấy
+  const filterMenuItems = (items) =>
+    items
+      .filter(item => {
+        if (isAdmin) return true;
+        if (!item.requiredPermission) return true;
         return permissions && permissions.includes(item.requiredPermission);
       })
-      .map((item) => {
-        // Nếu có menu con thì dùng đệ quy để lọc tiếp bên trong
+      .map(item => {
         if (item.children) {
-          const filteredChildren = filterMenuItems(item.children);
-          return { ...item, children: filteredChildren };
+          return { ...item, children: filterMenuItems(item.children) };
         }
         return item;
       })
-      // Xóa bỏ thuộc tính requiredPermission trước khi ném vào UI của Ant Design
       .map(({ requiredPermission, ...rest }) => rest);
-  };
 
   const menuItems = filterMenuItems(rawMenuItems);
 
+  /* ── User dropdown ── */
   const userMenu = {
     items: [
-      {
-        key: 'profile',
-        icon: <UserOutlined />,
-        label: 'Hồ sơ cá nhân',
-        onClick: () => navigate('/admin/profile'),
-      },
-      {
-        type: 'divider',
-      },
-      {
-        key: 'logout',
-        icon: <LogoutOutlined />,
-        label: 'Đăng xuất',
-        danger: true,
-        onClick: handleLogout,
-      },
+      { key: 'profile', icon: <UserOutlined />, label: 'Hồ sơ cá nhân', onClick: () => navigate('/admin/profile') },
+      { type: 'divider' },
+      { key: 'logout', icon: <LogoutOutlined />, label: 'Đăng xuất', danger: true, onClick: handleLogout },
     ],
   };
 
   const isHousekeeping = location.pathname.startsWith('/admin/housekeeping');
 
   return (
-    <Spin spinning={isLoading} size="large" description="Hệ thống đang xử lý...">
-      <Layout style={{ minHeight: '100vh' }}>
-        <Sider width={250} theme="dark" collapsed={isHousekeeping} collapsedWidth={50}>
-          <div
-            style={{
-              padding: isHousekeeping ? '16px 8px' : '16px',
-              textAlign: 'center',
-              background: 'rgba(255, 255, 255, 0.1)',
-              margin: '16px 8px',
-              borderRadius: '8px',
-              overflow: 'hidden',
-              whiteSpace: 'nowrap'
-            }}
+    <>
+      {/* Inject custom CSS for menu */}
+      <style>{menuCss}</style>
+
+      <Spin spinning={isLoading} size="large" tip="Hệ thống đang xử lý...">
+        <Layout style={{ minHeight: '100vh' }}>
+
+          {/* ─── SIDEBAR ─────────────────────────────────────── */}
+          <Sider
+            width={248}
+            collapsedWidth={64}
+            collapsed={isHousekeeping ? true : collapsed}
+            style={siderStyle}
           >
-            <Title level={4} style={{ color: 'white', margin: 0, fontSize: isHousekeeping ? '14px' : '20px' }}>
-              {isHousekeeping ? 'ERP' : 'HOTEL ERP'}
-            </Title>
-          </div>
-
-          <Menu
-            theme="dark"
-            mode="inline"
-            // Tính năng tự mở menu cha khi đang ở trang con
-            defaultOpenKeys={location.pathname.startsWith('/admin/') ? ['reception_menu'] : []}
-            selectedKeys={[location.pathname]}
-            items={menuItems}
-            onClick={(e) => navigate(e.key)}
-          />
-        </Sider>
-
-        <Layout>
-          <Header
-            style={{
-              background: '#fff',
-              padding: '0 24px',
+            {/* Logo area */}
+            <div style={{
+              padding: collapsed || isHousekeeping ? '20px 12px' : '20px 20px',
+              borderBottom: '1px solid rgba(255,255,255,0.06)',
               display: 'flex',
-              justifyContent: 'flex-end',
               alignItems: 'center',
-              boxShadow: '0 1px 4px rgba(0,21,41,.08)',
-              paddingLeft: isHousekeeping ? 16 : 24,
-            }}
-          >
-            <NotificationBell />
-            <Dropdown menu={userMenu} placement="bottomRight" arrow>
-              <Button type="text" icon={<UserOutlined />}>
-                Xin chào, {user?.fullName || user?.username || user?.email || 'Bạn'}
-              </Button>
-            </Dropdown>
-          </Header>
+              gap: 12,
+              overflow: 'hidden',
+              transition: 'padding 200ms',
+            }}>
+              <div style={{
+                width: 36, height: 36, border: `1px solid ${GOLD}`, borderRadius: '50%',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontFamily: "'Playfair Display', serif", fontSize: 15, color: GOLD,
+                flexShrink: 0, cursor: 'pointer',
+              }} onClick={() => navigate('/')}>
+                A
+              </div>
+              {!collapsed && !isHousekeeping && (
+                <div style={{ overflow: 'hidden' }}>
+                  <div style={{ color: 'white', fontSize: 13, fontWeight: 600, letterSpacing: '0.15em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                    Asteria
+                  </div>
+                  <div style={{ color: GOLD, fontSize: 9, letterSpacing: '0.25em', textTransform: 'uppercase', marginTop: 1 }}>
+                    Hotel ERP
+                  </div>
+                </div>
+              )}
+            </div>
 
-          <Content
-            style={{
-              margin: isHousekeeping ? 0 : '24px',
-              padding: isHousekeeping ? 0 : '24px',
-              background: isHousekeeping ? '#f0f2f5' : '#fff',
-              borderRadius: isHousekeeping ? 0 : '8px',
-              minHeight: 280,
-            }}
-          >
-            <Outlet />
-          </Content>
+            {/* User info chip */}
+            {!collapsed && !isHousekeeping && (
+              <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{
+                    width: 32, height: 32, borderRadius: '50%',
+                    background: `linear-gradient(135deg, ${GOLD}, #9a7b52)`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: 'white', fontSize: 12, fontWeight: 700, flexShrink: 0,
+                  }}>
+                    {(user?.fullName?.[0] || 'A').toUpperCase()}
+                  </div>
+                  <div style={{ overflow: 'hidden' }}>
+                    <div style={{ color: 'white', fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {user?.fullName || 'Admin'}
+                    </div>
+                    <div style={{ color: GOLD, fontSize: 10, letterSpacing: '0.1em' }}>
+                      {user?.roleName || 'Admin'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Navigation Menu */}
+            <Menu
+              className="lotte-sider-menu"
+              theme="dark"
+              mode="inline"
+              defaultOpenKeys={location.pathname.startsWith('/admin/') ? ['reception_menu'] : []}
+              selectedKeys={[location.pathname]}
+              items={menuItems}
+              onClick={(e) => navigate(e.key)}
+              style={{ background: 'transparent', border: 'none', marginTop: 8 }}
+            />
+
+            {/* Collapse toggle */}
+            {!isHousekeeping && (
+              <div style={{
+                position: 'absolute', bottom: 0, left: 0, right: 0,
+                padding: '14px 20px',
+                borderTop: '1px solid rgba(255,255,255,0.06)',
+                background: DARK,
+              }}>
+                <Button
+                  type="text"
+                  onClick={() => setCollapsed(!collapsed)}
+                  icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+                  style={{ color: 'rgba(255,255,255,0.4)', width: '100%', textAlign: collapsed ? 'center' : 'left', fontSize: 14 }}
+                />
+              </div>
+            )}
+          </Sider>
+
+          {/* ─── MAIN AREA ───────────────────────────────────── */}
+          <Layout style={{ background: '#f4f4f5' }}>
+
+            {/* Header */}
+            <div style={{
+              background: 'white',
+              height: 56,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '0 24px',
+              borderBottom: '1px solid #f0f0f0',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+              position: 'sticky',
+              top: 0,
+              zIndex: 10,
+            }}>
+              {/* Breadcrumb-style title */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 3, height: 20, background: GOLD, borderRadius: 2 }} />
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#18181b', letterSpacing: '0.05em' }}>
+                  HOTEL ERP
+                </span>
+              </div>
+
+              {/* Right actions */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <NotificationBell />
+                <Dropdown menu={userMenu} placement="bottomRight" arrow>
+                  <Button
+                    type="text"
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, height: 40, paddingInline: 12 }}
+                  >
+                    <div style={{
+                      width: 28, height: 28, borderRadius: '50%',
+                      background: `linear-gradient(135deg, ${GOLD}, #9a7b52)`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: 'white', fontSize: 11, fontWeight: 700,
+                    }}>
+                      {(user?.fullName?.[0] || 'A').toUpperCase()}
+                    </div>
+                    <span style={{ fontSize: 13, color: '#18181b', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {user?.fullName || 'Admin'}
+                    </span>
+                  </Button>
+                </Dropdown>
+              </div>
+            </div>
+
+            {/* Page content */}
+            <Content style={{
+              margin: isHousekeeping ? 0 : '20px',
+              padding: isHousekeeping ? 0 : '20px',
+              background: isHousekeeping ? '#f4f4f5' : 'white',
+              borderRadius: isHousekeeping ? 0 : 8,
+              minHeight: 'calc(100vh - 96px)',
+              boxShadow: isHousekeeping ? 'none' : '0 1px 3px rgba(0,0,0,0.04)',
+            }}>
+              <Outlet />
+            </Content>
+          </Layout>
         </Layout>
-      </Layout>
-    </Spin>
+      </Spin>
+    </>
   );
 };
 

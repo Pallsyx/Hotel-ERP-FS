@@ -9,6 +9,8 @@ import RegisterPage from './pages/Auth/Register';
 import ForgotPasswordPage from './pages/Auth/ForgotPassword';
 import NewsPage from './pages/Home/NewsPage';
 import UserProfile from './pages/Profile/UserProfile';
+import AttractionsPage from './pages/Home/AttractionsPage';
+import SearchResultsPage from './pages/Home/SearchResultsPage';
 
 function App() {
   return (
@@ -19,6 +21,9 @@ function App() {
         
         {/* Trang tin tức */}
         <Route path="/news" element={<NewsPage />} />
+
+        {/* Trang khám phá điểm đến */}
+        <Route path="/attractions" element={<AttractionsPage />} />
 
         {/* 2. THÊM DÒNG NÀY: Đăng ký hộ khẩu cho trang đăng nhập */}
         <Route path="/login" element={<LoginPage />} />
@@ -31,6 +36,8 @@ function App() {
 
         {/* Trang thông tin cá nhân */}
         <Route path="/profile" element={<UserProfile />} />
+        {/* Kết quả tìm kiếm phòng */}
+        <Route path="/rooms/search-results" element={<SearchResultsPage />} />
 
         {/* Toàn bộ các trang Admin của bạn sẽ được dời vào nhánh "/admin" */}
         <Route path="/admin/*" element={<AdminRoutes />} />
