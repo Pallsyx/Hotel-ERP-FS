@@ -28,6 +28,7 @@ import VoucherManagement from '../pages/Admin/Vouchers/VoucherManagement';
 
 import ArticleManagement from '../pages/Admin/ArticleManagement';
 import AttractionManagement from '../pages/Admin/AttractionManagement';
+import ReviewManagement from '../pages/Admin/ReviewManagement';
 
 const Placeholder = ({ title }) => (
   <div style={{ padding: 24, textAlign: 'center' }}>
@@ -89,7 +90,7 @@ const AdminRoutes = () => {
         <Route path='article-categories' element={<Placeholder title='Danh mục Bài viết' />} />
         <Route path='posts' element={<ArticleManagement />} />
         <Route path='attractions' element={<AttractionManagement />} />
-        <Route path='reviews' element={<Placeholder title='Kiểm duyệt Đánh giá (Review)' />} />
+        <Route path='reviews' element={<ReviewManagement />} />
 
         {/* MODULE 2 - QUẦY LỄ TÂN */}
         <Route path="reception-calendar" element={<Placeholder title="Lịch Lễ Tân (Gantt Chart)" />} />

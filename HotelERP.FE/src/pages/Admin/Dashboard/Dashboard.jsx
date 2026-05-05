@@ -8,12 +8,14 @@ import {
   FileTextOutlined,
   GiftOutlined,
   WarningOutlined,
+  StarOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from '../../../store/authStore';
 import bookingManagementApi from '../../../api/bookingManagementApi';
 import { roomInventoryApi } from '../../../api/roomInventoryApi';
 import { invoiceApi } from '../../../api/invoiceApi';
 import voucherApi from '../../../api/voucherApi';
+import reviewApi from '../../../api/reviewApi';
 import axiosClient from '../../../api/axiosClient';
 
 import StatCards from './components/StatCards';
@@ -32,14 +34,14 @@ const ROLE_CONFIG = {
     icon: <CrownOutlined />,
     color: '#722ed1',
     description: 'Toàn quyền xem và quản lý toàn bộ hệ thống.',
-    modules: ['reception', 'housekeeping', 'finance', 'vouchers', 'roomChart', 'revenueChart', 'damages'],
+    modules: ['reception', 'housekeeping', 'finance', 'vouchers', 'roomChart', 'revenueChart', 'damages', 'reviews'],
   },
   Manager: {
     label: 'Quản lý',
     icon: <DashboardOutlined />,
     color: '#1890ff',
     description: 'Xem tổng quan tài chính, lễ tân và tình trạng phòng.',
-    modules: ['reception', 'housekeeping', 'finance', 'vouchers', 'roomChart', 'revenueChart', 'damages'],
+    modules: ['reception', 'housekeeping', 'finance', 'vouchers', 'roomChart', 'revenueChart', 'damages', 'reviews'],
   },
   Receptionist: {
     label: 'Lễ tân',
@@ -68,11 +70,12 @@ const Dashboard = () => {
   const { user, permissions } = useAuthStore();
   const [loading, setLoading] = useState(true);
 
-  const [receptionStats, setReceptionStats] = useState({ arrivals: 0, inHouse: 0, departures: 0 });
+  const [receptionStats, setReceptionStats]     = useState({ arrivals: 0, inHouse: 0, departures: 0 });
   const [housekeepingStats, setHousekeepingStats] = useState({ available: 0, dirty: 0, maintenance: 0, occupied: 0 });
-  const [invoiceStats, setInvoiceStats] = useState({ totalRevenue: 0, todayRevenue: 0, totalPaid: 0 });
-  const [voucherStats, setVoucherStats] = useState({ total: 0, active: 0, expired: 0 });
-  const [damageStats, setDamageStats] = useState({ totalIncidents: 0, totalAmount: 0, totalQuantity: 0 });
+  const [invoiceStats, setInvoiceStats]           = useState({ totalRevenue: 0, todayRevenue: 0, totalPaid: 0 });
+  const [voucherStats, setVoucherStats]           = useState({ total: 0, active: 0, expired: 0 });
+  const [damageStats, setDamageStats]             = useState({ totalIncidents: 0, totalAmount: 0, totalQuantity: 0 });
+  const [reviewStats, setReviewStats]             = useState({ total: 0, pending: 0, approved: 0 });
 
   // Xác định role và config hiển thị
   const roleName = user?.roleName || 'Guest';
@@ -170,6 +173,21 @@ const Dashboard = () => {
               setDamageStats(res.data.stats);
             }
           }).catch(() => {}) // Không bắt buộc thành công
+        );
+      }
+
+      if (can('reviews')) {
+        fetches.push(
+          reviewApi.getAllForAdmin().then((res) => {
+            const list = res?.data || [];
+            if (Array.isArray(list)) {
+              setReviewStats({
+                total:    list.length,
+                pending:  list.filter(r => r.status === 'PENDING').length,
+                approved: list.filter(r => r.status === 'APPROVED').length,
+              });
+            }
+          }).catch(() => {})
         );
       }
 
@@ -276,6 +294,38 @@ const Dashboard = () => {
                 <div style={{ background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 8, padding: '16px 20px' }}>
                   <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>Tổng tiền phạt (VND)</div>
                   <div style={{ fontSize: 28, fontWeight: 700, color: '#52c41a' }}>{damageStats.totalAmount.toLocaleString('vi-VN')}</div>
+                </div>
+              </Col>
+            </Row>
+          </div>
+        )}
+
+        {/* ── MODULE: ĐÁNH GIÁ KHÁCH HÀNG (Admin / Manager) ── */}
+        {can('reviews') && (
+          <div style={{ marginBottom: 24 }}>
+            <Title level={5} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <StarOutlined style={{ color: '#fadb14' }} /> Đánh giá Khách hàng
+            </Title>
+            <Row gutter={[16, 16]}>
+              <Col xs={24} sm={8}>
+                <div style={{ background: '#e6f7ff', border: '1px solid #91d5ff', borderRadius: 8, padding: '16px 20px' }}>
+                  <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>Tổng đánh giá</div>
+                  <div style={{ fontSize: 28, fontWeight: 700, color: '#1890ff' }}>{reviewStats.total}</div>
+                </div>
+              </Col>
+              <Col xs={24} sm={8}>
+                <div style={{ background: '#fff7e6', border: '1px solid #ffd591', borderRadius: 8, padding: '16px 20px', position: 'relative' }}>
+                  <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>Chờ duyệt</div>
+                  <div style={{ fontSize: 28, fontWeight: 700, color: '#fa8c16' }}>{reviewStats.pending}</div>
+                  {reviewStats.pending > 0 && (
+                    <a href="/admin/reviews" style={{ fontSize: 11, color: '#fa8c16', position: 'absolute', bottom: 12, right: 16 }}>Duyệt ngay →</a>
+                  )}
+                </div>
+              </Col>
+              <Col xs={24} sm={8}>
+                <div style={{ background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 8, padding: '16px 20px' }}>
+                  <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>Đã duyệt</div>
+                  <div style={{ fontSize: 28, fontWeight: 700, color: '#52c41a' }}>{reviewStats.approved}</div>
                 </div>
               </Col>
             </Row>

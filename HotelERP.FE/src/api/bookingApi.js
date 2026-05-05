@@ -27,10 +27,21 @@ const bookingApi = {
   },
 
   // 5. Ép hủy đặt phòng (Dành cho Admin/Manager)
-  // Lưu ý: Cần sửa nhẹ backend (đọc giải thích bên dưới)
   forceCancelBooking: (id) => {
     return axiosClient.post(`/BookingEngine/force-cancel/${id}`); 
-  }
+  },
+
+  // 6. Áp dụng voucher vào booking
+  // POST /api/bookings/{bookingId}/apply-voucher
+  applyVoucher: (bookingId, voucherCode) => {
+    return axiosClient.post(`/bookings/${bookingId}/apply-voucher`, { voucherCode });
+  },
+
+  // 7. Gỡ voucher khỏi booking
+  // POST /api/bookings/{bookingId}/remove-voucher
+  removeVoucher: (bookingId) => {
+    return axiosClient.post(`/bookings/${bookingId}/remove-voucher`);
+  },
 };
 
 export default bookingApi;

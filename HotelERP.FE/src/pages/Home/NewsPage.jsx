@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import articleApi from '../../api/articleApi';
 
 /* ─── Shared Navbar ───────────────────────────────────────── */
@@ -152,7 +152,7 @@ export default function NewsPage() {
   const [searchTerm,       setSearchTerm]       = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [categories,       setCategories]       = useState([]);
-  const [selectedArticle,  setSelectedArticle]  = useState(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -174,16 +174,7 @@ export default function NewsPage() {
   const handleCategoryChange = (cat) => { setSelectedCategory(cat); fetchArticles(searchTerm, cat); };
 
   // SEO
-  useEffect(() => {
-    if (selectedArticle) {
-      const orig = document.title;
-      document.title = selectedArticle.metaTitle || selectedArticle.title || 'Tin Tức - Asteria Resort';
-      let meta = document.querySelector('meta[name="description"]');
-      if (!meta) { meta = document.createElement('meta'); meta.name = 'description'; document.head.appendChild(meta); }
-      meta.content = selectedArticle.metaDescription || selectedArticle.summary || '';
-      return () => { document.title = orig; };
-    } else { document.title = 'Tin Tức - Asteria Resort'; }
-  }, [selectedArticle]);
+  useEffect(() => { document.title = 'Tin Tức - Asteria Resort'; }, []);
 
   return (
     <div style={{ background: '#fafafa', minHeight: '100vh', fontFamily: "'Inter', sans-serif" }}>
@@ -238,7 +229,7 @@ export default function NewsPage() {
             {articles.map(item => {
               const dateStr = new Date(item.publishedAt || new Date()).toLocaleDateString('vi-VN', { day: 'numeric', month: 'long', year: 'numeric' });
               return (
-                <div key={item.id} onClick={() => setSelectedArticle(item)}
+                <div key={item.id} onClick={() => navigate(`/news/${item.slug}`)}
                   style={{ background: 'white', borderRadius: 4, overflow: 'hidden', cursor: 'pointer', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', transition: 'transform 300ms, box-shadow 300ms', border: '1px solid #f0f0f0' }}
                   onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 12px 32px rgba(0,0,0,0.1)'; }}
                   onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.06)'; }}>
@@ -266,28 +257,6 @@ export default function NewsPage() {
             })}
           </div>
         )}
-      </div>
-
-      {/* Article Modal */}
-      <div className={`article-modal-overlay ${selectedArticle ? 'show' : ''}`} onClick={() => setSelectedArticle(null)}>
-        <div className="article-modal-container" onClick={e => e.stopPropagation()}>
-          <button className="article-modal-close" onClick={() => setSelectedArticle(null)}>
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" width={18} height={18}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
-          {selectedArticle && (
-            <>
-              <img src={selectedArticle.thumbnailUrl || 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?q=80&w=1200'} alt={selectedArticle.title} className="article-modal-header-img" />
-              <div className="article-modal-body">
-                <h2 className="article-modal-title">{selectedArticle.title}</h2>
-                <div className="article-modal-meta">
-                  <span>Đăng ngày: {new Date(selectedArticle.publishedAt || new Date()).toLocaleDateString('vi-VN', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
-                  {selectedArticle.categoryName && <><span>•</span><span style={{ color: '#b8956a', textTransform: 'uppercase', letterSpacing: '0.15em', fontSize: 11, fontWeight: 700 }}>{selectedArticle.categoryName}</span></>}
-                </div>
-                <div className="article-modal-content" dangerouslySetInnerHTML={{ __html: selectedArticle.content || '<p>Nội dung bài viết đang được cập nhật...</p>' }} />
-              </div>
-            </>
-          )}
-        </div>
       </div>
 
       <LotteFooter />

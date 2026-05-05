@@ -8,6 +8,7 @@ import LoginPage from './pages/Auth/Login';
 import RegisterPage from './pages/Auth/Register';
 import ForgotPasswordPage from './pages/Auth/ForgotPassword';
 import NewsPage from './pages/Home/NewsPage';
+import ArticleDetailPage from './pages/Home/ArticleDetailPage';
 import UserProfile from './pages/Profile/UserProfile';
 import AttractionsPage from './pages/Home/AttractionsPage';
 import SearchResultsPage from './pages/Home/SearchResultsPage';
@@ -19,8 +20,10 @@ function App() {
         {/* Trang chủ dành cho khách hàng sẽ nằm ở đường dẫn gốc "/" */}
         <Route path="/" element={<HomePage />} />
         
-        {/* Trang tin tức */}
+        {/* Trang tin tức - danh sách */}
         <Route path="/news" element={<NewsPage />} />
+        {/* Trang chi tiết bài viết */}
+        <Route path="/news/:slug" element={<ArticleDetailPage />} />
 
         {/* Trang khám phá điểm đến */}
         <Route path="/attractions" element={<AttractionsPage />} />
