@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Table, Button, Space, Modal, Input, Tag, message } from 'antd';
 import { CheckOutlined, EyeInvisibleOutlined } from '@ant-design/icons';
-// import axiosClient from '../../api/axiosClient';
+import axiosClient from '../../api/axiosClient';
 
 const { TextArea } = Input;
 
@@ -9,18 +9,30 @@ export default function ReviewManagement() {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [selectedReview, setSelectedReview] = useState(null);
   const [hideReason, setHideReason] = useState('');
-  
-  // Mock Data
-  const [reviews, setReviews] = useState([
-    { id: 1, guestName: 'Nguyễn Văn A', rating: 5, comment: 'Khách sạn rất tuyệt!', status: 'Pending' },
-    { id: 2, guestName: 'Trần Thị B', rating: 1, comment: 'Phòng ồn ào.', status: 'Pending' }
-  ]);
+  const [reviews, setReviews] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  const fetchReviews = async () => {
+    setLoading(true);
+    try {
+      const response = await axiosClient.get('/Review/admin-all');
+      setReviews(response.data || response);
+    } catch (error) {
+      message.error('Lỗi khi lấy danh sách đánh giá.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchReviews();
+  }, []);
 
   const handleApprove = async (reviewId) => {
     try {
-      // await axiosClient.post('/api/reviews/moderate', { reviewId, action: 'Approve' });
+      await axiosClient.put(`/Review/${reviewId}/approve`);
       message.success('Đã duyệt đánh giá!');
-      setReviews(reviews.map(r => r.id === reviewId ? { ...r, status: 'Approved' } : r));
+      fetchReviews();
     } catch (error) {
       message.error('Lỗi khi duyệt.');
     }
@@ -38,10 +50,14 @@ export default function ReviewManagement() {
       return;
     }
     try {
-      // await axiosClient.post('/api/reviews/moderate', { reviewId: selectedReview.id, action: 'Hide', reason: hideReason });
+      await axiosClient.put(`/Review/${selectedReview.id}/hide`, null, {
+        headers: {
+          'X-Audit-Reason': encodeURIComponent(hideReason)
+        }
+      });
       message.success('Đã ẩn đánh giá!');
-      setReviews(reviews.map(r => r.id === selectedReview.id ? { ...r, status: 'Hidden' } : r));
       setIsModalVisible(false);
+      fetchReviews();
     } catch (error) {
       message.error('Lỗi khi ẩn đánh giá.');
     }
@@ -57,8 +73,8 @@ export default function ReviewManagement() {
       dataIndex: 'status', 
       key: 'status',
       render: status => {
-        if(status === 'Approved') return <Tag color="success">Đã Duyệt</Tag>;
-        if(status === 'Hidden') return <Tag color="error">Đã Ẩn</Tag>;
+        if(status === 'APPROVED') return <Tag color="success">Đã Duyệt</Tag>;
+        if(status === 'HIDDEN') return <Tag color="error">Đã Ẩn</Tag>;
         return <Tag color="warning">Chờ Duyệt</Tag>;
       }
     },
@@ -67,7 +83,7 @@ export default function ReviewManagement() {
       key: 'action',
       render: (_, record) => (
         <Space size="middle">
-          {record.status === 'Pending' && (
+          {record.status === 'PENDING' && (
             <>
               <Button 
                 type="text" 
@@ -90,7 +106,7 @@ export default function ReviewManagement() {
   return (
     <div style={{ padding: 24, background: '#fff' }}>
       <h2>Quản lý Đánh giá Khách hàng</h2>
-      <Table columns={columns} dataSource={reviews} rowKey="id" />
+      <Table columns={columns} dataSource={reviews} rowKey="id" loading={loading} />
 
       {/* Modal nhập lý do ẩn */}
       <Modal 
