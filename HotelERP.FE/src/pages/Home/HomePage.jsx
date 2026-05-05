@@ -3,17 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { Dropdown, Avatar, Space } from 'antd';
 import { UserOutlined, LogoutOutlined, DashboardOutlined, DownOutlined } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
 import AttractionMap from '../../components/Map/AttractionMap';
 import articleApi from '../../api/articleApi';
 import attractionApi from '../../api/attractionApi';
 import RoomSearchWidget from '../../components/RoomSearch/RoomSearchWidget';
 
 const SLIDES=[
-  {id:1,img:'https://images.unsplash.com/photo-1611892440504-42a792e24d32?q=80&w=2000',title:"Khong gian nghi duong dang cap,\nhoa minh cung thien nhien."},
-  {id:2,img:'https://images.unsplash.com/photo-1542314831-c6a4d4586f37?q=80&w=2000',title:"Dac quyen hoi vien thuong luu,\ntan huong ky nghi tron ven."},
-  {id:3,img:'https://images.unsplash.com/photo-1571896349842-33c89424de2d?q=80&w=2000',title:"Kham pha tinh hoa am thuc,\ndanh thuc moi giac quan."},
-  {id:4,img:'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=2000',title:"Thu gian tuyet doi tai Spa,\nthanh loc tam hon va co the."},
+  {id:1,img:'https://images.unsplash.com/photo-1611892440504-42a792e24d32?q=80&w=2000',title:"Không gian nghỉ dưỡng đẳng cấp,\nhòa mình cùng thiên nhiên."},
+  {id:2,img:'https://images.unsplash.com/photo-1542314831-c6a4d4586f37?q=80&w=2000',title:"Đặc quyền hội viên thượng lưu,\ntận hưởng kỳ nghỉ trọn vẹn."},
+  {id:3,img:'https://images.unsplash.com/photo-1571896349842-33c89424de2d?q=80&w=2000',title:"Khám phá tinh hoa ẩm thực,\nđánh thức mọi giác quan."},
+  {id:4,img:'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=2000',title:"Thư giãn tuyệt đối tại Spa,\nthanh lọc tâm hồn và cơ thể."},
 ];
 const G='#b8956a',D='#111111';
 const SF={fontFamily:"'Playfair Display',serif"};
@@ -57,7 +56,7 @@ export default function HomePage(){
   },[]);
   useEffect(()=>{
     if(sel){const o=document.title;document.title=sel.title||'Asteria';return()=>{document.title=o;};}
-    else document.title='Asteria Resort - Khong gian nghi duong dang cap';
+    else document.title='Asteria Resort - Không gian nghỉ dưỡng đẳng cấp';
   },[sel]);
 
   return(
@@ -155,11 +154,11 @@ export default function HomePage(){
         <div style={{maxWidth:1200,margin:'0 auto'}}>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:64,alignItems:'center',marginBottom:48}}>
             <div>
-              <span style={{fontSize:10,fontWeight:700,letterSpacing:'.25em',textTransform:'uppercase',color:G,display:'block',marginBottom:16}}>Phong Nghi</span>
-              <h2 style={{...SF,fontSize:'clamp(28px,4vw,44px)',color:'#18181b',marginBottom:20,lineHeight:1.2}}>Tim kiem khong gian hoan hao cho ky nghi.</h2>
+              <span style={{fontSize:10,fontWeight:700,letterSpacing:'.25em',textTransform:'uppercase',color:G,display:'block',marginBottom:16}}>Phòng Nghỉ</span>
+              <h2 style={{...SF,fontSize:'clamp(28px,4vw,44px)',color:'#18181b',marginBottom:20,lineHeight:1.2}}>Tìm kiếm không gian hoàn hảo cho kỳ nghỉ.</h2>
               <div style={{width:48,height:1,background:G,marginBottom:24}}/>
-              <p style={{fontSize:14,color:'#71717a',lineHeight:1.9,marginBottom:28}}>Tan huong su yen binh tuyet doi trong khong gian sang trong duoc thiet ke tinh te. Tu ban cong rieng tu, quy khach co the chiem nguong tron ven ve dep cua binh minh.</p>
-              <div><span style={{fontSize:10,fontWeight:700,letterSpacing:'.2em',textTransform:'uppercase',color:'#71717a',display:'block',marginBottom:4}}>Hotline Dat Phong</span><span style={{fontSize:22,...SF,color:G}}>0363 332 841</span></div>
+              <p style={{fontSize:14,color:'#71717a',lineHeight:1.9,marginBottom:28}}>Tận hưởng sự yên bình tuyệt đối trong không gian sang trọng được thiết kế tinh tế. Từ ban công riêng tư, quý khách có thể chiêm ngưỡng trọn vẹn vẻ đẹp của bình minh.</p>
+              <div><span style={{fontSize:10,fontWeight:700,letterSpacing:'.2em',textTransform:'uppercase',color:'#71717a',display:'block',marginBottom:4}}>Hotline Đặt Phòng</span><span style={{fontSize:22,...SF,color:G}}>0363 332 841</span></div>
             </div>
             <div><img src="https://dulichkhampha24.com/wp-content/uploads/2020/08/khach-san-fivitel-hoi-an-2.jpg" alt="Hotel" style={{width:'100%',height:400,objectFit:'cover',borderRadius:2}}/></div>
           </div>
@@ -259,14 +258,14 @@ export default function HomePage(){
         <div style={{maxWidth:1200,margin:'0 auto'}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-end',marginBottom:48,flexWrap:'wrap',gap:16}}>
             <div>
-              <span style={{fontSize:9,fontWeight:700,letterSpacing:'.3em',textTransform:'uppercase',color:G,display:'block',marginBottom:16}}>Thong Cao Bao Chi</span>
-              <h2 style={{...SF,fontSize:'clamp(28px,4vw,44px)',color:'#18181b',margin:0,fontWeight:400}}>Tin Tuc Moi Nhat Tu Resort</h2>
+              <span style={{fontSize:9,fontWeight:700,letterSpacing:'.3em',textTransform:'uppercase',color:G,display:'block',marginBottom:16}}>Thông Cáo Báo Chí</span>
+              <h2 style={{...SF,fontSize:'clamp(28px,4vw,44px)',color:'#18181b',margin:0,fontWeight:400}}>Tin Tức Mới Nhất Từ Resort</h2>
             </div>
             <button onClick={()=>nav('/news')} style={{fontSize:11,fontWeight:700,letterSpacing:'1.5px',textTransform:'uppercase',background:'none',border:'none',cursor:'pointer',color:'#71717a',paddingBottom:8}}
-              onMouseEnter={e=>e.target.style.color=G}onMouseLeave={e=>e.target.style.color='#71717a'}>Xem tat ca</button>
+              onMouseEnter={e=>e.target.style.color=G}onMouseLeave={e=>e.target.style.color='#71717a'}>Xem tất cả</button>
           </div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(350px,1fr))',gap:32}}>
-            {articles.length===0?<p style={{color:'#71717a',fontSize:14,fontStyle:'italic'}}>Dang tai bai viet...</p>:articles.map(item=>(
+            {articles.length===0?<p style={{color:'#71717a',fontSize:14,fontStyle:'italic'}}>Đang tải bài viết...</p>:articles.map(item=>(
               <div key={item.id} onClick={()=>setSel(item)} style={{background:'white',cursor:'pointer',border:'1px solid #eaeaea',transition:'box-shadow 300ms'}}
                 onMouseEnter={e=>{
                   e.currentTarget.style.boxShadow='0 10px 40px rgba(0,0,0,.04)';
@@ -398,10 +397,10 @@ export default function HomePage(){
             <div className="article-modal-body">
               <h2 className="article-modal-title">{sel.title}</h2>
               <div className="article-modal-meta">
-                <span>Dang ngay: {new Date(sel.publishedAt||new Date()).toLocaleDateString('vi-VN',{day:'numeric',month:'long',year:'numeric'})}</span>
+                <span>Đăng ngày: {new Date(sel.publishedAt||new Date()).toLocaleDateString('vi-VN',{day:'numeric',month:'long',year:'numeric'})}</span>
                 {sel.category&&<><span>•</span><span style={{color:G,textTransform:'uppercase',letterSpacing:'.15em',fontSize:11,fontWeight:700}}>{sel.category}</span></>}
               </div>
-              <div className="article-modal-content" dangerouslySetInnerHTML={{__html:sel.content||'<p>Noi dung dang duoc cap nhat...</p>'}}/>
+              <div className="article-modal-content" dangerouslySetInnerHTML={{__html:sel.content||'<p>Nội dung đang được cập nhật...</p>'}}/>
             </div>
           </>)}
         </div>
