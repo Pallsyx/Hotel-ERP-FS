@@ -231,6 +231,7 @@ CREATE TABLE [dbo].[Bookings](
 	[payment_status] [nvarchar](50) NOT NULL DEFAULT 'UNPAID',
 	[status] [nvarchar](50) NULL DEFAULT 'Pending',
 	[notes] [nvarchar](1000) NULL,
+	[deposit_amount] [decimal](18, 2) NOT NULL DEFAULT 0,
 	[is_points_awarded] [bit] DEFAULT 0,
 	[created_at] [datetime] NOT NULL DEFAULT GETDATE(),
 	[updated_at] [datetime] NULL
@@ -345,6 +346,9 @@ CREATE TABLE [dbo].[Reviews](
 CREATE TABLE [dbo].[Article_Categories](
 	[id] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
 	[name] [nvarchar](255) NOT NULL,
+	[status] [nvarchar](20) NOT NULL DEFAULT 'ACTIVE',
+	[created_at] [datetime] NOT NULL DEFAULT GETDATE(),
+	[updated_at] [datetime] NULL,
 	[is_active] [bit] NULL DEFAULT 1
 );
 
@@ -358,7 +362,10 @@ CREATE TABLE [dbo].[Articles](
 	[content] [nvarchar](max) NULL,
 	[thumbnail_url] [nvarchar](max) NULL,
 	[thumbnail_public_id] [nvarchar](255) NULL,
-	[status] [nvarchar](20) NOT NULL DEFAULT 'ACTIVE',
+	[tags] [nvarchar](500) NULL,
+	[meta_title] [nvarchar](255) NULL,
+	[meta_description] [nvarchar](500) NULL,
+	[status] [nvarchar](50) NOT NULL DEFAULT 'Draft',
 	[is_published] [bit] NULL DEFAULT 0,
 	[published_at] [datetime] NULL DEFAULT GETDATE(),
 	[is_active] [bit] NULL DEFAULT 1,
@@ -383,16 +390,16 @@ CREATE TABLE [dbo].[Attractions](
 );
 
 CREATE TABLE [dbo].[Audit_Logs](
-	[id] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
-	[user_id] [int] NULL,
-	[action] [nvarchar](50) NOT NULL,
-	[table_name] [nvarchar](100) NOT NULL,
-	[record_id] [int] NOT NULL,
-	[old_value] [nvarchar](max) NULL,
-	[new_value] [nvarchar](max) NULL,
-	[reason] [nvarchar](1000) NULL,
-	[created_at] [datetime] NULL DEFAULT GETDATE()
+	[id] [bigint] IDENTITY(1,1) NOT NULL PRIMARY KEY,
+	[user_id] [int] NOT NULL,
+	[role_name] [nvarchar](50) NULL,
+	[log_date] [date] NOT NULL DEFAULT (CAST(GETDATE() AS DATE)),
+	[log_data] [nvarchar](max) NOT NULL DEFAULT N'{"TotalEvents":0, "Events":[]}'
 );
+GO
+-- Thêm role_name vào index để khi đổi role sẽ tạo dòng mới trong cùng ngày
+CREATE UNIQUE INDEX [UIX_Audit_Daily] ON [dbo].[Audit_Logs] ([user_id], [role_name], [log_date]);
+GO
 
 CREATE TABLE [dbo].[Notifications](
 	[id] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
@@ -465,19 +472,9 @@ INSERT [dbo].[Attractions] ([id], [name], [distance_km], [description], [map_emb
 INSERT [dbo].[Attractions] ([id], [name], [distance_km], [description], [map_embed_link], [latitude], [longitude], [address], [is_active]) VALUES (10, N'Điểm Ngắm Hoàng Hôn', CAST(4.00 AS Decimal(5, 2)), N'Nơi có view biển đẹp nhất', N'link_map_10', NULL, NULL, NULL, NULL)
 SET IDENTITY_INSERT [dbo].[Attractions] OFF
 GO
-SET IDENTITY_INSERT [dbo].[Audit_Logs] ON 
-
-INSERT [dbo].[Audit_Logs] ([id], [user_id], [action], [table_name], [record_id], [old_value], [new_value], [created_at]) VALUES (1, 1, N'UPDATE', N'Rooms', 1, N'{"status":"Cleaning"}', N'{"status":"Available"}', CAST(N'2026-03-06T22:07:35.023' AS DateTime))
-INSERT [dbo].[Audit_Logs] ([id], [user_id], [action], [table_name], [record_id], [old_value], [new_value], [created_at]) VALUES (2, 2, N'DELETE', N'Bookings', 5, N'{"id":5}', N'{}', CAST(N'2026-03-06T22:07:35.023' AS DateTime))
-INSERT [dbo].[Audit_Logs] ([id], [user_id], [action], [table_name], [record_id], [old_value], [new_value], [created_at]) VALUES (3, 3, N'CREATE', N'Invoices', 1, N'{}', N'{"id":1}', CAST(N'2026-03-06T22:07:35.023' AS DateTime))
-INSERT [dbo].[Audit_Logs] ([id], [user_id], [action], [table_name], [record_id], [old_value], [new_value], [created_at]) VALUES (4, 1, N'UPDATE', N'Users', 6, N'{"status":0}', N'{"status":1}', CAST(N'2026-03-06T22:07:35.023' AS DateTime))
-INSERT [dbo].[Audit_Logs] ([id], [user_id], [action], [table_name], [record_id], [old_value], [new_value], [created_at]) VALUES (5, 2, N'CREATE', N'Services', 1, N'{}', N'{"price":200000}', CAST(N'2026-03-06T22:07:35.023' AS DateTime))
-INSERT [dbo].[Audit_Logs] ([id], [user_id], [action], [table_name], [record_id], [old_value], [new_value], [created_at]) VALUES (6, 3, N'UPDATE', N'Bookings', 2, N'{"status":"Pending"}', N'{"status":"Checked_in"}', CAST(N'2026-03-06T22:07:35.023' AS DateTime))
-INSERT [dbo].[Audit_Logs] ([id], [user_id], [action], [table_name], [record_id], [old_value], [new_value], [created_at]) VALUES (7, 1, N'UPDATE', N'Room_Types', 1, N'{"price":350000}', N'{"price":400000}', CAST(N'2026-03-06T22:07:35.023' AS DateTime))
-INSERT [dbo].[Audit_Logs] ([id], [user_id], [action], [table_name], [record_id], [old_value], [new_value], [created_at]) VALUES (8, 2, N'DELETE', N'Reviews', 8, N'{"id":8}', N'{}', CAST(N'2026-03-06T22:07:35.023' AS DateTime))
-INSERT [dbo].[Audit_Logs] ([id], [user_id], [action], [table_name], [record_id], [old_value], [new_value], [created_at]) VALUES (9, 3, N'CREATE', N'Order_Services', 1, N'{}', N'{"amount":300000}', CAST(N'2026-03-06T22:07:35.023' AS DateTime))
-INSERT [dbo].[Audit_Logs] ([id], [user_id], [action], [table_name], [record_id], [old_value], [new_value], [created_at]) VALUES (10, 1, N'UPDATE', N'Vouchers', 1, N'{"limit":50}', N'{"limit":100}', CAST(N'2026-03-06T22:07:35.023' AS DateTime))
-SET IDENTITY_INSERT [dbo].[Audit_Logs] OFF
+-- Dọn dẹp dữ liệu cũ (Xóa log quá 3 tháng) mỗi khi nạp lại schema hoặc chạy định kỳ
+DELETE FROM [dbo].[Audit_Logs] WHERE [log_date] < DATEADD(MONTH, -3, GETDATE());
+GO
 GO
 SET IDENTITY_INSERT [dbo].[Booking_Details] ON 
 
@@ -2333,10 +2330,9 @@ GO
 
 
 -- ==============================================================================
--- ES: CẬP NHẬT CẤU TRÚC BẢNG (CODE CỦA DU ĐÃ FIX LỖI TRÙNG LẶP)
+-- ES: CẬP NHẬT CẤU TRÚC BẢNG 
 -- ==============================================================================
 
--- Thêm các cột thiếu cho bảng Vouchers
 IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Vouchers') AND name = 'created_at')
 ALTER TABLE Vouchers ADD created_at DATETIME NULL;
 
@@ -2350,7 +2346,6 @@ IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Vouchers')
 ALTER TABLE Vouchers ADD used_count INT NULL;
 GO
 
--- Thêm các cột thiếu cho bảng Users
 IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Users') AND name = 'identity_document_public_id')
 ALTER TABLE Users ADD identity_document_public_id NVARCHAR(MAX) NULL;
 
@@ -2360,19 +2355,7 @@ ALTER TABLE Users ADD created_at DATETIME NULL;
 IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Users') AND name = 'updated_at')
 ALTER TABLE Users ADD updated_at DATETIME NULL;
 GO
-
--- ==============================================================================
--- THÊM 50 DỮ LIỆU PHÒNG (CHUẨN CẤU TRÚC SQL CỦA BẠN)
--- Trạng thái phòng: Available, Occupied, Maintenance
--- Trạng thái dọn dẹp: Clean, Dirty, Cleaning
--- ==============================================================================
-
 INSERT [dbo].[Rooms] ([room_type_id], [room_number], [floor], [status], [cleaning_status], [extension_number]) VALUES
--- TẦNG 1: 10 Phòng (ID 2: Phòng tiêu chuẩn 1 giường đôi)
--- (2, N'101', 1, N'Available', N'Clean', N'8101'), -- Trùng ID cũ
--- (2, N'102', 1, N'Occupied', N'Clean', N'8102'), -- Trùng ID cũ
--- (2, N'103', 1, N'Available', N'Cleaning', N'8103'), -- Trùng ID cũ
--- (2, N'104', 1, N'Available', N'Clean', NULL), -- Trùng ID cũ
 (2, N'105', 1, N'Occupied', N'Dirty', N'8105'),
 (2, N'106', 1, N'Maintenance', N'Dirty', N'8106'),
 (2, N'107', 1, N'Occupied', N'Clean', N'8107'),
@@ -2380,11 +2363,6 @@ INSERT [dbo].[Rooms] ([room_type_id], [room_number], [floor], [status], [cleanin
 (2, N'109', 1, N'Available', N'Cleaning', NULL),
 (2, N'110', 1, N'Occupied', N'Dirty', N'8110'),
 
--- TẦNG 2: 10 Phòng (Mix ID 2: Tiêu chuẩn & ID 3: Cao cấp)
--- (2, N'201', 2, N'Available', N'Clean', N'8201'), -- Trùng ID cũ
--- (2, N'202', 2, N'Available', N'Clean', N'8202'), -- Trùng ID cũ
--- (2, N'203', 2, N'Available', N'Cleaning', N'8203'), -- Trùng ID cũ
--- (2, N'204', 2, N'Occupied', N'Clean', N'8204'), -- Trùng ID cũ
 (2, N'205', 2, N'Occupied', N'Dirty', NULL),
 (3, N'206', 2, N'Available', N'Clean', N'8206'),
 (3, N'207', 2, N'Available', N'Clean', N'8207'),
@@ -2392,9 +2370,6 @@ INSERT [dbo].[Rooms] ([room_type_id], [room_number], [floor], [status], [cleanin
 (3, N'209', 2, N'Occupied', N'Clean', N'8209'),
 (3, N'210', 2, N'Available', N'Clean', NULL),
 
--- TẦNG 3: 10 Phòng (Mix ID 3: Cao cấp & ID 4: Deluxe)
--- (3, N'301', 3, N'Available', N'Clean', N'8301'), -- Trùng ID cũ
--- (3, N'302', 3, N'Occupied', N'Dirty', N'8302'), -- Trùng ID cũ
 (3, N'303', 3, N'Available', N'Clean', N'8303'),
 (3, N'304', 3, N'Available', N'Cleaning', NULL),
 (3, N'305', 3, N'Available', N'Clean', N'8305'),
@@ -2404,9 +2379,6 @@ INSERT [dbo].[Rooms] ([room_type_id], [room_number], [floor], [status], [cleanin
 (4, N'309', 3, N'Available', N'Cleaning', N'8309'),
 (4, N'310', 3, N'Maintenance', N'Dirty', NULL),
 
--- TẦNG 4: 10 Phòng (Mix ID 4: Deluxe & ID 6: Suite gia đình)
--- (4, N'401', 4, N'Occupied', N'Clean', N'8401'), -- Trùng ID cũ
--- (4, N'402', 4, N'Available', N'Clean', N'8402'), -- Trùng ID cũ
 (4, N'403', 4, N'Available', N'Clean', NULL),
 (4, N'404', 4, N'Available', N'Cleaning', N'8404'),
 (4, N'405', 4, N'Available', N'Clean', N'8405'),
@@ -2416,8 +2388,6 @@ INSERT [dbo].[Rooms] ([room_type_id], [room_number], [floor], [status], [cleanin
 (6, N'409', 4, N'Occupied', N'Clean', NULL),
 (6, N'410', 4, N'Available', N'Clean', N'8410'),
 
--- TẦNG 5: 10 Phòng (Mix ID 6: Suite gia đình & ID 9: Tổng thống)
--- (6, N'501', 5, N'Available', N'Clean', N'8501'), -- Trùng ID cũ
 (6, N'502', 5, N'Occupied', N'Clean', N'8502'),
 (6, N'503', 5, N'Occupied', N'Clean', N'8503'),
 (6, N'504', 5, N'Occupied', N'Dirty', NULL),
@@ -2431,3 +2401,176 @@ GO
 
 ALTER TABLE [dbo].[Bookings] ADD [DepositAmount] DECIMAL(18,2) NOT NULL DEFAULT 0;
 GO
+
+-- =============================================
+-- 5. STORED PROCEDURE: LƯU AUDIT LOG JSON (DAILY)
+-- =============================================
+GO
+CREATE PROCEDURE [dbo].[sp_SubmitAuditLog]
+    @UserId INT,
+    @RoleName NVARCHAR(50),
+    @ActionType NVARCHAR(50),      
+    @EntityType NVARCHAR(100),    
+    @ContextParams NVARCHAR(MAX),  
+    @ChangesParams NVARCHAR(MAX),  
+    @Message NVARCHAR(MAX)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @Today DATE = CAST(GETDATE() AS DATE);
+    DECLARE @NewEvent NVARCHAR(MAX) = (
+        SELECT 
+            NEWID() AS [eventId],
+            FORMAT(GETUTCDATE(), 'yyyy-MM-ddTHH:mm:ss.ffffffZ') AS [timestamp],
+            @ActionType AS [actionType],
+            @EntityType AS [entityType],
+            JSON_QUERY(@ContextParams) AS [context],
+            JSON_QUERY(@ChangesParams) AS [changes],
+            @Message AS [message]
+        FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
+    );
+
+    -- UPSERT logic: New day OR New role = New row
+    IF NOT EXISTS (SELECT 1 FROM [dbo].[Audit_Logs] WHERE user_id = @UserId AND role_name = @RoleName AND log_date = @Today)
+    BEGIN
+        INSERT INTO [dbo].[Audit_Logs] (user_id, role_name, log_date, log_data)
+        VALUES (@UserId, @RoleName, @Today, 
+            JSON_MODIFY(
+                JSON_MODIFY(N'{"TotalEvents":0, "Events":[]}', '$.TotalEvents', 1),
+                'append $.Events', JSON_QUERY(@NewEvent)
+            )
+        );
+    END
+    ELSE
+    BEGIN
+        UPDATE [dbo].[Audit_Logs]
+        SET log_data = JSON_MODIFY(
+                            JSON_MODIFY(log_data, 'append $.Events', JSON_QUERY(@NewEvent)),
+                            '$.TotalEvents', 
+                            CAST(JSON_VALUE(log_data, '$.TotalEvents') AS INT) + 1
+                        )
+        WHERE user_id = @UserId AND role_name = @RoleName AND log_date = @Today;
+    END
+END;
+GO
+EXEC sp_msforeachtable 'ALTER TABLE ? CHECK CONSTRAINT ALL';
+GO
+
+-- ========================================================
+-- 6. TẠO SQL SERVER AGENT JOB TỰ XOÁ AUDIT LOG QUÁ 3 THÁNG
+-- ========================================================
+USE msdb;
+GO
+
+IF EXISTS (SELECT job_id FROM msdb.dbo.sysjobs_view WHERE name = N'AutoPurge_OldAuditLogs')
+    EXEC msdb.dbo.sp_delete_job @job_name = N'AutoPurge_OldAuditLogs', @delete_unused_schedule = 1;
+GO
+
+EXEC dbo.sp_add_job @job_name = N'AutoPurge_OldAuditLogs';
+GO
+
+EXEC sp_add_jobstep
+    @job_name = N'AutoPurge_OldAuditLogs',
+    @step_name = N'Purge 3 Months Logic',
+    @subsystem = N'TSQL',
+    @command = N'DELETE FROM [HotelManagementDB].[dbo].[Audit_Logs] WHERE log_date < DATEADD(month, -3, GETDATE())',
+    @retry_attempts = 3,
+    @retry_interval = 5;
+GO
+
+EXEC dbo.sp_add_schedule
+    @schedule_name = N'Daily 2AM',
+    @freq_type = 4, -- Daily
+    @freq_interval = 1,
+    @active_start_time = 020000; -- 2:00:00 AM
+GO
+
+EXEC sp_attach_schedule
+   @job_name = N'AutoPurge_OldAuditLogs',
+   @schedule_name = N'Daily 2AM';
+GO
+
+EXEC dbo.sp_add_jobserver @job_name = N'AutoPurge_OldAuditLogs';
+GO
+
+-- ========================================================================
+-- TRIGGER: Tự động xóa log cũ khi log_date bị chỉnh sửa trực tiếp trong DB
+-- ========================================================================
+IF OBJECT_ID('TR_AuditLogs_AutoPurgeOnUpdate', 'TR') IS NOT NULL
+    DROP TRIGGER TR_AuditLogs_AutoPurgeOnUpdate;
+GO
+
+CREATE TRIGGER TR_AuditLogs_AutoPurgeOnUpdate
+ON Audit_Logs
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- Chỉ chạy logic xóa nếu cột log_date thực sự bị thay đổi
+    IF UPDATE(log_date)
+    BEGIN
+        DECLARE @cutoff DATE = CAST(DATEADD(MONTH, -3, GETUTCDATE()) AS DATE);
+
+        DELETE FROM Audit_Logs
+        WHERE log_date < @cutoff;
+    END
+END;
+GO
+
+-- ========================================================================
+-- 7. EF CORE MIGRATION HISTORY & INITIALIZATION
+-- ========================================================================
+IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
+BEGIN
+    CREATE TABLE [__EFMigrationsHistory] (
+        [MigrationId] nvarchar(150) NOT NULL,
+        [ProductVersion] nvarchar(32) NOT NULL,
+        CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY ([MigrationId])
+    );
+END
+GO
+
+-- Chèn bản ghi migration để EF Core không chạy lại các migration đã gộp
+IF NOT EXISTS (SELECT 1 FROM [__EFMigrationsHistory] WHERE [MigrationId] = N'20260424140949_AddDepositAmount')
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260424140949_AddDepositAmount', N'10.0.5');
+END
+GO
+
+-- Đồng bộ trạng thái bài viết (Dựa trên db_admin_reset)
+UPDATE [dbo].[Articles] SET [status] = 'Published' WHERE [id] <= 10;
+GO
+
+EXEC sp_msforeachtable 'ALTER TABLE ? CHECK CONSTRAINT ALL';
+GO
+
+-- =============================================
+-- 8. MỞ RỘNG CỘT notes CỦA Invoices LÊN NVARCHAR(MAX)
+--    (Tránh lỗi 500 khi audit log tích lũy quá 1000 ký tự)
+-- =============================================
+IF COL_LENGTH('dbo.Invoices', 'notes') IS NOT NULL
+BEGIN
+    ALTER TABLE [dbo].[Invoices] ALTER COLUMN [notes] NVARCHAR(MAX) NULL;
+    PRINT 'Đã mở rộng cột notes của Invoices thành NVARCHAR(MAX)';
+END
+GO
+
+-- =============================================
+-- 9. THÊM CỘT THIẾU CHO BẢNG Articles & Article_Categories
+--    (Tránh lỗi 500 Invalid column name khi query bài viết)
+-- =============================================
+IF COL_LENGTH('dbo.Articles', 'tags') IS NULL
+    ALTER TABLE [dbo].[Articles] ADD [tags] NVARCHAR(MAX) NULL;
+IF COL_LENGTH('dbo.Articles', 'meta_title') IS NULL
+    ALTER TABLE [dbo].[Articles] ADD [meta_title] NVARCHAR(500) NULL;
+IF COL_LENGTH('dbo.Articles', 'meta_description') IS NULL
+    ALTER TABLE [dbo].[Articles] ADD [meta_description] NVARCHAR(1000) NULL;
+
+IF COL_LENGTH('dbo.Article_Categories', 'updated_at') IS NULL
+    ALTER TABLE [dbo].[Article_Categories] ADD [updated_at] DATETIME NULL;
+GO
+PRINT 'Đã thêm cột còn thiếu vào Articles và Article_Categories';
+GO
+

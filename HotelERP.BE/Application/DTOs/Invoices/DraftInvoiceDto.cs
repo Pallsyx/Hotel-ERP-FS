@@ -13,4 +13,7 @@ public class DraftInvoiceDto
     public decimal GrossTotal { get; set; }
     public decimal DepositAmount { get; set; }
     public decimal FinalTotal { get; set; }
+
+    public int? VoucherId { get; set; }
+    public string? VoucherCode { get; set; }
 }

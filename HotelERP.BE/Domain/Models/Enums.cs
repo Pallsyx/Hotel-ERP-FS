@@ -8,7 +8,18 @@ namespace HotelERP.BE.Models.Enums
         LockAccount,
         UnlockAccount,
         ResetPassword,
-        SystemUpdate
+        SystemUpdate,
+        CreateBooking,
+        CheckIn,
+        CheckOut,
+        CancelBooking,
+        ChangeRoom,
+        AddDeposit,
+        ConfirmPayment,
+        FinalizeInvoice,
+        AddExtraFee,
+        CreateDamage,
+        UpdateDamage
     }
 
     public enum NotificationType

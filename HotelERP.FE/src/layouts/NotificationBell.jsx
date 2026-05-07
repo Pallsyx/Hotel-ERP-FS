@@ -111,9 +111,9 @@ const NotificationBell = () => {
         </div>
       ) : (
         <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
-          {notifications.map((item) => (
+          {notifications.map((item, index) => (
             <li
-              key={item.id}
+              key={item.id || `notif-${index}-${item.createdAt}`}
               onClick={() => handleItemClick(item)}
               style={{
                 display: 'flex',

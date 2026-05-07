@@ -11,9 +11,14 @@ const bookingManagementApi = {
     return axiosClient.get('/booking-management/in-house');
   },
 
-  // Lấy khách dự kiến rời đi hôm nay
+  // Lấy danh sách phòng có thể check-out (hỗ trợ lọc theo ngày, không có ngày = tất cả phòng đang ở)
+  getDepartures: (params = {}) => {
+    return axiosClient.get('/booking-management/departures', { params });
+  },
+
+  // Lấy khách dự kiến rời đi hôm nay (backward compat)
   getTodayDepartures: () => {
-    return axiosClient.get('/booking-management/today-departures');
+    return axiosClient.get('/booking-management/departures');
   },
 
   // Cập nhật trạng thái cho từng phòng lẻ (Check-in, Check-out, etc.)

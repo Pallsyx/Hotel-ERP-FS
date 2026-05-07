@@ -83,120 +83,8 @@ public partial class HotelDbContext : DbContext
     public virtual DbSet<Notification> Notifications { get; set; }
     public virtual DbSet<UserPermission> UserPermissions { get; set; }
 
-    // 3. GHI ĐÈ PHƯƠNG THỨC LƯU THAY ĐỔI ĐỂ TỰ ĐỘNG GHI LOG VÀO BẢNG Audit_Logs MỖI KHI CÓ THAO TÁC THÊM/SỬA/XÓA DỮ LIỆU
-    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
-    {
-        var httpContext = _httpContextAccessor?.HttpContext;
-        var reason = httpContext?.Items["AuditReason"]?.ToString();
-        var actionName = httpContext?.Items["AuditAction"]?.ToString();
-
-        var userIdClaim = httpContext?.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-        int? userId = int.TryParse(userIdClaim, out int id) ? id : null;
-
-        // Dùng Tuple để lưu tạm Entry, đối tượng Log và danh sách giá trị mới chưa có ID thật
-        var pendingAuditEntries = new List<(Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry Entry, AuditLog Log, Dictionary<string, object?> NewValues)>();
-
-        foreach (var entry in ChangeTracker.Entries())
-        {
-            // BỎ QUA CÁC BẢNG KHÔNG CẦN THEO DÕI
-            if (entry.Entity is AuditLog ||
-                entry.Entity is RefreshToken ||
-                entry.State == EntityState.Detached ||
-                entry.State == EntityState.Unchanged)
-                continue;
-
-            var tableName = entry.Metadata.GetTableName();
-            var oldValues = new Dictionary<string, object?>();
-            var newValues = new Dictionary<string, object?>();
-
-            foreach (var property in entry.Properties)
-            {
-                if (property.IsTemporary && entry.State != EntityState.Added) continue;
-
-                string propertyName = property.Metadata.Name;
-
-                // BỎ QUA CÁC CỘT THAY ĐỔI THƯỜNG XUYÊN NHƯNG KHÔNG QUAN TRỌNG
-                if (propertyName == "LastLoginAt" || propertyName == "UpdatedAt")
-                    continue;
-
-                switch (entry.State)
-                {
-                    case EntityState.Added:
-                        newValues[propertyName] = property.CurrentValue;
-                        break;
-                    case EntityState.Deleted:
-                        oldValues[propertyName] = property.OriginalValue;
-                        break;
-                    case EntityState.Modified:
-                        if (property.IsModified)
-                        {
-                            oldValues[propertyName] = property.OriginalValue;
-                            newValues[propertyName] = property.CurrentValue;
-                        }
-                        break;
-                }
-            }
-
-            if (oldValues.Count == 0 && newValues.Count == 0) continue;
-
-            string action = actionName ?? entry.State.ToString().ToUpper();
-
-            var auditLog = new AuditLog
-            {
-                UserId = userId,
-                Action = action,
-                TableName = tableName ?? "Unknown",
-                // CHƯA gán RecordId và NewValue vội vì SQL chưa cấp ID thật
-                OldValue = oldValues.Count > 0 ? System.Text.Json.JsonSerializer.Serialize(oldValues) : null,
-                Reason = reason,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            // Gói lại và bỏ vào danh sách chờ
-            pendingAuditEntries.Add((entry, auditLog, newValues));
-        }
-
-        // Nếu không có gì thay đổi, lưu bình thường rồi thoát
-        if (pendingAuditEntries.Count == 0)
-        {
-            return await base.SaveChangesAsync(cancellationToken);
-        }
-
-        // =========================================================================
-        // NHỊP 1: Lưu các thay đổi chính xuống Database để SQL Server cấp ID thật
-        // =========================================================================
-        var result = await base.SaveChangesAsync(cancellationToken);
-
-        // =========================================================================
-        // NHỊP 2: Moi ID thật vừa được cấp phát gán ngược lại vào AuditLog
-        // =========================================================================
-        foreach (var item in pendingAuditEntries)
-        {
-            var primaryKey = item.Entry.Properties.FirstOrDefault(p => p.Metadata.IsPrimaryKey());
-            int recordId = primaryKey != null && primaryKey.CurrentValue is int pkValue ? pkValue : 0;
-
-            // Gán RecordId dương chuẩn xịn
-            item.Log.RecordId = recordId;
-
-            // Nếu là hành động Tạo Mới, bổ sung ID thật vào trong chuỗi JSON NewValue
-            if ((item.Log.Action == "ADDED" || item.Log.Action.Contains("CREATE")) && primaryKey != null)
-            {
-                item.NewValues[primaryKey.Metadata.Name] = primaryKey.CurrentValue;
-            }
-
-            // Đóng gói JSON NewValue
-            item.Log.NewValue = item.NewValues.Count > 0 ? System.Text.Json.JsonSerializer.Serialize(item.NewValues) : null;
-
-            AuditLogs.Add(item.Log);
-        }
-
-        // =========================================================================
-        // NHỊP 3: Lưu toàn bộ AuditLogs chứa các ID thật
-        // =========================================================================
-        await base.SaveChangesAsync(cancellationToken);
-
-        return result;
-    }
+    // 3. (BỎ) ĐÃ BỎ GHI ĐÈ SAVECHANGES VÌ SỬ DỤNG STORED PROCEDURE CHO LOG GOM NHÓM JSON.
+    // public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) ...
 
     //protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     //#warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
@@ -286,6 +174,15 @@ public partial class HotelDbContext : DbContext
             entity.Property(e => e.UpdatedAt)
                 .HasColumnType("datetime")
                 .HasColumnName("updated_at");
+            // Các cột bổ sung - thêm vào DB bằng ALTER TABLE nếu chưa có
+            entity.Property(e => e.Tags)
+                .HasColumnName("tags");
+            entity.Property(e => e.MetaTitle)
+                .HasMaxLength(500)
+                .HasColumnName("meta_title");
+            entity.Property(e => e.MetaDescription)
+                .HasMaxLength(1000)
+                .HasColumnName("meta_description");
 
             entity.HasOne(d => d.Author).WithMany(p => p.Articles)
                 .HasForeignKey(d => d.AuthorId)
@@ -295,6 +192,7 @@ public partial class HotelDbContext : DbContext
                 .HasForeignKey(d => d.CategoryId)
                 .HasConstraintName("FK_Articles_ArticleCategories");
         });
+
 
         modelBuilder.Entity<ArticleCategory>(entity =>
         {
@@ -359,30 +257,15 @@ public partial class HotelDbContext : DbContext
 
         modelBuilder.Entity<AuditLog>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Audit_Lo__3213E83FFBFD106E");
-
+            entity.HasKey(e => e.Id).HasName("PK_Audit_Logs");
             entity.ToTable("Audit_Logs");
-
-            entity.HasIndex(e => new { e.TableName, e.RecordId, e.CreatedAt }, "IX_AuditLogs_Trace");
+            entity.HasIndex(e => new { e.UserId, e.RoleName, e.LogDate }, "UIX_Audit_Daily").IsUnique();
 
             entity.Property(e => e.Id).HasColumnName("id");
-            entity.Property(e => e.Action)
-                .HasMaxLength(100)
-                .HasColumnName("action");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getdate())", "DF_AuditLogs_CreatedAt")
-                .HasColumnType("datetime")
-                .HasColumnName("created_at");
-            entity.Property(e => e.NewValue).HasColumnName("new_value");
-            entity.Property(e => e.OldValue).HasColumnName("old_value");
-            entity.Property(e => e.Reason)
-                .HasMaxLength(1000)
-                .HasColumnName("reason");
-            entity.Property(e => e.RecordId).HasColumnName("record_id");
-            entity.Property(e => e.TableName)
-                .HasMaxLength(100)
-                .HasColumnName("table_name");
             entity.Property(e => e.UserId).HasColumnName("user_id");
+            entity.Property(e => e.RoleName).HasMaxLength(50).HasColumnName("role_name");
+            entity.Property(e => e.LogDate).HasColumnType("date").HasColumnName("log_date");
+            entity.Property(e => e.LogData).HasColumnName("log_data");
 
             entity.HasOne(d => d.User).WithMany(p => p.AuditLogs)
                 .HasForeignKey(d => d.UserId)
@@ -448,7 +331,13 @@ public partial class HotelDbContext : DbContext
                 .HasColumnType("datetime")
                 .HasColumnName("updated_at");
             entity.Property(e => e.UserId).HasColumnName("user_id");
+            entity.Property(e => e.DepositAmount)
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("deposit_amount")
+                .HasDefaultValue(0m);
+
             entity.Property(e => e.VoucherId).HasColumnName("voucher_id");
+
 
             entity.HasOne(d => d.User).WithMany(p => p.Bookings)
                 .HasForeignKey(d => d.UserId)
@@ -570,7 +459,7 @@ public partial class HotelDbContext : DbContext
                 .HasColumnType("decimal(18, 2)")
                 .HasColumnName("manual_adjustment_amount");
             entity.Property(e => e.Notes)
-                .HasMaxLength(1000)
+                // NVARCHAR(MAX) - không giới hạn để tránh lỗi khi Notes tích lũy nhiều audit text
                 .HasColumnName("notes");
             entity.Property(e => e.PaidAt)
                 .HasColumnType("datetime")
@@ -1335,6 +1224,8 @@ public partial class HotelDbContext : DbContext
             entity.Ignore(e => e.Status);
             entity.Ignore(e => e.CreatedAt);
             entity.Ignore(e => e.UpdatedAt);
+            entity.Ignore(e => e.Reason);  // Không có cột Reason trong DB
+
         });
         modelBuilder.Entity<RefreshToken>(entity =>
         {

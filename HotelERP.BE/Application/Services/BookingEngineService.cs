@@ -7,21 +7,34 @@ using RedLockNet;
 using StackExchange.Redis;
 using Microsoft.EntityFrameworkCore;
 using System.CodeDom.Compiler;
+using HotelERP.BE.Services;
+using HotelERP.BE.DTOs.Notifications;
+using HotelERP.BE.Models.Enums;
+using HotelERP.BE.Models;
+using HotelERP.BE.Services.Bookings;
 
 namespace HotelERP.BE.Application.Services;
 
 public class BookingEngineService : IBookingEngineService
 {
     private readonly HotelDbContext _context;
-private readonly IDistributedLockFactory _lockFactory;
+    private readonly IDistributedLockFactory _lockFactory;
     private readonly IConnectionMultiplexer _redis;
+    private readonly IBookingVoucherService _voucherService;
+    private readonly INotificationService _notificationService;
 
-    // 1 CONSTRUCTOR
-    public BookingEngineService(HotelDbContext context, IDistributedLockFactory lockFactory, IConnectionMultiplexer redis)
+    public BookingEngineService(
+        HotelDbContext context, 
+        IDistributedLockFactory lockFactory, 
+        IConnectionMultiplexer redis,
+        INotificationService notificationService,
+        IBookingVoucherService voucherService)
     {
         _context = context;
         _lockFactory = lockFactory;
         _redis = redis;
+        _notificationService = notificationService;
+        _voucherService = voucherService;
     }
 
     // ====================================================================
@@ -30,6 +43,11 @@ private readonly IDistributedLockFactory _lockFactory;
 
     public async Task<string> HoldRoomAsync(int roomTypeId, int userId, DateTime checkIn, DateTime checkOut)
     {
+        if (checkIn.Date < DateTime.UtcNow.Date)
+            throw new Exception("Ngày nhận phòng không được nằm trong quá khứ.");
+        if (checkOut.Date <= checkIn.Date)
+            throw new Exception("Ngày trả phòng phải sau ngày nhận phòng.");
+
         string resourceLockKey = $"lock:roomtype:{roomTypeId}";
         var expiry = TimeSpan.FromSeconds(10); 
         var wait = TimeSpan.FromSeconds(3);    
@@ -107,6 +125,7 @@ private readonly IDistributedLockFactory _lockFactory;
 
         foreach (var booking in expiredBookings)
         {
+
             booking.Status = BookingStatus.Expired; 
             var db = _redis.GetDatabase();
             await db.KeyDeleteAsync($"booking:hold:{booking.Id}");
@@ -183,6 +202,11 @@ private readonly IDistributedLockFactory _lockFactory;
             decimal finalTotalAmount = 0; // NEW: Biến cộng dồn tổng tiền
 
             foreach (var item in request.Items) {
+                if (item.CheckInDate.Date < DateTime.UtcNow.Date)
+                    throw new Exception($"Ngày nhận phòng ({item.CheckInDate:dd/MM/yyyy}) không được nằm trong quá khứ.");
+                if (item.CheckOutDate.Date <= item.CheckInDate.Date)
+                    throw new Exception("Ngày trả phòng phải sau ngày nhận phòng.");
+
                 // NEW: Lấy giá BasePrice từ CSDL cho hạng phòng này
                 var roomTypeInfo = await _context.RoomTypes.FindAsync(item.RoomTypeId);
                 var basePrice = roomTypeInfo?.BasePrice ?? 0;
@@ -234,10 +258,42 @@ private readonly IDistributedLockFactory _lockFactory;
             }
 
             // Gán lại tổng tiền cuối cho mảng Booking cha
+            booking.BookingSubtotal = finalTotalAmount;
             booking.FinalAmount = finalTotalAmount;
             
             await _context.SaveChangesAsync();
+
+            // NEW: Áp dụng Voucher nếu có
+            if (!string.IsNullOrWhiteSpace(request.VoucherCode))
+            {
+                var (isApplied, error, _) = await _voucherService.ApplyVoucherAsync(booking.Id, request.VoucherCode);
+                // Bạn có thể chọn quăng lỗi hoặc chỉ log nếu voucher không hợp lệ
+                // Ở đây tôi chọn không quăng lỗi để đơn đặt phòng vẫn thành công, chỉ là không được giảm giá
+            }
+
             await transaction.CommitAsync();
+
+            // ✅ Thông báo Booking mới
+            var newBookingMsg = new NotificationMessage
+            {
+                Title = "Booking mới",
+                Content = $"Đơn đặt phòng mới #{booking.BookingCode} cho {request.GuestName}. Tổng: {finalTotalAmount:N0}đ.",
+                Type = "Success",
+                Action = NotificationAction.CreateBooking
+            };
+            var dbNotif = new Notification
+            {
+                Title = newBookingMsg.Title,
+                Content = newBookingMsg.Content,
+                Type = newBookingMsg.Type,
+                IsRead = false,
+                CreatedAt = DateTime.UtcNow
+            };
+            _context.Notifications.Add(dbNotif);
+            await _context.SaveChangesAsync();
+            newBookingMsg.Id = dbNotif.Id; // ✅ Cập nhật ID sau khi save DB
+            await _notificationService.SendToRoleAsync("Admin", newBookingMsg);
+
             return booking.Id;
         }
         catch {
@@ -268,6 +324,28 @@ private readonly IDistributedLockFactory _lockFactory;
         }
 
         await _context.SaveChangesAsync();
+
+        // ✅ Thông báo Force Cancel
+        var forceCancelMsg = new NotificationMessage
+        {
+            Title = "Hủy Booking (Admin)",
+            Content = $"Booking #{booking.BookingCode} đã bị Admin ép hủy.",
+            Type = "Warning",
+            Action = NotificationAction.CancelBooking
+        };
+        var dbNotif = new Notification
+        {
+            Title = forceCancelMsg.Title,
+            Content = forceCancelMsg.Content,
+            Type = forceCancelMsg.Type,
+            IsRead = false,
+            CreatedAt = DateTime.UtcNow
+        };
+        _context.Notifications.Add(dbNotif);
+        await _context.SaveChangesAsync();
+        forceCancelMsg.Id = dbNotif.Id; // ✅ Cập nhật ID sau khi save DB
+        await _notificationService.SendToRoleAsync("Admin", forceCancelMsg);
+
         return true;
     }
 

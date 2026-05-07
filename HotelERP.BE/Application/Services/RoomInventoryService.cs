@@ -3,11 +3,24 @@ using HotelERP.BE.Application.Interfaces;
 using HotelERP.BE.Application.DTOs;
 using HotelERP.BE.Infrastructure.Data;
 using HotelERP.BE.Domain.Models;
+using Microsoft.AspNetCore.Http;
+using System.Security.Claims;
+using HotelERP.BE.Helpers.AuditLogs;
+using Microsoft.AspNetCore.SignalR;
+using HotelERP.BE.DTOs.Hubs;
 
 namespace HotelERP.BE.Application.Services;
 
-public class RoomInventoryService(HotelDbContext context) : IRoomInventoryService
+public class RoomInventoryService(HotelDbContext context, IHttpContextAccessor httpContextAccessor, IHubContext<RoomHub> hubContext) : IRoomInventoryService
 {
+    private (int UserId, string RoleName) ResolveUser()
+    {
+        var user = httpContextAccessor.HttpContext?.User;
+        var userIdClaim = user?.FindFirst("UserId")?.Value ?? user?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        int uid = int.TryParse(userIdClaim, out int id) ? id : 0;
+        var roleName = user?.FindFirst(ClaimTypes.Role)?.Value ?? "User";
+        return (uid, roleName);
+    }
     public async Task<IEnumerable<RoomInventoryResponseDto>> GetInventoriesByRoomIdAsync(int roomId)
     {
         return await (
@@ -19,6 +32,7 @@ public class RoomInventoryService(HotelDbContext context) : IRoomInventoryServic
                 ri.Id,
                 ri.EquipmentId,
                 e.Name,
+                e.Category,
                 ri.Quantity,
                 e.Unit,
                 string.IsNullOrWhiteSpace(ri.Note) ? "Tốt" : ri.Note!,
@@ -64,6 +78,18 @@ public class RoomInventoryService(HotelDbContext context) : IRoomInventoryServic
         context.RoomInventories.Add(inventory);
         await context.SaveChangesAsync();
 
+        var room = await context.Rooms.FindAsync(roomId);
+        var (userId, roleName) = ResolveUser();
+        await context.AddAuditLogAsync(
+            userId: userId,
+            roleName: roleName,
+            actionType: "CREATE",
+            entityType: "RoomInventory",
+            message: $"Thêm mới {request.Quantity} {equipment.Name} vào phòng {room?.RoomNumber ?? "N/A"}.",
+            contextParams: new { inventoryId = inventory.Id, roomId, equipmentId = equipment.Id },
+            changes: new { oldData = (object?)null, newData = new { request.Quantity, request.PriceIfLost, request.Condition } }
+        );
+
         return inventory.Id;
     }
 
@@ -104,6 +130,19 @@ public class RoomInventoryService(HotelDbContext context) : IRoomInventoryServic
         equipment.InUseQuantity = Math.Max(0, equipment.InUseQuantity + quantityDiff);
 
         await context.SaveChangesAsync();
+
+        var room = await context.Rooms.FindAsync(roomId);
+        var (userId, roleName) = ResolveUser();
+        await context.AddAuditLogAsync(
+            userId: userId,
+            roleName: roleName,
+            actionType: "UPDATE",
+            entityType: "RoomInventory",
+            message: $"Cập nhật số lượng/tình trạng {equipment.Name} tại phòng {room?.RoomNumber ?? "N/A"}.",
+            contextParams: new { inventoryId, roomId, equipmentId = equipment.Id },
+            changes: new { oldData = new { Quantity = inventory.Quantity, PriceIfLost = inventory.PriceIfLost, Note = inventory.Note }, newData = new { request.Quantity, request.PriceIfLost, request.Condition } }
+        );
+
         return true;
     }
 
@@ -122,6 +161,19 @@ public class RoomInventoryService(HotelDbContext context) : IRoomInventoryServic
 
         inventory.IsActive = false;
         await context.SaveChangesAsync();
+
+        var room = await context.Rooms.FindAsync(roomId);
+        var (userId, roleName) = ResolveUser();
+        await context.AddAuditLogAsync(
+            userId: userId,
+            roleName: roleName,
+            actionType: "DELETE",
+            entityType: "RoomInventory",
+            message: $"Xóa {equipment?.Name ?? "Vật tư"} khỏi phòng {room?.RoomNumber ?? "N/A"}.",
+            contextParams: new { inventoryId, roomId },
+            changes: new { oldData = new { Quantity = inventory.Quantity }, newData = (object?)null }
+        );
+
         return true;
     }
 }

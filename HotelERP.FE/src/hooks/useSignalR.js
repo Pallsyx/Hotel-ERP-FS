@@ -37,7 +37,7 @@ export const useSignalR = () => {
         const safeType = ['success', 'info', 'warning', 'error'].includes(type) ? type : 'info';
 
         notification[safeType]({
-          message: title,
+          title: title, 
           description: content,
           placement: 'topRight',
           duration: 5,

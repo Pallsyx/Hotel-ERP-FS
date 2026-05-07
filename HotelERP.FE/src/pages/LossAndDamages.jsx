@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import * as signalR from '@microsoft/signalr';
 import axios from 'axios';
+import axiosClient from '../api/axiosClient';
 import {
   Table, Button, DatePicker,
   Space, Card, Row, Col, Typography, message,
@@ -13,10 +14,35 @@ import {
 } from '@ant-design/icons';
 
 const { RangePicker } = DatePicker;
-const { Text } = Typography;
+const { Text, Title } = Typography;
 const { Option } = Select;
 
+// --- MOCK DATA ---
+const mockBookings = [
+  { id: '102', roomName: 'Phòng 102' },
+  { id: '103', roomName: 'Phòng 103' },
+  { id: 'BK001', roomName: 'Phòng 101' },
+  { id: 'BK002', roomName: 'Phòng 205 (VIP)' },
+];
 
+const mockRoomItems = [
+  { id: 'IT01', name: 'Khăn tắm', price: 150000 },
+  { id: 'IT02', name: 'Cốc thủy tinh', price: 50000 },
+  { id: 'IT03', name: 'Điều khiển TV', price: 300000 },
+  { id: 'IT04', name: 'Bình siêu tốc Sunhouse', price: 350000 },
+  { id: 'IT05', name: 'Nước ngọt Coca Cola 320ml', price: 20000 },
+  { id: 'IT06', name: 'Bánh Oreo 133g', price: 30000 },
+  { id: 'IT07', name: 'Nước suối Lavie 500ml', price: 15000 },
+];
+
+const INITIAL_DATA = [
+  { id: 38, roomNumber: '102', itemName: 'Nước ngọt Coca Cola 320ml', quantity: 1, penaltyAmount: 20000, description: '', createdAt: '2026-03-28T04:14:00', evidenceImageUrl: null },
+  { id: 35, roomNumber: '102', itemName: 'Ấm đun nước siêu tốc Sunhouse', quantity: 1, penaltyAmount: 350000, description: '', createdAt: '2026-03-28T03:04:00', evidenceImageUrl: null },
+  { id: 34, roomNumber: '102', itemName: 'Bánh Oreo 133g', quantity: 1, penaltyAmount: 30000, description: 'khách dùng', createdAt: '2026-03-28T01:28:00', evidenceImageUrl: null },
+  { id: 26, roomNumber: '103', itemName: 'Bánh Oreo 133g', quantity: 1, penaltyAmount: 30000, description: '', createdAt: '2026-03-27T15:18:00', evidenceImageUrl: null },
+  { id: 25, roomNumber: '103', itemName: 'Nước ngọt Coca Cola 320ml', quantity: 2, penaltyAmount: 20000, description: '', createdAt: '2026-03-27T15:16:00', evidenceImageUrl: null },
+  { id: 24, roomNumber: '103', itemName: 'Nước suối Lavie 500ml', quantity: 1, penaltyAmount: 15000, description: '', createdAt: '2026-03-27T13:05:00', evidenceImageUrl: null },
+];
 
 export default function LossAndDamages() {
   const [data, setData] = useState([]);
@@ -31,9 +57,21 @@ export default function LossAndDamages() {
   const [uploadFile, setUploadFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
 
-  // Các state cho thao tác Lọc ngày
   const [selectedDates, setSelectedDates] = useState(null);
   const [appliedDates, setAppliedDates] = useState(null);
+
+  // --- NEW STATE FOR CREATION ---
+  const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
+  const [rooms, setRooms] = useState([]);
+  const [roomInventories, setRoomInventories] = useState([]);
+  const [selectedRoomId, setSelectedRoomId] = useState(null);
+  const [selectedInventory, setSelectedInventory] = useState(null);
+  const [compensationType, setCompensationType] = useState('percentage'); // 'percentage', 'custom'
+  const [editCompensationType, setEditCompensationType] = useState('percentage');
+  const [isFixed100Pct, setIsFixed100Pct] = useState(false);
+  const [isEditFixed100Pct, setIsEditFixed100Pct] = useState(false);
+  const [createForm] = Form.useForm();
+  // ------------------------------
 
   const handleApplyFilter = () => {
     setAppliedDates(selectedDates);
@@ -70,7 +108,7 @@ export default function LossAndDamages() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const response = await axios.get("https://localhost:7100/api/LossAndDamages");
+      const response = await axiosClient.get("/LossAndDamages");
       setData(response.data.data);
       setStats(response.data.stats);
       setLastUpdated(new Date().toLocaleTimeString('vi-VN', { hour12: false }));
@@ -86,14 +124,151 @@ export default function LossAndDamages() {
     fetchData(); // Load lần đầu khi mở
   }, []);
 
+  // --- NEW HANDLERS FOR CREATION ---
+  const handleOpenCreateModal = async () => {
+    setIsCreateModalVisible(true);
+    setLoading(true);
+    try {
+      const response = await axiosClient.get("/Rooms");
+      setRooms(response.data.data);
+    } catch (error) {
+      message.error("Lỗi khi tải danh sách phòng!");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRoomChange = async (roomId) => {
+    setSelectedRoomId(roomId);
+    createForm.setFieldsValue({ equipmentId: undefined });
+    setRoomInventories([]);
+    setSelectedInventory(null);
+    try {
+      const response = await axiosClient.get(`/rooms/${roomId}/inventories`);
+      setRoomInventories(response.data.data || []);
+    } catch (error) {
+      message.error("Lỗi khi tải vật tư của phòng!");
+    }
+  };
+
+  const handleInventoryChange = (inventoryId) => {
+    const item = roomInventories.find(ri => ri.id === inventoryId);
+    setSelectedInventory(item);
+
+    // Nếu là đồ ăn, thức uống, minibar, hoặc sản phẩm giá trị nhỏ hơn 100k
+    const isConsumable = item && (
+      item.category === 'Đồ ăn' ||
+      item.category === 'Đồ uống' ||
+      item.category === 'Minibar' ||
+      item.priceIfLost <= 50000
+    );
+
+    if (isConsumable) {
+      setIsFixed100Pct(true);
+      setCompensationType('percentage');
+      createForm.setFieldsValue({ percentageValue: 100 });
+    } else {
+      setIsFixed100Pct(false);
+      setCompensationType('percentage');
+      createForm.setFieldsValue({ percentageValue: 100 });
+    }
+  };
+
+  const handleCreate = async () => {
+    try {
+      const values = await createForm.validateFields();
+      const finalPenaltyAmount = calculatePenaltyAmount(values.quantity);
+
+      const payload = {
+        roomId: values.roomId,
+        equipmentId: selectedInventory.equipmentId, // Lấy từ inventory đã chọn
+        quantity: values.quantity,
+        description: values.description,
+        penaltyAmount: finalPenaltyAmount
+      };
+
+      await axiosClient.post("/LossAndDamages", payload);
+      message.success('Đã báo cáo đền bù thành công!');
+      setIsCreateModalVisible(false);
+      createForm.resetFields();
+      setSelectedInventory(null);
+      setCompensationType('percentage');
+      fetchData();
+    } catch (error) {
+      console.error(error);
+      message.error('Lỗi khi gửi báo cáo!');
+    }
+  };
+
+  const calculatePenaltyAmount = (quantity) => {
+    if (!selectedInventory) return 0;
+    const basePrice = selectedInventory.priceIfLost * (quantity || 0);
+
+    if (compensationType === 'percentage') {
+      const pct = createForm.getFieldValue('percentageValue') || 0;
+      return (basePrice * pct) / 100;
+    }
+    if (compensationType === 'custom') {
+      return createForm.getFieldValue('customAmount') || 0;
+    }
+    return basePrice;
+  };
+
+  // Lắng nghe thay đổi để cập nhật preview tiền
+  const qty = Form.useWatch('quantity', createForm);
+  const pctVal = Form.useWatch('percentageValue', createForm);
+  const customAmt = Form.useWatch('customAmount', createForm);
+  const currentPenaltyPreview = useMemo(() => calculatePenaltyAmount(qty), [qty, pctVal, customAmt, selectedInventory, compensationType]);
+
+  // --- LOGIC TÍNH TOÁN CHO MODAL SỬA ---
+  const editQty = Form.useWatch('quantity', form);
+  const editPctVal = Form.useWatch('editPercentageValue', form);
+
+  useEffect(() => {
+    if (isEditModalVisible && editingRecord) {
+      const basePrice = editingRecord.priceIfLost || 0;
+      const totalBase = basePrice * (editQty || 0);
+
+      if (editCompensationType === 'percentage') {
+        const finalAmt = (totalBase * (editPctVal || 0)) / 100;
+        form.setFieldsValue({ penaltyAmount: finalAmt });
+      }
+    }
+  }, [editQty, editPctVal, editCompensationType, isEditModalVisible, editingRecord]);
+  // ------------------------------------
+  // ---------------------------------
+
   const handleEdit = (record) => {
     setEditingRecord(record);
     setUploadFile(null);
     setPreviewUrl(record.evidenceImageUrl || null);
+
+    // Tính toán xem có bị khóa cứng không dựa vào category và priceIfLost
+    const isConsumable = record.category === 'Đồ ăn' ||
+      record.category === 'Đồ uống' ||
+      record.category === 'Minibar' ||
+      (record.priceIfLost && record.priceIfLost <= 50000);
+    setIsEditFixed100Pct(isConsumable);
+
+    let pct = 100;
+    if (record.priceIfLost && record.quantity && record.penaltyAmount > 0) {
+      pct = Math.round((record.penaltyAmount / (record.priceIfLost * record.quantity)) * 100);
+    } else if (record.penaltyAmount === 0) {
+      pct = 0;
+    }
+
+    // Khóa cứng thì ép về 100%
+    if (isConsumable) {
+      pct = 100;
+    }
+
+    setEditCompensationType('percentage');
+
     form.setFieldsValue({
       quantity: record.quantity,
       description: record.description,
-      penaltyAmount: record.penaltyAmount
+      penaltyAmount: record.penaltyAmount,
+      editPercentageValue: pct
     });
     setIsEditModalVisible(true);
   };
@@ -116,7 +291,7 @@ export default function LossAndDamages() {
       okButtonProps: { danger: true },
       onOk: async () => {
         try {
-          await axios.delete(`https://localhost:7100/api/LossAndDamages/${editingRecord.id}/image`);
+          await axiosClient.delete(`/LossAndDamages/${editingRecord.id}/image`);
           setPreviewUrl(null);
           setEditingRecord(prev => ({ ...prev, evidenceImageUrl: null }));
           message.success('Xóa ảnh thành công!');
@@ -132,13 +307,13 @@ export default function LossAndDamages() {
   const handleUpdate = async () => {
     try {
       const values = await form.validateFields();
-      await axios.put(`https://localhost:7100/api/LossAndDamages/${editingRecord.id}`, values);
+      await axiosClient.put(`/LossAndDamages/${editingRecord.id}`, values);
 
       // Tiền hành upload ảnh nếu có file mới được chọn
       if (uploadFile) {
         const formData = new FormData();
         formData.append('file', uploadFile);
-        await axios.post(`https://localhost:7100/api/LossAndDamages/${editingRecord.id}/image`, formData, {
+        await axiosClient.post(`/LossAndDamages/${editingRecord.id}/image`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
       }
@@ -165,7 +340,7 @@ export default function LossAndDamages() {
       okButtonProps: { danger: true },
       onOk: async () => {
         try {
-          await axios.delete(`https://localhost:7100/api/LossAndDamages/${id}`);
+          await axiosClient.delete(`/LossAndDamages/${id}`);
           setData(prev => prev.filter(item => item.id !== id));
           message.success('Đã xóa thành công!');
           fetchData(); // Cập nhật lại Stats

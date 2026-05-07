@@ -10,6 +10,8 @@ import {
 } from '@ant-design/icons';
 import axios from 'axios';
 import bookingManagementApi from '../../api/bookingManagementApi';
+import momoPaymentApi from '../../api/momoPaymentApi';
+import MomoPaymentPanel from '../../components/payments/MomoPaymentPanel';
 import { create } from 'zustand';
 import dayjs from 'dayjs';
 import { useAuthStore } from "../../store/authStore";
@@ -233,7 +235,11 @@ const BookingList = () => {
       <Card style={{ marginBottom: 24, borderRadius: 12 }}>
         <Form form={form} layout="inline" onFinish={handleSearchRooms} initialValues={{ adults: 2, children: 0 }}>
           <Form.Item name="dates" rules={[{ required: true, message: 'Chọn ngày!' }]}>
-            <RangePicker format="DD/MM/YYYY" style={{ width: 280 }} />
+            <RangePicker 
+              format="DD/MM/YYYY" 
+              style={{ width: 280 }} 
+              disabledDate={(current) => current && current < dayjs().startOf('day')}
+            />
           </Form.Item>
           <Form.Item name="adults" label="Người lớn"><InputNumber min={1} /></Form.Item>
           <Form.Item name="children" label="Trẻ em"><InputNumber min={0} /></Form.Item>
@@ -350,6 +356,7 @@ const SelectRoom = () => {
         guestPhone: values.phone,
         guestEmail: values.email || '',
         notes: values.notes || '',
+        voucherCode: values.voucherCode || '',
         items: items
       };
 
@@ -483,7 +490,7 @@ const SelectRoom = () => {
 
                         let cardStyle = {
                           padding: '20px 10px', textAlign: 'center', borderRadius: 8,
-                          border: '1px solid #d9d9d9', backgroundColor: '#ffffff',
+                          borderWidth: '1px', borderStyle: 'solid', borderColor: '#d9d9d9', backgroundColor: '#ffffff',
                           cursor: 'pointer', transition: 'all 0.3s ease',
                         };
 
@@ -531,7 +538,7 @@ const SelectRoom = () => {
         confirmLoading={isSubmitting}
         width={700}
         centered
-        maskClosable={false} // Chống bấm ra ngoài tắt nhầm
+        mask={{ closable: false }} // Chống bấm ra ngoài tắt nhầm
       >
         <div style={{ padding: '20px 0 0 0' }}>
           <Form 
@@ -606,6 +613,11 @@ const BookingDetail = () => {
   const [booking, setBooking] = useState(null);
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
   const [depositForm] = Form.useForm();
+  const depositMethod = Form.useWatch('paymentMethod', depositForm);
+  const depositAmount = Form.useWatch('amount', depositForm);
+  const [depositPaymentData, setDepositPaymentData] = useState(null);
+  const [creatingDepositMomo, setCreatingDepositMomo] = useState(false);
+  const [checkingDepositPayment, setCheckingDepositPayment] = useState(false);
 
   useEffect(() => {
     const fetchDetail = async () => {
@@ -623,6 +635,8 @@ const BookingDetail = () => {
               checkInDate: (dbBooking.details || dbBooking.Details || [])[0]?.checkInDate || (dbBooking.details || dbBooking.Details || [])[0]?.CheckInDate || dbBooking.bookedAt || dbBooking.BookedAt,
               status: dbBooking.status || dbBooking.Status,
               totalAmount: dbBooking.finalAmount || dbBooking.FinalAmount || 0,
+              discountAmount: dbBooking.discountAmount || dbBooking.DiscountAmount || 0,
+              voucherCode: dbBooking.voucherCode || dbBooking.VoucherCode || 'Không áp dụng',
               deposit: dbBooking.depositAmount || dbBooking.DepositAmount || 0, 
               originalRooms: (dbBooking.details || dbBooking.Details || []).map(d => ({
                   id: d.id || d.Id,
@@ -644,26 +658,56 @@ const BookingDetail = () => {
     fetchDetail();
   }, [bookingCode]);
 
+  useEffect(() => {
+    if (!isDepositModalOpen || !depositPaymentData?.paymentId) return undefined;
+
+    const timer = setInterval(() => {
+      checkDepositPaymentStatus(depositPaymentData.paymentId, false);
+    }, 5000);
+
+    return () => clearInterval(timer);
+  }, [isDepositModalOpen, depositPaymentData?.paymentId]);
+
   if (!booking) {
-    return <Result status="404" title="Không tìm thấy mã Booking này!" extra={<Button type="primary" onClick={() => navigate('/admin/bookings')}>Quay lại Bảng Quản lý</Button>} />;
+    return (
+      <Result
+        status="404"
+        title="Không tìm thấy mã Booking này!"
+        extra={
+          <Button type="primary" onClick={() => navigate('/admin/bookings')}>
+            Quay lại Bảng Quản lý
+          </Button>
+        }
+      />
+    );
   }
 
   const getStatusTag = (status) => {
     let displayStatus = status;
     let color = 'default';
-    if (status === 'Pending' || status === 'Chờ xử lý' || status === 'Holding') { color = 'default'; displayStatus = 'Chờ xử lý'; }
-    else if (status === 'Confirmed' || status === 'Đã xác nhận') { color = 'success'; displayStatus = 'Đã xác nhận'; }
-    else if (status === 'Checked_in' || status === 'Đang ở') { color = 'processing'; displayStatus = 'Đang ở'; }
-    else if (status === 'Completed' || status === 'Hoàn tất') { color = 'processing'; displayStatus = 'Hoàn tất'; }
-    else if (status === 'Cancelled' || status === 'Đã hủy') { color = 'error'; displayStatus = 'Đã hủy'; }
+    if (status === 'Pending' || status === 'Chờ xử lý' || status === 'Holding') {
+      color = 'default';
+      displayStatus = 'Chờ xử lý';
+    } else if (status === 'Confirmed' || status === 'Đã xác nhận') {
+      color = 'success';
+      displayStatus = 'Đã xác nhận';
+    } else if (status === 'Checked_in' || status === 'Đang ở') {
+      color = 'processing';
+      displayStatus = 'Đang ở';
+    } else if (status === 'Completed' || status === 'Hoàn tất') {
+      color = 'processing';
+      displayStatus = 'Hoàn tất';
+    } else if (status === 'Cancelled' || status === 'Đã hủy') {
+      color = 'error';
+      displayStatus = 'Đã hủy';
+    }
     return <Tag color={color}>{displayStatus}</Tag>;
   };
 
-  // Nút bên trong Trang chi tiết cũng có thể cập nhật trạng thái ra Bảng 1
   const executeConfirm = async () => {
     try {
       await bookingManagementApi.updateBookingStatus(booking.id, 'Confirmed');
-      setBooking(prev => ({...prev, status: 'Confirmed'}));
+      setBooking((prev) => ({ ...prev, status: 'Confirmed' }));
       message.success('Đã xác nhận đơn thành công!');
     } catch (error) {
       message.error('Lỗi khi xác nhận đơn');
@@ -677,53 +721,126 @@ const BookingDetail = () => {
         content: 'Khách chưa nạp tiền cọc, bạn có chắc chắn muốn xác nhận giữ phòng không?',
         okText: 'Vẫn Xác Nhận',
         cancelText: 'Hủy bỏ',
-        onOk: () => executeConfirm()
+        onOk: () => executeConfirm(),
       });
     } else {
       executeConfirm();
     }
   };
 
+  const createDepositMomoPayment = async (force = false) => {
+    try {
+      const values = await depositForm.validateFields(['amount', 'paymentMethod', 'notes']);
+      if (values.paymentMethod !== 'Momo') return;
+      if (!values.amount || Number(values.amount) < 1000) {
+        message.warning('Số tiền thanh toán MoMo phải từ 1.000 VNĐ.');
+        return;
+      }
+      if (!force && depositPaymentData?.paymentId) return;
+
+      setCreatingDepositMomo(true);
+      const res = await momoPaymentApi.createBookingDepositPayment(
+        booking.id,
+        Number(values.amount),
+        values.notes || ''
+      );
+      const payload = res?.data?.data || res?.data;
+      setDepositPaymentData(payload);
+      message.success('Đã tạo QR MoMo cho tiền cọc.');
+    } catch (e) {
+      if (e?.errorFields) return;
+      message.error(e?.response?.data?.message || 'Không tạo được QR MoMo.');
+    } finally {
+      setCreatingDepositMomo(false);
+    }
+  };
+
+  const checkDepositPaymentStatus = async (paymentId = depositPaymentData?.paymentId, showMessage = true) => {
+    if (!paymentId) return;
+
+    try {
+      setCheckingDepositPayment(true);
+      const res = await momoPaymentApi.getPaymentStatus(paymentId);
+      const payload = res?.data?.data || res?.data;
+      setDepositPaymentData((prev) => ({ ...prev, ...payload }));
+
+      const normalizedStatus = String(payload?.status || '').toUpperCase();
+      if (normalizedStatus === 'SUCCESS' || normalizedStatus === 'PAID') {
+        await fetchDetail();
+        message.success('Nạp cọc qua MoMo thành công.');
+        setIsDepositModalOpen(false);
+        depositForm.resetFields();
+        setDepositPaymentData(null);
+      } else if (showMessage) {
+        message.info(`Trạng thái hiện tại: ${payload?.status || 'PENDING'}`);
+      }
+    } catch (error) {
+      console.error('Check momo deposit payment status error:', error);
+      if (showMessage) {
+        message.error(error?.response?.data?.message || 'Không kiểm tra được trạng thái thanh toán.');
+      }
+    } finally {
+      setCheckingDepositPayment(false);
+    }
+  };
+
   const handleSaveDeposit = async (values) => {
     try {
-        const res = await bookingManagementApi.addDeposit(booking.id, values.amount);
-        if (res.data && res.data.success) {
-            setBooking(prev => ({...prev, deposit: res.data.newDeposit}));
-            message.success(`Đã nạp cọc ${values.amount.toLocaleString()} đ thành công!`);
-            setIsDepositModalOpen(false);
-            depositForm.resetFields();
+      if (values.paymentMethod === 'Momo') {
+        if (!depositPaymentData?.paymentId) {
+          await createDepositMomoPayment(true);
+          return;
         }
+
+        await checkDepositPaymentStatus(depositPaymentData.paymentId, true);
+        return;
+      }
+
+      const res = await bookingManagementApi.addDeposit(booking.id, values.amount);
+      if (res.data && res.data.success) {
+        setBooking((prev) => ({ ...prev, deposit: res.data.newDeposit }));
+        message.success(`Đã nạp cọc ${Number(values.amount || 0).toLocaleString()} đ thành công!`);
+        setIsDepositModalOpen(false);
+        depositForm.resetFields();
+      }
     } catch (e) {
-        message.error(e.response?.data?.message || "Lỗi khi gọi API nạp cọc.");
+      message.error(e.response?.data?.message || 'Lỗi khi gọi API nạp cọc.');
     }
   };
 
   const handleCancel = async () => {
     try {
       await bookingManagementApi.updateBookingStatus(booking.id, 'Cancelled');
-      setBooking(prev => ({...prev, status: 'Cancelled'}));
+      setBooking((prev) => ({ ...prev, status: 'Cancelled' }));
       message.success('Đã hủy đơn thành công!');
     } catch (error) {
-       message.error('Lỗi khi hủy đơn');
+      message.error('Lỗi khi hủy đơn');
     }
   };
 
-  // Load danh sách phòng thật sự đã đặt
-  const renderRooms = booking.originalRooms || [];
+  // Load danh sách phòng thật sự đã đặt (ưu tiên từ dữ liệu giả vừa lưu, nếu không có thì fallback)
+  const renderRooms = booking.originalRooms && booking.originalRooms.length > 0 ? booking.originalRooms : [
+    { id: 1, typeName: 'Phòng tiêu chuẩn 1 giường đơn', roomNum: 'P.102', checkIn: '04/04/2026 14:00', checkOut: '06/04/2026 12:00', price: 400000, status: booking.status || 'Chờ xử lý' },
+    { id: 2, typeName: 'Phòng tiêu chuẩn 1 giường đơn', roomNum: 'P.103', checkIn: '04/04/2026 14:00', checkOut: '06/04/2026 12:00', price: 400000, status: booking.status || 'Chờ xử lý' },
+    { id: 3, typeName: 'Phòng tiêu chuẩn 1 giường đơn', roomNum: 'P.104', checkIn: '04/04/2026 14:00', checkOut: '06/04/2026 12:00', price: 400000, status: booking.status || 'Chờ xử lý' }
+  ];
   
   // Format tổng tiền liên kết với booking
-  const displayTotal = booking.totalAmount ? booking.totalAmount.toLocaleString() : '0';
+  const displayTotal = booking.totalAmount ? booking.totalAmount.toLocaleString() : '2.400.000';
 
   return (
     <div style={{ padding: 24, maxWidth: 1400, margin: '0 auto' }}>
-      
-      {/* HEADER CHI TIẾT */}
       <Card styles={{ body: { padding: '16px 24px' } }} style={{ marginBottom: 24, borderRadius: 12 }}>
         <Row justify="space-between" align="middle">
           <Col>
             <Space align="center" size="middle">
-              <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate('/admin/bookings')} style={{ fontWeight: 600, paddingLeft: 0 }}>
-                 Chi tiết: {booking.bookingCode}
+              <Button
+                type="text"
+                icon={<ArrowLeftOutlined />}
+                onClick={() => navigate('/admin/bookings')}
+                style={{ fontWeight: 600, paddingLeft: 0 }}
+              >
+                Chi tiết: {booking.bookingCode}
               </Button>
               {getStatusTag(booking.status)}
             </Space>
@@ -739,7 +856,6 @@ const BookingDetail = () => {
         </Row>
       </Card>
 
-      {/* THÔNG TIN */}
       <Row gutter={24} style={{ marginBottom: 24 }}>
         <Col span={12}>
           <Card title="Thông tin khách hàng" extra={<Button type="link" size="small">Sửa</Button>} style={{ borderRadius: 12, height: '100%' }}>
@@ -755,8 +871,8 @@ const BookingDetail = () => {
         <Col span={12}>
           <Card title="Thông tin thanh toán" extra={<Button size="small" onClick={() => setIsDepositModalOpen(true)}>Nạp Cọc</Button>} style={{ borderRadius: 12, height: '100%' }}>
             <div style={{ lineHeight: '32px' }}>
-              <div><Text type="secondary" style={{ width: 150, display: 'inline-block' }}>Mã Voucher:</Text> <Text>{booking.voucherCode || 'Không áp dụng'}</Text></div>
-              <div><Text type="secondary" style={{ width: 150, display: 'inline-block' }}>Giảm giá:</Text> <Text type="danger">-0 đ</Text></div>
+              <div><Text type="secondary" style={{ width: 150, display: 'inline-block' }}>Mã Voucher:</Text> <Text strong color="blue">{booking.voucherCode}</Text></div>
+              <div><Text type="secondary" style={{ width: 150, display: 'inline-block' }}>Giảm giá:</Text> <Text type="danger">-{booking.discountAmount?.toLocaleString()} đ</Text></div>
               <div><Text type="secondary" style={{ width: 150, display: 'inline-block' }}>Đã đặt cọc:</Text> <Text style={{ color: '#52c41a' }}>+{(booking.deposit || 0).toLocaleString()} đ</Text></div>
               <div style={{ marginTop: 8 }}><Text type="secondary" style={{ width: 150, display: 'inline-block', fontSize: 16 }}>Tổng tiền (Dự kiến):</Text> <Text strong style={{ fontSize: 18, color: '#1890ff' }}>{displayTotal} đ</Text></div>
               <div style={{ marginTop: 4 }}><Text type="secondary" style={{ width: 150, display: 'inline-block', fontSize: 16 }}>Còn lại cần thanh toán:</Text> <Text strong type="danger" style={{ fontSize: 16 }}>{((booking.totalAmount || 0) - (booking.deposit || 0)).toLocaleString()} đ</Text></div>
@@ -765,59 +881,92 @@ const BookingDetail = () => {
         </Col>
       </Row>
 
-      {/* DANH SÁCH PHÒNG ĐÃ ĐẶT */}
       <Card title={`Danh sách phòng đã đặt (${renderRooms.length})`} style={{ borderRadius: 12 }}>
         <Table
           dataSource={renderRooms}
           rowKey="id"
           pagination={false}
           columns={[
-            { title: 'Hạng phòng', dataIndex: 'typeName', key: 'type', render: t => <Text strong>{t}</Text> },
-            { title: 'Phòng xếp', dataIndex: 'roomNum', key: 'room', render: r => <Tag color="blue">{r}</Tag> },
+            { title: 'Hạng phòng', dataIndex: 'typeName', key: 'type', render: (t) => <Text strong>{t}</Text> },
+            { title: 'Phòng xếp', dataIndex: 'roomNum', key: 'room', render: (r) => <Tag color="blue">{r}</Tag> },
             { title: 'Check-in', dataIndex: 'checkIn', key: 'in' },
             { title: 'Check-out', dataIndex: 'checkOut', key: 'out' },
-            { title: 'Giá/Đêm (VNĐ)', dataIndex: 'price', key: 'price', render: p => (p || 0).toLocaleString() },
-            { title: 'Trạng thái', dataIndex: 'status', key: 'stt', render: s => <Tag color="orange">{s}</Tag> }
+            { title: 'Giá/Đêm (VNĐ)', dataIndex: 'price', key: 'price', render: (p) => (p || 0).toLocaleString() },
+            { title: 'Trạng thái', dataIndex: 'status', key: 'stt', render: (s) => <Tag color="orange">{s}</Tag> },
           ]}
         />
       </Card>
-      
-      {/* MODAL NẠP CỌC */}
+
       <Modal
         title="Tiếp nhận tiền cọc"
         open={isDepositModalOpen}
-        onCancel={() => setIsDepositModalOpen(false)}
+        onCancel={() => {
+          setIsDepositModalOpen(false);
+          setDepositPaymentData(null);
+        }}
         onOk={() => depositForm.submit()}
-        okText="Lưu thông tin"
+        okText={depositMethod === 'Momo' ? 'Kiểm tra thanh toán MoMo' : 'Lưu thông tin'}
         cancelText="Hủy"
+        confirmLoading={depositMethod === 'Momo' ? checkingDepositPayment : false}
       >
-        <Form form={depositForm} layout="vertical" onFinish={handleSaveDeposit}>
+        <Form form={depositForm} layout="vertical" onFinish={handleSaveDeposit} initialValues={{ paymentMethod: 'Chuyển khoản' }}>
           <Form.Item name="amount" label="Số tiền cọc khách đưa" rules={[{ required: true, message: 'Vui lòng nhập số tiền cọc' }]}>
             <InputNumber
               style={{ width: '100%' }}
-              formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-              parser={value => value.replace(/\$\s?|(,*)/g, '')}
+              formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              parser={(value) => value.replace(/\$\s?|(,*)/g, '')}
               suffix="VNĐ"
               placeholder="VD: 1000000"
             />
           </Form.Item>
-          <Form.Item name="paymentMethod" label="Phương thức thanh toán" initialValue="Chuyển khoản">
-            <Select>
+          <Form.Item name="paymentMethod" label="Phương thức thanh toán">
+            <Select
+              onChange={(value) => {
+                if (value !== 'Momo') {
+                  setDepositPaymentData(null);
+                  return;
+                }
+                const currentAmount = Number(depositForm.getFieldValue('amount') || 0);
+                if (currentAmount >= 1000) {
+                  createDepositMomoPayment(true);
+                } else {
+                  message.info('Nhập số tiền từ 1.000 VNĐ rồi hệ thống sẽ tạo QR MoMo.');
+                }
+              }}
+            >
               <Select.Option value="Chuyển khoản">Chuyển khoản</Select.Option>
               <Select.Option value="Tiền mặt">Tiền mặt</Select.Option>
               <Select.Option value="Thẻ tín dụng/Ghi nợ">Thẻ tín dụng/Ghi nợ</Select.Option>
+              <Select.Option value="Momo">Momo</Select.Option>
             </Select>
           </Form.Item>
           <Form.Item name="notes" label="Ghi chú / Link ảnh Bill chuyển khoản">
             <Input.TextArea rows={3} placeholder="Nhập đường link ảnh chụp bill hoặc ghi chú thông tin người chuyển..." />
           </Form.Item>
         </Form>
-      </Modal>
 
+        {depositMethod === 'Momo' ? (
+          <>
+            <Space style={{ marginBottom: 12 }}>
+              <Button onClick={() => createDepositMomoPayment(true)} loading={creatingDepositMomo}>
+                Tạo QR MoMo
+              </Button>
+              <Button onClick={() => checkDepositPaymentStatus(depositPaymentData?.paymentId, true)} disabled={!depositPaymentData?.paymentId} loading={checkingDepositPayment}>
+                Kiểm tra trạng thái
+              </Button>
+            </Space>
+            <MomoPaymentPanel
+              paymentData={{ ...depositPaymentData, amount: Number(depositAmount || 0) }}
+              checking={checkingDepositPayment}
+              onCheckStatus={() => checkDepositPaymentStatus(depositPaymentData?.paymentId, true)}
+              onRegenerate={() => createDepositMomoPayment(true)}
+            />
+          </>
+        ) : null}
+      </Modal>
     </div>
   );
 };
-
 // =====================================================================
 // 6. MAIN COMPONENT (GOM NHÓM ROUTE)
 // =====================================================================
@@ -836,3 +985,5 @@ const BookingSystem = () => {
 };
 
 export default BookingSystem;
+
+

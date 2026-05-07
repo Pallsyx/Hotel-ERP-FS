@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Button, Space, Tag, message } from 'antd';
 import { PrinterOutlined, ThunderboltOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import invoiceApi from '../../../api/invoiceApi';
@@ -105,9 +105,19 @@ const buildPrintableHtml = (payload) => {
   `;
 };
 
+const normalizeIds = (ids = []) =>
+  Array.from(new Set((Array.isArray(ids) ? ids : [ids]).map(Number).filter(Boolean))).sort((a, b) => a - b);
+
+const areSameIds = (left = [], right = []) => {
+  const a = normalizeIds(left);
+  const b = normalizeIds(right);
+  return a.length === b.length && a.every((value, index) => value === b[index]);
+};
+
 const InvoiceActionButtons = ({
   bookingId,
   bookingDetailId,
+  bookingDetailIds,
   invoiceId,
   invoiceStatus,
   onChanged,
@@ -123,27 +133,44 @@ const InvoiceActionButtons = ({
     setActiveInvoiceId(invoiceId || null);
   }, [invoiceId]);
 
+  const resolvedDetailIds = useMemo(() => {
+    const explicitIds = normalizeIds(bookingDetailIds);
+    if (explicitIds.length) return explicitIds;
+    if (bookingDetailId) return normalizeIds([bookingDetailId]);
+    return [];
+  }, [bookingDetailId, bookingDetailIds]);
+
   const normalizedStatus = String(invoiceStatus || '').toUpperCase();
   const isPaid = normalizedStatus === 'PAID';
 
   const ensureInvoiceId = async () => {
-    if (activeInvoiceId) return activeInvoiceId;
-
-    if (!bookingId) {
+    if (!bookingId && !activeInvoiceId) {
       throw new Error('Không có Booking ID để tạo hóa đơn.');
     }
 
     setResolving(true);
     try {
-      let bookingDetailIds = [];
+      let nextDetailIds = [...resolvedDetailIds];
 
-      if (bookingDetailId) {
-        bookingDetailIds = [bookingDetailId];
-      } else {
+      if (activeInvoiceId) {
+        if (!nextDetailIds.length) return activeInvoiceId;
+
+        const existingRes = await invoiceApi.getInvoiceDetail(activeInvoiceId);
+        const existingPayload = existingRes?.data?.data || existingRes?.data || {};
+        const existingDetailIds = normalizeIds(getValue(existingPayload, 'bookingDetailIds', 'BookingDetailIds') || []);
+
+        if (areSameIds(existingDetailIds, nextDetailIds)) {
+          return activeInvoiceId;
+        }
+
+        setActiveInvoiceId(null);
+      }
+
+      if (!nextDetailIds.length) {
         const eligibleRes = await invoiceApi.getEligibleBookingDetails(bookingId);
         const eligibleRows = eligibleRes?.data?.data || eligibleRes?.data || [];
 
-        bookingDetailIds = Array.isArray(eligibleRows)
+        nextDetailIds = Array.isArray(eligibleRows)
           ? eligibleRows
               .filter((x) => (x?.canCreateInvoice ?? x?.CanCreateInvoice) === true)
               .map((x) => x?.bookingDetailId ?? x?.BookingDetailId)
@@ -151,14 +178,14 @@ const InvoiceActionButtons = ({
           : [];
       }
 
-      if (!bookingDetailIds.length) {
-        throw new Error('Không có phòng nào đủ điều kiện để tạo hóa đơn.');
+      if (!nextDetailIds.length) {
+        throw new Error('Không có phòng nào đã checkout và đủ điều kiện để tạo hóa đơn.');
       }
 
       const createRes = await invoiceApi.createDraftInvoice({
         bookingId,
-        bookingDetailIds,
-        note: 'Tạo invoice nháp theo từng phòng từ màn hình quản lý hóa đơn',
+        bookingDetailIds: normalizeIds(nextDetailIds),
+        note: 'Tạo invoice nháp theo nhóm phòng từ màn hình quản lý hóa đơn',
       });
 
       const created = createRes?.data?.data || createRes?.data || {};

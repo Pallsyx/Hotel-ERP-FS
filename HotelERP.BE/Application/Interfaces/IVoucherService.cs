@@ -14,4 +14,6 @@ public interface IVoucherService
     Task<ApiResult<VoucherResponseDto>> UpdateAsync(int id, UpdateVoucherRequestDto request, int? performedByUserId, CancellationToken cancellationToken = default);
 
     Task<ApiResult<object>> DisableAsync(int id, DisableVoucherRequestDto request, int? performedByUserId, CancellationToken cancellationToken = default);
+
+    Task ExpireVouchersJobAsync(CancellationToken cancellationToken = default);
 }

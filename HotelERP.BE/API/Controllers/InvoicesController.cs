@@ -24,11 +24,28 @@ namespace HotelERP.BE.API.Controllers
             [FromQuery] DateTime? fromDate,
             [FromQuery] DateTime? toDate,
             [FromQuery] string? status,
+            [FromQuery] int? bookingId,
             CancellationToken cancellationToken)
         {
-            var result = await _invoiceService.GetAllInvoicesAsync(searchTerm, fromDate, toDate, status, cancellationToken);
-            return Ok(result);
+            try
+            {
+                var result = await _invoiceService.GetAllInvoicesAsync(searchTerm, fromDate, toDate, status, bookingId, cancellationToken);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                // Log chi tiết lỗi để debug
+                Console.Error.WriteLine($"[InvoicesController.GetAll] EXCEPTION: {ex}");
+                return StatusCode(500, new
+                {
+                    message = "Lỗi server khi lấy danh sách hóa đơn.",
+                    error = ex.Message,
+                    innerError = ex.InnerException?.Message,
+                    stackTrace = ex.StackTrace
+                });
+            }
         }
+
 
         [HttpGet("{invoiceId:int}")]
         public async Task<IActionResult> GetInvoice(int invoiceId, CancellationToken cancellationToken)
@@ -85,13 +102,25 @@ namespace HotelERP.BE.API.Controllers
             return StatusCode(result.StatusCode, result);
         }
 
+        [HttpPost("bookings/{bookingId:int}/voucher")]
+        public async Task<IActionResult> ApplyVoucherToBooking(
+            int bookingId,
+            [FromBody] ApplyInvoiceVoucherRequestDto request,
+            CancellationToken cancellationToken)
+        {
+            var userId = ResolveCurrentUserId();
+            var result = await _invoiceService.ApplyVoucherToBookingAsync(bookingId, request, userId, cancellationToken);
+            return StatusCode(result.StatusCode, result);
+        }
+
         [HttpPost("draft")]
         public async Task<IActionResult> CreateDraft(
             [FromBody] CreateDraftInvoiceRequestDto request,
             CancellationToken cancellationToken)
         {
             var userId = ResolveCurrentUserId();
-            var result = await _invoiceService.CreateDraftAsync(request, userId, cancellationToken);
+            var role = ResolveCurrentUserRole();
+            var result = await _invoiceService.CreateDraftAsync(request, userId, role, cancellationToken);
             return StatusCode(result.StatusCode, result);
         }
 
@@ -102,20 +131,22 @@ namespace HotelERP.BE.API.Controllers
         CancellationToken cancellationToken)
     {
         var userId = ResolveCurrentUserId();
-        var result = await _invoiceService.SetDamageChargeAsync(invoiceId, request, userId, cancellationToken);
+        var role = ResolveCurrentUserRole();
+        var result = await _invoiceService.SetDamageChargeAsync(invoiceId, request, userId, role, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 
-    [HttpPost("{invoiceId:int}/finalize")]
-    public async Task<IActionResult> FinalizeInvoice(
-        int invoiceId,
-        [FromBody] FinalizeInvoiceRequestDto request,
-        CancellationToken cancellationToken)
-    {
-        var userId = ResolveCurrentUserId();
-        var result = await _invoiceService.FinalizeAsync(invoiceId, request, userId, cancellationToken);
-        return StatusCode(result.StatusCode, result);
-    }
+        [HttpPost("{invoiceId:int}/finalize")]
+        public async Task<IActionResult> FinalizeInvoice(
+            int invoiceId,
+            [FromBody] FinalizeInvoiceRequestDto request,
+            CancellationToken cancellationToken)
+        {
+            var userId = ResolveCurrentUserId();
+        var role = ResolveCurrentUserRole();
+            var result = await _invoiceService.FinalizeAsync(invoiceId, request, userId, role, cancellationToken);
+            return StatusCode(result.StatusCode, result);
+        }
 
         [HttpPost("{invoiceId:int}/extra-fee")]
         public async Task<IActionResult> AddExtraFee(
@@ -124,16 +155,20 @@ namespace HotelERP.BE.API.Controllers
             CancellationToken cancellationToken)
         {
             var userId = ResolveCurrentUserId();
-            var result = await _invoiceService.AddExtraFeeAsync(invoiceId, request, userId, cancellationToken);
+            var role = ResolveCurrentUserRole();
+            var result = await _invoiceService.AddExtraFeeAsync(invoiceId, request, userId, role, cancellationToken);
             return StatusCode(result.StatusCode, result);
         }
-
-
 
         private int? ResolveCurrentUserId()
         {
             var raw = User.FindFirstValue(ClaimTypes.NameIdentifier);
             return int.TryParse(raw, out var userId) ? userId : null;
+        }
+
+        private string? ResolveCurrentUserRole()
+        {
+            return User.FindFirstValue(ClaimTypes.Role);
         }
     }
 }

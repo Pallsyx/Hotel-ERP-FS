@@ -17,6 +17,8 @@ public class VoucherResponseDto
     public DateTime? ValidTo { get; set; }
 
     public int? UsageLimit { get; set; }
+    
+    public string? Reason { get; set; }
 
     public int UsedCount { get; set; }
 

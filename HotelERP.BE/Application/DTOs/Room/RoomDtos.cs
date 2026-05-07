@@ -25,7 +25,7 @@ public record ReportDamageRequest(
     int? BookingDetailId,
     int? RoomInventoryId,
     string ItemName, 
-    string Description, 
+    string? Description, 
     decimal PenaltyAmount,
     int Quantity, 
     string Reason, 
@@ -34,7 +34,7 @@ public record ReportDamageRequest(
 
 public record DamageReportResponseDto(
     int Id, 
-    string Description, 
+    string? Description, 
     decimal PenaltyAmount, 
     int Quantity, 
     string? EvidenceImageUrl, 

@@ -34,4 +34,7 @@ public class InvoiceActionResponseDto
     public int? PaymentId { get; set; }
     public string? PaymentMethod { get; set; }
     public string? TransactionCode { get; set; }
+
+    public int? VoucherId { get; set; }
+    public string? VoucherCode { get; set; }
 }

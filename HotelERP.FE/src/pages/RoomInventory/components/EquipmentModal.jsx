@@ -10,16 +10,34 @@ const EquipmentModal = ({ open, onCancel, editingItem, onSuccess }) => {
   const [imageUrl, setImageUrl] = useState('');
   const [uploading, setUploading] = useState(false);
 
+  const categoryWatch = Form.useWatch('category', form);
+  const basePriceWatch = Form.useWatch('basePrice', form);
+  const isFixed100Pct = categoryWatch === 'Đồ ăn' || categoryWatch === 'Đồ uống' || categoryWatch === 'Minibar' || (basePriceWatch !== undefined && basePriceWatch <= 50000);
+
+  useEffect(() => {
+    if (isFixed100Pct) {
+      form.setFieldsValue({ markupPercentage: 100 });
+      if (basePriceWatch !== undefined) {
+        form.setFieldsValue({ defaultPriceIfLost: basePriceWatch });
+      }
+    }
+  }, [isFixed100Pct, basePriceWatch, form]);
+
   useEffect(() => {
     if (editingItem && open) {
+      const base = editingItem.basePrice || 0;
+      const def = editingItem.defaultPriceIfLost || 0;
+      const pct = base > 0 ? Math.round((def / base) * 100) : 100;
+
       form.setFieldsValue({
         itemCode: editingItem.itemCode,
         name: editingItem.name,
         category: editingItem.category,
         unit: editingItem.unit,
         totalQuantity: editingItem.totalQuantity,
-        basePrice: editingItem.basePrice || 0,
-        defaultPriceIfLost: editingItem.defaultPriceIfLost || 0,
+        basePrice: base,
+        defaultPriceIfLost: def,
+        markupPercentage: pct,
       });
       setImageUrl(editingItem.imageUrl || '');
     } else {
@@ -52,6 +70,7 @@ const EquipmentModal = ({ open, onCancel, editingItem, onSuccess }) => {
 
       const payload = {
         ...values,
+        defaultPriceIfLost: form.getFieldValue('defaultPriceIfLost'),
         imageUrl: imageUrl,
       };
 
@@ -133,6 +152,9 @@ const EquipmentModal = ({ open, onCancel, editingItem, onSuccess }) => {
               placeholder="Chọn danh mục"
               options={[
                 { value: 'Trang thiết bị', label: 'Trang thiết bị' },
+                { value: 'Nội thất', label: 'Nội thất' },
+                { value: 'Điện tử', label: 'Điện tử' },
+                { value: 'Minibar', label: 'Minibar' },
                 { value: 'Đồ uống', label: 'Đồ uống' },
                 { value: 'Đồ ăn', label: 'Đồ ăn' },
                 { value: 'Khác', label: 'Khác' },
@@ -161,9 +183,9 @@ const EquipmentModal = ({ open, onCancel, editingItem, onSuccess }) => {
           </Form.Item>
 
           <Form.Item
-            name="defaultPriceIfLost"
-            label="Giá đền bù (VND)"
-            rules={[{ required: true, message: 'Nhập giá đền bù!' }]}
+            name="basePrice"
+            label="Giá nhập (VND)"
+            rules={[{ required: true, message: 'Nhập giá nhập!' }]}
             style={{ flex: 1 }}
           >
             <InputNumber
@@ -171,6 +193,53 @@ const EquipmentModal = ({ open, onCancel, editingItem, onSuccess }) => {
               step={1000}
               style={{ width: '100%' }}
               formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              parser={(value) => value.replace(/\$\s?|(,*)/g, '')}
+              onChange={(val) => {
+                const pct = form.getFieldValue('markupPercentage') || 100;
+                const calculated = Math.round((val || 0) * (pct / 100));
+                form.setFieldsValue({ defaultPriceIfLost: calculated });
+              }}
+            />
+          </Form.Item>
+        </div>
+
+        <div style={{ display: 'flex', gap: 16 }}>
+          <Form.Item 
+            name="markupPercentage" 
+            label="Tỉ lệ đền bù (%)" 
+            initialValue={100}
+            style={{ flex: 1 }}
+          >
+            <InputNumber
+              disabled={isFixed100Pct}
+              min={isFixed100Pct ? 100 : 8}
+              max={1000}
+              step={10}
+              style={{ width: '100%' }}
+              formatter={(value) => `${value}%`}
+              parser={(value) => value.replace('%', '')}
+              onChange={(val) => {
+                const base = form.getFieldValue('basePrice') || 0;
+                const calculated = Math.round(base * ((val || 0) / 100));
+                form.setFieldsValue({ defaultPriceIfLost: calculated });
+              }}
+            />
+          </Form.Item>
+
+          <Form.Item
+            name="defaultPriceIfLost"
+            label="Giá đền bù thực tế (VND)"
+            style={{ flex: 1 }}
+          >
+            <InputNumber
+              min={0}
+              step={1000}
+              disabled
+              style={{ width: '100%' }}
+              formatter={(value) => {
+                if (!value) return '0';
+                return Math.round(value).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+              }}
               parser={(value) => value.replace(/\$\s?|(,*)/g, '')}
             />
           </Form.Item>

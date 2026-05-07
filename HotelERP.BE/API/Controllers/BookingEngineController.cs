@@ -1,12 +1,13 @@
 using HotelERP.BE.Application.DTOs.BookingEngine;
 using HotelERP.BE.Application.Interfaces;
 using System.Security.Claims;
-using HotelERP.BE.API.Filters; // Đã sửa thư mục Attributes thành Filters cho chuẩn
+using HotelERP.BE.API.Filters;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using HotelERP.BE.Constants; 
+using HotelERP.BE.Domain.Constants;
 using Microsoft.EntityFrameworkCore;
-using HotelERP.BE.Infrastructure.Data; // Đảm bảo bạn đã thêm using này để truy cập DbContext
+using HotelERP.BE.Infrastructure.Data;
 
 namespace HotelERP.BE.API.Controllers;
 
@@ -42,11 +43,13 @@ public class BookingEngineController : ControllerBase
         int nights = (int)(request.CheckOutDate.Date - request.CheckInDate.Date).TotalDays;
 
         // ── Lấy room_id đã bị đặt (overlap) ─────────────────────────────────────
-        // Overlap condition: bd.CheckInDate < req.CheckOut  AND  bd.CheckOutDate > req.CheckIn
         var bookedRoomIds = await _context.BookingDetails
             .Where(bd =>
                 bd.RoomId.HasValue &&
-                (bd.Status == "confirmed" || bd.Status == "checked_in" || bd.Status == "pending") &&
+                (bd.Status == BookingStatus.Confirmed || 
+                 bd.Status == BookingStatus.CheckedIn || 
+                 bd.Status == BookingStatus.Holding ||
+                 bd.Status == BookingStatus.Pending) &&
                 bd.CheckInDate.Date  < request.CheckOutDate.Date &&
                 bd.CheckOutDate.Date > request.CheckInDate.Date)
             .Select(bd => bd.RoomId!.Value)
@@ -60,8 +63,8 @@ public class BookingEngineController : ControllerBase
             .Include(rt => rt.RoomTypeAmenities)
                 .ThenInclude(rta => rta.Amenity)
             .Where(rt =>
-                rt.Status == "active" &&
                 rt.DeletedAt == null &&
+                (rt.Status == "ACTIVE" || rt.Status == "active" || rt.Status == "Active") &&
                 rt.CapacityAdults   >= request.AdultsCount &&
                 rt.CapacityChildren >= request.ChildrenCount)
             .OrderBy(rt => rt.BasePrice)
@@ -72,7 +75,7 @@ public class BookingEngineController : ControllerBase
             .Select(rt =>
             {
                 var freeRooms = rt.Rooms
-                    .Where(r => r.Status == "Available" && r.DeletedAt == null && !bookedRoomIds.Contains(r.Id))
+                    .Where(r => r.Status == RoomPhysicalStatus.Available && r.DeletedAt == null && !bookedRoomIds.Contains(r.Id))
                     .ToList();
 
                 return new AvailableRoomTypeResponse
@@ -93,6 +96,7 @@ public class BookingEngineController : ControllerBase
             })
             .Where(r => r.AvailableCount >= request.RoomsRequested)
             .ToList();
+
 
         return Ok(new {
             success = true,

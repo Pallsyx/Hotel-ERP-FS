@@ -29,6 +29,9 @@ public partial class Voucher
     public DateTime? ValidTo { get; set; }
 
     public int? UsageLimit { get; set; }
+    
+    [NotMapped]
+    public string? Reason { get; set; }
 
     [NotMapped]
     public int UsedCount { get; set; }

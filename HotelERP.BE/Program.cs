@@ -178,6 +178,9 @@ builder.Services.AddSingleton<IDistributedLockFactory>(provider =>
 // --- 6. ĐĂNG KÝ SERVICES ---
 
 // Options của Loyalty Points
+builder.Services.Configure<MomoOptions>(
+    builder.Configuration.GetSection(MomoOptions.SectionName));
+
 builder.Services.Configure<LoyaltyPointsOptions>(
     builder.Configuration.GetSection(LoyaltyPointsOptions.SectionName));
 
@@ -208,8 +211,11 @@ builder.Services.AddScoped<IBookingManagementService, BookingManagementService>(
 builder.Services.AddScoped<IInvoiceService, InvoiceService>();
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(Program).Assembly));
 builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 
 
+builder.Services.AddHttpClient();
+builder.Services.AddScoped<IMomoPaymentService, MomoPaymentService>();
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddAuthorization();
@@ -279,6 +285,16 @@ using (var scope = app.Services.CreateScope())
     recurringJobManager.AddOrUpdate("MarkOccupiedRoomsDirtyAt9AM",
         () => scope.ServiceProvider.GetRequiredService<IRoomService>().MarkOccupiedRoomsDirtyAsync(),
         "0 2 * * *"); // 02:00 UTC = 09:00 Vietnam (UTC+7)
+
+    // Job xóa audit log quá 3 tháng - chạy mỗi ngày lúc 17:00 UTC (00:00 Việt Nam)
+    recurringJobManager.AddOrUpdate("PurgeOldAuditLogs",
+        () => scope.ServiceProvider.GetRequiredService<IAuditLogService>().PurgeOldLogsAsync(),
+        "0 17 * * *"); // 17:00 UTC = 00:00 Vietnam (UTC+7)
+
+    // Job quét và vô hiệu hóa Voucher đã quá hạn, chạy mỗi ngày lúc 00:00 UTC (07:00 VN)
+    recurringJobManager.AddOrUpdate("ExpireVouchersJob",
+        () => scope.ServiceProvider.GetRequiredService<IVoucherService>().ExpireVouchersJobAsync(CancellationToken.None),
+        Cron.Daily);
 }
 
 // app.UseHttpsRedirection(); // Commented out to prevent Authorization header stripping on Vite proxy redirect

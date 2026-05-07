@@ -15,10 +15,12 @@ public class VoucherService : IVoucherService
     private const string DiscountTypeFixedAmount = "FIXED_AMOUNT";
 
     private readonly HotelDbContext _dbContext;
+    private readonly IVoucherAuditLogHelper _auditLogHelper;
 
     public VoucherService(HotelDbContext dbContext, IVoucherAuditLogHelper voucherAuditLogHelper)
     {
         _dbContext = dbContext;
+        _auditLogHelper = voucherAuditLogHelper; // ← lưu lại để dùng khi ghi audit log
     }
 
     public async Task<ApiResult<List<VoucherResponseDto>>> GetAllAsync(string? status, string? search, CancellationToken cancellationToken = default)
@@ -111,14 +113,28 @@ public class VoucherService : IVoucherService
             MinBookingValue = request.MinBookingAmount,
             ValidFrom = request.ValidFrom,
             ValidTo = validTo,
-            UsageLimit = request.UsageLimit
+            UsageLimit = request.UsageLimit,
+            Reason = request.Reason
         };
 
         _dbContext.Vouchers.Add(voucher);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         var usedCountMap = await GetUsedCountMapAsync(cancellationToken);
-        return ApiResult<VoucherResponseDto>.Created(MapToResponse(voucher, usedCountMap), "Tạo voucher thành công.", "CREATE_VOUCHER_SUCCESS");
+        var response = MapToResponse(voucher, usedCountMap);
+
+        // Ghi audit log
+        await _auditLogHelper.WriteAsync(
+            userId: performedByUserId,
+            roleName: "System",
+            action: "CREATE",
+            recordId: voucher.Id,
+            oldValue: null,
+            newValue: _auditLogHelper.BuildSnapshot(voucher),
+            reason: request.Reason ?? "Tạo voucher mới",
+            cancellationToken: cancellationToken);
+
+        return ApiResult<VoucherResponseDto>.Created(response, "Tạo voucher thành công.", "CREATE_VOUCHER_SUCCESS");
     }
 
     public async Task<ApiResult<VoucherResponseDto>> UpdateAsync(int id, UpdateVoucherRequestDto request, int? performedByUserId, CancellationToken cancellationToken = default)
@@ -159,15 +175,27 @@ public class VoucherService : IVoucherService
         voucher.DiscountValue = request.DiscountValue;
         voucher.MinBookingValue = request.MinBookingAmount;
         voucher.ValidFrom = request.ValidFrom;
-        voucher.ValidTo = normalizedStatus == StatusInactive && (!request.ValidTo.HasValue || request.ValidTo.Value > now)
-            ? now.AddSeconds(-1)
-            : request.ValidTo;
+        voucher.ValidTo = request.ValidTo;
         voucher.UsageLimit = request.UsageLimit;
+        voucher.Reason = request.Reason;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         var usedCountMap = await GetUsedCountMapAsync(cancellationToken);
-        return ApiResult<VoucherResponseDto>.Ok(MapToResponse(voucher, usedCountMap), "Cập nhật voucher thành công.", "UPDATE_VOUCHER_SUCCESS");
+        var response = MapToResponse(voucher, usedCountMap);
+
+        // Ghi audit log
+        await _auditLogHelper.WriteAsync(
+            userId: performedByUserId,
+            roleName: "System",
+            action: "UPDATE",
+            recordId: voucher.Id,
+            oldValue: null,
+            newValue: _auditLogHelper.BuildSnapshot(voucher),
+            reason: request.Reason ?? "Cập nhật voucher",
+            cancellationToken: cancellationToken);
+
+        return ApiResult<VoucherResponseDto>.Ok(response, "Cập nhật voucher thành công.", "UPDATE_VOUCHER_SUCCESS");
     }
 
     public async Task<ApiResult<object>> DisableAsync(int id, DisableVoucherRequestDto request, int? performedByUserId, CancellationToken cancellationToken = default)
@@ -200,6 +228,17 @@ public class VoucherService : IVoucherService
 
         voucher.ValidTo = now.AddSeconds(-1);
         await _dbContext.SaveChangesAsync(cancellationToken);
+
+        // Ghi audit log
+        await _auditLogHelper.WriteAsync(
+            userId: performedByUserId,
+            roleName: "System",
+            action: "DELETE",
+            recordId: voucher.Id,
+            oldValue: _auditLogHelper.BuildSnapshot(voucher),
+            newValue: null,
+            reason: request.Reason ?? "Vô hiệu hóa voucher",
+            cancellationToken: cancellationToken);
 
         return ApiResult<object>.Ok(new
         {
@@ -346,7 +385,7 @@ public class VoucherService : IVoucherService
     {
         return await _dbContext.Bookings
             .AsNoTracking()
-            .Where(x => x.VoucherId.HasValue)
+            .Where(x => x.VoucherId.HasValue && x.Status != "Cancelled" && x.Status != "CancelledByAdmin" && x.Status != "Expired")
             .GroupBy(x => x.VoucherId!.Value)
             .Select(g => new { VoucherId = g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.VoucherId, x => x.Count, cancellationToken);
@@ -407,8 +446,38 @@ public class VoucherService : IVoucherService
             UsageLimit = voucher.UsageLimit,
             UsedCount = usedCount,
             Status = status,
+            Reason = voucher.Reason,
             CreatedAt = voucher.ValidFrom ?? now,
             UpdatedAt = null
         };
+    }
+
+    public async Task ExpireVouchersJobAsync(CancellationToken cancellationToken = default)
+    {
+        var now = DateTime.UtcNow;
+        var vouchers = await _dbContext.Vouchers.ToListAsync(cancellationToken);
+        var usedCountMap = await GetUsedCountMapAsync(cancellationToken);
+
+        var count = 0;
+        foreach (var v in vouchers)
+        {
+            var usedCount = usedCountMap.GetValueOrDefault(v.Id, 0);
+            var status = ResolveVoucherStatus(v, usedCount, now);
+
+            // Nếu status logic là INACTIVE nhưng DB chưa lưu ValidTo quá khứ, ta ép cứng lại
+            if (status == StatusInactive && (!v.ValidTo.HasValue || v.ValidTo.Value > now))
+            {
+                v.ValidTo = now.AddSeconds(-1);
+                v.Reason = string.IsNullOrWhiteSpace(v.Reason) 
+                    ? "Hệ thống tự động vô hiệu hóa (Hangfire Job)" 
+                    : v.Reason + " | Hệ thống tự động vô hiệu hóa";
+                count++;
+            }
+        }
+
+        if (count > 0)
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
     }
 }

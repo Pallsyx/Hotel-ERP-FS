@@ -1,10 +1,13 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using System.Net;
+using System.Security.Claims;
 using HotelERP.BE.Domain.Models;
 using HotelERP.BE.Services;
 using HotelERP.BE.Infrastructure.Data;
-using HotelERP.BE.Utils; 
+using HotelERP.BE.Helpers.AuditLogs;
+using HotelERP.BE.Utils;
 
 namespace HotelERP.BE.Controllers;
 
@@ -94,22 +97,27 @@ public class ReviewController(HotelDbContext context, ICloudinaryService cloudin
         review.IsApproved = false;
         review.Status = "HIDDEN";
 
+        // 2. Lấy userId và role thật từ JWT token
+        var userIdRaw = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        int.TryParse(userIdRaw, out int actingUserId);
+        var actingRole = User.FindFirstValue(ClaimTypes.Role) ?? "System";
+
+        // 3. Lấy và Decode header X-Audit-Reason an toàn
         string decodedReason = "Không có lý do";
         if (Request.Headers.TryGetValue("X-Audit-Reason", out var reasonValues))
         {
             decodedReason = WebUtility.UrlDecode(reasonValues.ToString());
         }
 
-        AuditLog auditLog = new()
-        {
-            Action = "HIDE_REVIEW",
-            TableName = "Reviews",
-            RecordId = id,
-            Reason = decodedReason,
-            CreatedAt = DateTime.UtcNow
-        };
-
-        context.AuditLogs.Add(auditLog);
+        await context.AddAuditLogAsync(
+            userId: actingUserId,
+            roleName: actingRole,
+            actionType: "HIDE_REVIEW",
+            entityType: "Reviews",
+            message: $"Ẩn đánh giá #{id}: {decodedReason}",
+            contextParams: new { reviewId = id },
+            changes: new { oldData = new { Status = "APPROVED" }, newData = new { Status = "HIDDEN" } }
+        );
         await context.SaveChangesAsync();
 
         return Ok(new { message = "Đã ẩn đánh giá và ghi log thành công." });
