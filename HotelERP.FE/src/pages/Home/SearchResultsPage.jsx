@@ -137,9 +137,10 @@ export default function SearchResultsPage() {
     // Navigate to booking flow with selected room + search params
     navigate('/booking/new', {
       state: {
-        roomTypeId: room.roomTypeId,
+        roomTypeId: room.id,          // Backend trả về "id" không phải "roomTypeId"
         roomName:   room.name,
         basePrice:  room.basePrice,
+        availableCount: room.availableCount,
         ...searchParams,
       },
     });

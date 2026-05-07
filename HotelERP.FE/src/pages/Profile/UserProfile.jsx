@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { message } from 'antd';
 import { UserOutlined, LockOutlined, PhoneOutlined, MailOutlined, HomeOutlined, CameraOutlined, EyeOutlined, EyeInvisibleOutlined, ArrowLeftOutlined } from '@ant-design/icons';
 import axios from 'axios';
@@ -63,6 +63,8 @@ function SectionTitle({ label, sub }) {
 
 export default function UserProfile() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const isAdminLayout = location.pathname.startsWith('/admin');
   const { token, user, login } = useAuthStore();
 
   const [loading, setLoading] = useState(false);
@@ -190,28 +192,30 @@ export default function UserProfile() {
       `}</style>
 
       {/* ── HEADER ── */}
-      <header style={{
-        position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
-        background: sc ? 'rgba(13,13,13,0.98)' : 'transparent',
-        backdropFilter: sc ? 'blur(20px)' : 'none',
-        borderBottom: sc ? '1px solid rgba(255,255,255,0.06)' : 'none',
-        transition: 'all 400ms', padding: '0 clamp(24px,5vw,80px)',
-        height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      }}>
-        <div onClick={() => navigate('/')} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-          <div style={{ width: 28, height: 28, border: `1px solid ${G}`, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', ...SF, fontSize: 12, color: G }}>A</div>
-          <span style={{ color: 'white', fontSize: 13, fontWeight: 600, letterSpacing: '.12em', textTransform: 'uppercase' }}>Asteria Resort</span>
-        </div>
-        <button onClick={() => navigate('/')} style={{
-          display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: `1px solid rgba(255,255,255,0.15)`,
-          color: 'rgba(255,255,255,0.7)', padding: '8px 20px', borderRadius: 2, cursor: 'pointer',
-          fontSize: 11, letterSpacing: '1.5px', textTransform: 'uppercase', transition: 'all 200ms'
-        }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor = G; e.currentTarget.style.color = G; }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}>
-          <ArrowLeftOutlined style={{ fontSize: 11 }} /> Trang Chủ
-        </button>
-      </header>
+      {!isAdminLayout && (
+        <header style={{
+          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
+          background: sc ? 'rgba(13,13,13,0.98)' : 'transparent',
+          backdropFilter: sc ? 'blur(20px)' : 'none',
+          borderBottom: sc ? '1px solid rgba(255,255,255,0.06)' : 'none',
+          transition: 'all 400ms', padding: '0 clamp(24px,5vw,80px)',
+          height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        }}>
+          <div onClick={() => navigate('/')} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+            <div style={{ width: 28, height: 28, border: `1px solid ${G}`, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', ...SF, fontSize: 12, color: G }}>A</div>
+            <span style={{ color: 'white', fontSize: 13, fontWeight: 600, letterSpacing: '.12em', textTransform: 'uppercase' }}>Asteria Resort</span>
+          </div>
+          <button onClick={() => navigate('/')} style={{
+            display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: `1px solid rgba(255,255,255,0.15)`,
+            color: 'rgba(255,255,255,0.7)', padding: '8px 20px', borderRadius: 2, cursor: 'pointer',
+            fontSize: 11, letterSpacing: '1.5px', textTransform: 'uppercase', transition: 'all 200ms'
+          }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = G; e.currentTarget.style.color = G; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}>
+            <ArrowLeftOutlined style={{ fontSize: 11 }} /> Trang Chủ
+          </button>
+        </header>
+      )}
 
       {/* ── HERO BANNER ── */}
       <div style={{ position: 'relative', height: 280, overflow: 'hidden',

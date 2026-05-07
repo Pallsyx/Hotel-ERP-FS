@@ -10,6 +10,7 @@ import {
 } from '@ant-design/icons';
 import axios from 'axios';
 import bookingManagementApi from '../../api/bookingManagementApi';
+import bookingApi from '../../api/bookingApi';
 import momoPaymentApi from '../../api/momoPaymentApi';
 import MomoPaymentPanel from '../../components/payments/MomoPaymentPanel';
 import { create } from 'zustand';
@@ -619,6 +620,62 @@ const BookingDetail = () => {
   const [creatingDepositMomo, setCreatingDepositMomo] = useState(false);
   const [checkingDepositPayment, setCheckingDepositPayment] = useState(false);
 
+  // ── Gán phòng vật lý ──
+  const [assignModal, setAssignModal] = useState({ open: false, detail: null });
+  const [availableRooms, setAvailableRooms] = useState([]);
+  const [loadingRooms, setLoadingRooms] = useState(false);
+  const [selectedPhysicalRoom, setSelectedPhysicalRoom] = useState(null);
+  const [assigningRoom, setAssigningRoom] = useState(false);
+
+  const openAssignModal = async (detail) => {
+    setAssignModal({ open: true, detail });
+    setSelectedPhysicalRoom(null);
+    setLoadingRooms(true);
+    try {
+      // Gọi API lấy danh sách phòng vật lý trống của hạng phòng này
+      const res = await bookingApi.getAssignableRooms(detail.roomTypeId);
+      const rooms = res?.data?.data || res?.data || [];
+      setAvailableRooms(rooms);
+    } catch {
+      message.error('Không tải được danh sách phòng trống!');
+      setAvailableRooms([]);
+    } finally {
+      setLoadingRooms(false);
+    }
+  };
+
+  const handleAssignRoom = async () => {
+    if (!selectedPhysicalRoom) { message.warning('Vui lòng chọn 1 phòng!'); return; }
+    setAssigningRoom(true);
+    try {
+      await bookingManagementApi.changeRoom(assignModal.detail.id, selectedPhysicalRoom);
+      message.success('Đã gán phòng thành công!');
+      setAssignModal({ open: false, detail: null });
+      // Reload booking detail
+      const response = await bookingManagementApi.searchBookings({ keyword: bookingCode, page: 1, pageSize: 1 });
+      const dbBooking = response.data?.data?.items?.[0];
+      if (dbBooking) {
+        setBooking(prev => ({
+          ...prev,
+          originalRooms: (dbBooking.details || []).map(d => ({
+            id: d.id || d.Id,
+            roomTypeId: d.roomTypeId || d.RoomTypeId,
+            typeName: d.roomTypeName || d.RoomTypeName,
+            roomNum: d.roomNumber || d.RoomNumber || 'Chưa xếp',
+            checkIn: dayjs(d.checkInDate || d.CheckInDate).format('DD/MM/YYYY HH:mm'),
+            checkOut: dayjs(d.checkOutDate || d.CheckOutDate).format('DD/MM/YYYY HH:mm'),
+            price: d.pricePerNight ?? d.PricePerNight ?? 0,
+            status: d.status || d.Status,
+          }))
+        }));
+      }
+    } catch (err) {
+      message.error(err?.response?.data?.message || 'Lỗi khi gán phòng!');
+    } finally {
+      setAssigningRoom(false);
+    }
+  };
+
   useEffect(() => {
     const fetchDetail = async () => {
       try {
@@ -640,6 +697,7 @@ const BookingDetail = () => {
               deposit: dbBooking.depositAmount || dbBooking.DepositAmount || 0, 
               originalRooms: (dbBooking.details || dbBooking.Details || []).map(d => ({
                   id: d.id || d.Id,
+                  roomTypeId: d.roomTypeId || d.RoomTypeId,
                   typeName: d.roomTypeName || d.RoomTypeName,
                   roomNum: d.roomNumber || d.RoomNumber || 'Chưa xếp',
                   checkIn: dayjs(d.checkInDate || d.CheckInDate).format('DD/MM/YYYY HH:mm'),
@@ -889,7 +947,24 @@ const BookingDetail = () => {
           pagination={false}
           columns={[
             { title: 'Hạng phòng', dataIndex: 'typeName', key: 'type', render: (t) => <Text strong>{t}</Text> },
-            { title: 'Phòng xếp', dataIndex: 'roomNum', key: 'room', render: (r) => <Tag color="blue">{r}</Tag> },
+            {
+              title: 'Phòng xếp', dataIndex: 'roomNum', key: 'room',
+              render: (r, record) => (
+                <Space>
+                  <Tag color={r && r !== 'Chưa xếp' ? 'blue' : 'default'}>{r || 'Chưa xếp'}</Tag>
+                  {/* Chỉ cho gán phòng khi chưa có phòng vật lý hoặc booking chưa Check-in */}
+                  {!['Checked_in', 'Completed', 'Cancelled'].includes(booking?.status) && (
+                    <Button
+                      size="small"
+                      type={r && r !== 'Chưa xếp' ? 'default' : 'primary'}
+                      onClick={() => openAssignModal(record)}
+                    >
+                      {r && r !== 'Chưa xếp' ? '🔄 Đổi phòng' : '🏨 Gán phòng'}
+                    </Button>
+                  )}
+                </Space>
+              )
+            },
             { title: 'Check-in', dataIndex: 'checkIn', key: 'in' },
             { title: 'Check-out', dataIndex: 'checkOut', key: 'out' },
             { title: 'Giá/Đêm (VNĐ)', dataIndex: 'price', key: 'price', render: (p) => (p || 0).toLocaleString() },
@@ -897,6 +972,54 @@ const BookingDetail = () => {
           ]}
         />
       </Card>
+
+      {/* ── Modal Gán phòng vật lý ── */}
+      <Modal
+        title={`🏨 Chọn phòng vật lý — ${assignModal.detail?.typeName || ''}`}
+        open={assignModal.open}
+        onCancel={() => setAssignModal({ open: false, detail: null })}
+        onOk={handleAssignRoom}
+        okText="Xác nhận gán phòng"
+        cancelText="Hủy"
+        confirmLoading={assigningRoom}
+        okButtonProps={{ disabled: !selectedPhysicalRoom }}
+        width={520}
+      >
+        {loadingRooms ? (
+          <div style={{ textAlign: 'center', padding: 32 }}><span>Đang tải danh sách phòng...</span></div>
+        ) : availableRooms.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 24, color: '#999' }}>
+            <div style={{ fontSize: 32, marginBottom: 8 }}>🚫</div>
+            <div>Không còn phòng trống cho hạng phòng này.</div>
+          </div>
+        ) : (
+          <div>
+            <p style={{ color: '#666', marginBottom: 16, fontSize: 13 }}>
+              Chọn phòng vật lý để gán cho khách. Chỉ hiển thị phòng có trạng thái <Tag color="green">Available</Tag>
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+              {availableRooms.map(room => (
+                <div
+                  key={room.id}
+                  onClick={() => setSelectedPhysicalRoom(room.id)}
+                  style={{
+                    border: `2px solid ${selectedPhysicalRoom === room.id ? '#1890ff' : '#e5e7eb'}`,
+                    borderRadius: 8, padding: '12px 8px', textAlign: 'center',
+                    cursor: 'pointer', background: selectedPhysicalRoom === room.id ? '#e6f4ff' : 'white',
+                    transition: 'all 200ms',
+                  }}
+                >
+                  <div style={{ fontSize: 18, fontWeight: 700, color: selectedPhysicalRoom === room.id ? '#1890ff' : '#18181b' }}>
+                    {room.roomNumber}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>Tầng {room.floor}</div>
+                  <Tag color="green" style={{ marginTop: 6, fontSize: 10 }}>Trống</Tag>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </Modal>
 
       <Modal
         title="Tiếp nhận tiền cọc"

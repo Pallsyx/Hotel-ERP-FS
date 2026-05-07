@@ -217,44 +217,80 @@ public class BookingEngineService : IBookingEngineService
                     var lineTotal = basePrice * nightsCount;
                     finalTotalAmount += lineTotal;
 
-                    var specificRoomId = (item.RoomIds != null && item.RoomIds.Count > i && item.RoomIds[i] > 0) ? item.RoomIds[i] : (int?)null;
+                    // ══════════════════════════════════════════════════════════════
+                    // CHỐNG OVERBOOKING: Tự động tìm & khóa phòng vật lý còn trống
+                    // Ưu tiên: Nếu FE truyền lên RoomId cụ thể → kiểm tra còn trống không
+                    //          Nếu không → Backend tự động tìm phòng trống và gán
+                    // ══════════════════════════════════════════════════════════════
+                    int? assignedRoomId = null;
 
-                    // NEW: Kiểm tra xem phòng vật lý này đã bị ai đó chiếm trùng ngày chưa (Tuyệt chiêu chống Overbooking)
-                    if (specificRoomId.HasValue)
+                    if (item.RoomIds != null && item.RoomIds.Count > i && item.RoomIds[i] > 0)
                     {
-                        bool isConflict = await _context.BookingDetails.AnyAsync(bd => 
-                            bd.RoomId == specificRoomId.Value &&
-                            bd.Status != BookingStatus.Cancelled && 
-                            bd.Status != BookingStatus.CancelledByAdmin && 
-                            bd.Booking!.Status != BookingStatus.Expired && 
-                            bd.CheckInDate < item.CheckOutDate && 
+                        // FE đã chọn phòng cụ thể → kiểm tra xem còn trống không
+                        int requested = item.RoomIds[i];
+                        bool taken = await _context.BookingDetails.AnyAsync(bd =>
+                            bd.RoomId == requested &&
+                            bd.Status != BookingStatus.Cancelled &&
+                            bd.Status != BookingStatus.CancelledByAdmin &&
+                            bd.Booking!.Status != BookingStatus.Expired &&
+                            bd.CheckInDate < item.CheckOutDate &&
                             bd.CheckOutDate > item.CheckInDate);
 
-                        if (isConflict)
-                        {
-                            throw new Exception($"Thất bại! Phòng vật lý (ID: {specificRoomId.Value}) bạn định chọn đã có người giữ chỗ trong khoảng thời gian này rồi. Vui lòng F5 và chọn phòng khác.");
-                        }
+                        if (taken)
+                            throw new Exception($"Phòng bạn chọn đã bị đặt mất! Vui lòng quay lại và chọn phòng khác.");
+
+                        assignedRoomId = requested;
+                    }
+                    else
+                    {
+                        // Backend tự tìm phòng trống: lấy ID phòng đã bị đặt trùng ngày
+                        var bookedRoomIds = await _context.BookingDetails
+                            .Where(bd =>
+                                bd.Status != BookingStatus.Cancelled &&
+                                bd.Status != BookingStatus.CancelledByAdmin &&
+                                bd.Booking!.Status != BookingStatus.Expired &&
+                                bd.RoomId.HasValue &&
+                                bd.CheckInDate < item.CheckOutDate &&
+                                bd.CheckOutDate > item.CheckInDate)
+                            .Select(bd => bd.RoomId!.Value)
+                            .Distinct()
+                            .ToListAsync();
+
+                        // Tìm phòng vật lý đầu tiên còn trống của hạng phòng này
+                        var freeRoom = await _context.Rooms
+                            .Where(r =>
+                                r.RoomTypeId == item.RoomTypeId &&
+                                r.DeletedAt == null &&
+                                r.Status == "Available" &&
+                                !bookedRoomIds.Contains(r.Id))
+                            .OrderBy(r => r.Floor).ThenBy(r => r.RoomNumber)
+                            .FirstOrDefaultAsync();
+
+                        if (freeRoom == null)
+                            throw new Exception($"Rất tiếc! Hạng phòng \"{roomTypeInfo?.Name}\" đã hết phòng trống trong khoảng thời gian {item.CheckInDate:dd/MM/yyyy} – {item.CheckOutDate:dd/MM/yyyy}. Vui lòng chọn ngày khác hoặc hạng phòng khác.");
+
+                        assignedRoomId = freeRoom.Id;
                     }
 
                     var detail = new BookingDetail {
-                        BookingId = booking.Id,
-                        RoomTypeId = item.RoomTypeId,
-                        RoomId = specificRoomId, // Gán số phòng vật lý cụ thể nếu có
-                        CheckInDate = item.CheckInDate,
+                        BookingId    = booking.Id,
+                        RoomTypeId   = item.RoomTypeId,
+                        RoomId       = assignedRoomId, // ← Luôn có phòng vật lý cụ thể
+                        CheckInDate  = item.CheckInDate,
                         CheckOutDate = item.CheckOutDate,
-                        Status = BookingStatus.Holding,
-                        PricePerNight = basePrice,   // NEW
-                        Nights = nightsCount,        // NEW
-                        LineTotal = lineTotal        // NEW
+                        Status       = BookingStatus.Holding,
+                        PricePerNight = basePrice,
+                        Nights       = nightsCount,
+                        LineTotal    = lineTotal
                     };
                     _context.BookingDetails.Add(detail);
-                    
-                    // KHÔNG cập nhật trạng thái physicalRoom.Status ở đây (lúc Booking)
-                    // Vì Booking có thể nằm ở tương lai. 
-                    // physicalRoom.Status chỉ lấy làm hiển thị ở hiện tại.
                 }
                 
-                await db.StringSetAsync($"hold:{booking.Id}:{item.RoomTypeId}", "HOLDING", TimeSpan.FromMinutes(15));
+                try {
+                    await db.StringSetAsync($"hold:{booking.Id}:{item.RoomTypeId}", "HOLDING", TimeSpan.FromMinutes(15));
+                } catch {
+                    // Redis không bắt buộc — Booking vẫn thành công nếu Redis không khả dụng
+                }
             }
 
             // Gán lại tổng tiền cuối cho mảng Booking cha
@@ -292,7 +328,10 @@ public class BookingEngineService : IBookingEngineService
             _context.Notifications.Add(dbNotif);
             await _context.SaveChangesAsync();
             newBookingMsg.Id = dbNotif.Id; // ✅ Cập nhật ID sau khi save DB
+            // Gửi thông báo tới Admin, Manager VÀ Lễ tân (Receptionist)
             await _notificationService.SendToRoleAsync("Admin", newBookingMsg);
+            await _notificationService.SendToRoleAsync("Manager", newBookingMsg);
+            await _notificationService.SendToRoleAsync("Receptionist", newBookingMsg);
 
             return booking.Id;
         }

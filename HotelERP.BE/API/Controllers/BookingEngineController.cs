@@ -29,20 +29,16 @@ public class BookingEngineController : ControllerBase
     //  SEARCH & HOLD
     // ==========================================
     
-    // POST api/BookingEngine/search  –– public, khách vãng lai được phép tìm kiếm
     [HttpPost("search")]
     public async Task<IActionResult> Search([FromBody] SearchRoomRequest request)
     {
-        // ── Validation ───────────────────────────────────────────────────────────
+        // 1. Validation cơ bản
         if (request.CheckInDate.Date >= request.CheckOutDate.Date)
             return BadRequest(new { success = false, message = "Ngày trả phòng phải sau ngày nhận phòng." });
-
         if (request.CheckInDate.Date < DateTime.Today)
             return BadRequest(new { success = false, message = "Ngày nhận phòng không được ở trong quá khứ." });
 
-        int nights = (int)(request.CheckOutDate.Date - request.CheckInDate.Date).TotalDays;
-
-        // ── Lấy room_id đã bị đặt (overlap) ─────────────────────────────────────
+        // 2. Lấy room_id đã bị đặt (overlap) để chặn lại
         var bookedRoomIds = await _context.BookingDetails
             .Where(bd =>
                 bd.RoomId.HasValue &&
@@ -50,66 +46,46 @@ public class BookingEngineController : ControllerBase
                  bd.Status == BookingStatus.CheckedIn || 
                  bd.Status == BookingStatus.Holding ||
                  bd.Status == BookingStatus.Pending) &&
-                bd.CheckInDate.Date  < request.CheckOutDate.Date &&
+                bd.CheckInDate.Date < request.CheckOutDate.Date &&
                 bd.CheckOutDate.Date > request.CheckInDate.Date)
             .Select(bd => bd.RoomId!.Value)
             .Distinct()
             .ToListAsync();
 
-        // ── Query room types phù hợp sức chứa ───────────────────────────────────
+        // 3. Lấy RoomTypes + Rooms
         var roomTypes = await _context.RoomTypes
             .Include(rt => rt.Rooms)
-            .Include(rt => rt.RoomImages)
-            .Include(rt => rt.RoomTypeAmenities)
-                .ThenInclude(rta => rta.Amenity)
-            .Where(rt =>
-                rt.DeletedAt == null &&
-                (rt.Status == "ACTIVE" || rt.Status == "active" || rt.Status == "Active") &&
-                rt.CapacityAdults   >= request.AdultsCount &&
-                rt.CapacityChildren >= request.ChildrenCount)
-            .OrderBy(rt => rt.BasePrice)
+            .Where(rt => rt.DeletedAt == null && rt.CapacityAdults >= request.AdultsCount)
             .ToListAsync();
 
-        // ── Tính số phòng còn trống sau khi trừ phòng đã bị block ───────────────
-        var available = roomTypes
-            .Select(rt =>
-            {
-                var freeRooms = rt.Rooms
-                    .Where(r => r.Status == RoomPhysicalStatus.Available && r.DeletedAt == null && !bookedRoomIds.Contains(r.Id))
-                    .ToList();
+        // 4. Map dữ liệu trả về cho Frontend
+        var result = roomTypes.Select(rt =>
+        {
+            var allRooms = rt.Rooms.Where(r => r.DeletedAt == null).ToList();
+            var roomDetails = allRooms.Select(r => new {
+                id = r.Id,
+                roomNumber = r.RoomNumber,
+                floor = r.Floor,
+                status = bookedRoomIds.Contains(r.Id) ? "Occupied" : (r.Status ?? "Available")
+            }).ToList();
 
-                return new AvailableRoomTypeResponse
-                {
-                    RoomTypeId        = rt.Id,
-                    Name              = rt.Name,
-                    Description       = rt.Description,
-                    BedType           = rt.BedType,
-                    SizeSqm           = rt.SizeSqm,
-                    BasePrice         = rt.BasePrice,
-                    CapacityAdults    = rt.CapacityAdults,
-                    CapacityChildren  = rt.CapacityChildren,
-                    AvailableCount    = freeRooms.Count,
-                    ImageUrl          = rt.RoomImages.FirstOrDefault(i => i.IsPrimary)?.ImageUrl ?? rt.ImageUrl,
-                    SampleRoomNumbers = freeRooms.Take(3).Select(r => r.RoomNumber).ToList(),
-                    Amenities         = rt.RoomTypeAmenities.Select(rta => rta.Amenity.Name).ToList(),
-                };
-            })
-            .Where(r => r.AvailableCount >= request.RoomsRequested)
-            .ToList();
+            return new {
+                id = rt.Id,
+                name = rt.Name,
+                description = rt.Description,
+                basePrice = rt.BasePrice,
+                capacityAdults = rt.CapacityAdults,
+                capacityChildren = rt.CapacityChildren,
+                sizeSqm = rt.SizeSqm,
+                bedType = rt.BedType,
+                imageUrl = rt.ImageUrl,
+                // Số phòng trống = phòng không nằm trong bookedRoomIds và status không phải Maintenance/Occupied
+                availableCount = roomDetails.Count(r => r.status == "Available"),
+                rooms = roomDetails
+            };
+        }).Where(rt => rt.availableCount > 0).ToList(); // Chỉ hiện hạng phòng còn phòng trống
 
-
-        return Ok(new {
-            success = true,
-            searchParams = new {
-                checkIn  = request.CheckInDate.ToString("yyyy-MM-dd"),
-                checkOut = request.CheckOutDate.ToString("yyyy-MM-dd"),
-                nights,
-                adults   = request.AdultsCount,
-                children = request.ChildrenCount,
-                rooms    = request.RoomsRequested,
-            },
-            availableRooms = available,
-        });
+        return Ok(result);
     }
 
 
@@ -139,9 +115,8 @@ public class BookingEngineController : ControllerBase
     //  MULTI-ROOM, CANCEL, CHECK-IN
     // ==========================================
     
-    [Authorize]
+    [Authorize]  // Chỉ cần đăng nhập — Cả khách hàng thường lẫn nhân viên đều đặt được
     [HttpPost("multi-booking")]
-    [Authorize(Policy = PermissionKeys.ManageBookings)]
     public async Task<IActionResult> CreateMultiBooking([FromBody] MultiRoomBookingRequest request)
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;

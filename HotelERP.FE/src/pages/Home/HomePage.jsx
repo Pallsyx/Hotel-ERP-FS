@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
-import { Dropdown, Avatar, Space } from 'antd';
+import { Dropdown, Avatar, Space, ConfigProvider, theme } from 'antd';
 import { UserOutlined, LogoutOutlined, DashboardOutlined, SettingOutlined } from '@ant-design/icons';
 import AttractionMap from '../../components/Map/AttractionMap';
 import articleApi from '../../api/articleApi';
 import attractionApi from '../../api/attractionApi';
+import axiosClient from '../../api/axiosClient';
 import RoomSearchWidget from '../../components/RoomSearch/RoomSearchWidget';
 
 const SLIDES = [
@@ -20,9 +21,23 @@ const SF = { fontFamily: "'Playfair Display',serif" };
 export default function HomePage() {
   const nav = useNavigate();
   const today = new Date().toLocaleDateString('en-CA');
-  const { user, isAuthenticated, logout } = useAuthStore();
+  const { user, isAuthenticated, logout, login, token, refreshToken, permissions } = useAuthStore();
   const isAdmin = isAuthenticated && (user?.roleName === 'Admin' || user?.role?.name === 'Admin' || user?.role === 'Admin' || user?.roleId === 1);
   const isStaff = isAuthenticated && !isAdmin;
+
+  // Tự động fetch profile lấy Avatar nếu user thiếu (do login payload chưa đủ)
+  useEffect(() => {
+    if (isAuthenticated && !user?.avatarUrl && !user?.avatar && !user?.profilePicture) {
+      axiosClient.get('/UserProfile/my-profile')
+        .then(res => {
+          const d = res.data?.data || res.data;
+          if (d && d.avatarUrl) {
+            login({ ...user, avatarUrl: d.avatarUrl, fullName: d.fullName || user.fullName }, token, refreshToken, permissions);
+          }
+        })
+        .catch(err => console.log('Could not fetch profile for avatar:', err));
+    }
+  }, [isAuthenticated, user?.avatarUrl, token]);
 
   // Dropdown menu items khi đã đăng nhập
   const userMenuItems = [
@@ -70,6 +85,46 @@ export default function HomePage() {
     document.title = 'Asteria Resort - Không gian nghỉ dưỡng đẳng cấp';
   }, []);
 
+  const AuthBlock = (
+    <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+      {isAuthenticated ? (
+        <ConfigProvider theme={{ algorithm: theme.darkAlgorithm, token: { colorPrimary: G, colorBgElevated: '#1a1a1a', borderRadiusLG: 12 } }}>
+          <Dropdown
+            menu={{ items: userMenuItems }}
+            trigger={['click']}
+            placement="bottomRight"
+          >
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer',
+              padding: '5px 12px 5px 6px', borderRadius: 999,
+              border: '1px solid rgba(255,255,255,0.15)',
+              background: 'rgba(255,255,255,0.05)',
+              transition: 'all 200ms',
+            }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.12)'; e.currentTarget.style.borderColor = G; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; }}>
+              <Avatar
+                size={26}
+                src={user?.avatarUrl || user?.avatar || user?.profilePicture}
+                icon={!(user?.avatarUrl || user?.avatar || user?.profilePicture) && <UserOutlined />}
+                style={{ background: `linear-gradient(135deg, ${G}, #9a7b52)`, fontSize: 12, flexShrink: 0 }}
+              />
+              <span style={{ color: 'white', fontSize: 12, fontWeight: 500, maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {user?.fullName || user?.username || 'Tài khoản'}
+              </span>
+              <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 8 }}>▼</span>
+            </div>
+          </Dropdown>
+        </ConfigProvider>
+      ) : (
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <a href="/login" style={{ color: 'rgba(255,255,255,0.8)', textDecoration: 'none', fontSize: 11, transition: 'color 200ms', letterSpacing: '0.5px' }} onMouseEnter={e => e.target.style.color = 'white'} onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.8)'}>Đăng nhập</a>
+          <a href="/register" style={{ color: 'white', textDecoration: 'none', fontSize: 11, background: G, padding: '5px 14px', borderRadius: 999, letterSpacing: '0.5px', transition: 'opacity 200ms' }} onMouseEnter={e => e.currentTarget.style.opacity = '0.85'} onMouseLeave={e => e.currentTarget.style.opacity = '1'}>Đăng ký</a>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div style={{ background: '#fafafa', minHeight: '100vh', fontFamily: "'Inter',sans-serif" }}>
       {/* HEADER */}
@@ -98,34 +153,7 @@ export default function HomePage() {
               </span>
               <div style={{ width: 1, height: 14, background: 'rgba(255,255,255,0.15)' }} />
               {/* Auth — ngoài cùng bên phải */}
-              {isAuthenticated ? (
-                <Dropdown menu={{ items: userMenuItems }} trigger={['click']} placement="bottomRight">
-                  <div style={{
-                    display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer',
-                    padding: '5px 12px 5px 6px', borderRadius: 999,
-                    border: '1px solid rgba(255,255,255,0.15)',
-                    background: 'rgba(255,255,255,0.05)',
-                    transition: 'all 200ms',
-                  }}
-                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.12)'; e.currentTarget.style.borderColor = G; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; }}>
-                    <Avatar
-                      size={26}
-                      icon={<UserOutlined />}
-                      style={{ background: `linear-gradient(135deg, ${G}, #9a7b52)`, fontSize: 12, flexShrink: 0 }}
-                    />
-                    <span style={{ color: 'white', fontSize: 12, fontWeight: 500, maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {user?.fullName || user?.username || user?.email || 'Tài khoản'}
-                    </span>
-                    <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 8 }}>▼</span>
-                  </div>
-                </Dropdown>
-              ) : (
-                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                  <a href="/login" style={{ color: 'rgba(255,255,255,0.8)', textDecoration: 'none', fontSize: 11, transition: 'color 200ms', letterSpacing: '0.5px' }} onMouseEnter={e => e.target.style.color = 'white'} onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.8)'}>Đăng nhập</a>
-                  <a href="/register" style={{ color: 'white', textDecoration: 'none', fontSize: 11, background: G, padding: '5px 14px', borderRadius: 999, letterSpacing: '0.5px', transition: 'opacity 200ms' }} onMouseEnter={e => e.currentTarget.style.opacity = '0.85'} onMouseLeave={e => e.currentTarget.style.opacity = '1'}>Đăng ký</a>
-                </div>
-              )}
+              {AuthBlock}
             </div>
           </div>
 
@@ -140,6 +168,9 @@ export default function HomePage() {
                   onMouseEnter={e => { e.target.style.color = 'white'; e.target.style.borderBottomColor = G; }} onMouseLeave={e => { e.target.style.color = idx === 0 ? 'white' : 'rgba(255,255,255,.7)'; e.target.style.borderBottomColor = idx === 0 ? G : 'transparent'; }}>{l}</a>
               ))}
             </nav>
+            <div style={{ position: 'absolute', right: 'clamp(40px,8vw,160px)', opacity: sc ? 1 : 0, pointerEvents: sc ? 'auto' : 'none', transition: 'opacity 300ms ease' }}>
+              {AuthBlock}
+            </div>
           </div>
         </div>
       </header>
@@ -437,7 +468,7 @@ export default function HomePage() {
             ? <span style={{ fontSize: 22, lineHeight: 1 }}>✕</span>
             : (<>
               <span style={{ fontSize: 20, lineHeight: 1 }}>📅</span>
-              <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase' }}>Sách</span>
+              <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase' }}>Book</span>
             </>)
           }
         </button>

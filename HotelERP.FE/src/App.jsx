@@ -12,6 +12,7 @@ import ArticleDetailPage from './pages/Home/ArticleDetailPage';
 import UserProfile from './pages/Profile/UserProfile';
 import AttractionsPage from './pages/Home/AttractionsPage';
 import SearchResultsPage from './pages/Home/SearchResultsPage';
+import GuestBookingPage from './pages/Booking/GuestBookingPage';
 
 function App() {
   return (
@@ -41,6 +42,9 @@ function App() {
         <Route path="/profile" element={<UserProfile />} />
         {/* Kết quả tìm kiếm phòng */}
         <Route path="/rooms/search-results" element={<SearchResultsPage />} />
+        
+        {/* Màn hình Checkout / Thanh toán của Khách */}
+        <Route path="/booking/new" element={<GuestBookingPage />} />
 
         {/* Toàn bộ các trang Admin của bạn sẽ được dời vào nhánh "/admin" */}
         <Route path="/admin/*" element={<AdminRoutes />} />
