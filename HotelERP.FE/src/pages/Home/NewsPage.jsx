@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import articleApi from '../../api/articleApi';
 
 /* ─── Shared Navbar ───────────────────────────────────────── */
-function LotteHeader({ activePage = '' }) {
+export function LotteHeader({ activePage = '' }) {
   const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -89,7 +89,7 @@ function LotteHeader({ activePage = '' }) {
 }
 
 /* ─── Shared Footer ────────────────────────────────────────── */
-function LotteFooter() {
+export function LotteFooter() {
   return (
     <footer style={{ background: '#0a0a0a', color: '#71717a', paddingTop: 64, paddingBottom: 32, borderTop: '1px solid rgba(255,255,255,0.06)', fontFamily: "'Inter', sans-serif" }}>
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px' }}>
@@ -109,12 +109,19 @@ function LotteFooter() {
           {/* Links */}
           <div>
             <h4 style={{ color: 'white', fontSize: 10, fontWeight: 700, letterSpacing: '0.25em', textTransform: 'uppercase', marginBottom: 20 }}>Liên Kết Nhanh</h4>
-            {['Trang Chủ', 'Giới Thiệu', 'Phòng Nghỉ', 'Tin Tức', 'Liên Hệ'].map(item => (
-              <div key={item} style={{ marginBottom: 12 }}>
-                <a href="#" style={{ color: '#71717a', fontSize: 13, textDecoration: 'none', transition: 'color 200ms' }}
+            {[
+              { label: 'Trang Chủ', href: '/' },
+              { label: 'Giới Thiệu', href: '#' },
+              { label: 'Phòng Nghỉ', href: '#' },
+              { label: 'Tin Tức', href: '/news' },
+              { label: 'Ý kiến khách hàng', href: '/reviews' },
+              { label: 'Liên Hệ', href: '#' }
+            ].map(item => (
+              <div key={item.label} style={{ marginBottom: 12 }}>
+                <a href={item.href} style={{ color: '#71717a', fontSize: 13, textDecoration: 'none', transition: 'color 200ms' }}
                   onMouseEnter={e => e.target.style.color = '#b8956a'}
                   onMouseLeave={e => e.target.style.color = '#71717a'}>
-                  {item}
+                  {item.label}
                 </a>
               </div>
             ))}

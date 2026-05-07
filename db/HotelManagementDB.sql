@@ -2574,3 +2574,17 @@ GO
 PRINT 'Đã thêm cột còn thiếu vào Articles và Article_Categories';
 GO
 
+-- =============================================
+-- 10. THÊM CỘT THIẾU CHO BẢNG Reviews (Đánh giá trang chủ)
+-- =============================================
+-- Thêm 3 cột mới vào bảng Reviews
+ALTER TABLE Reviews ADD 
+    like_count INT NOT NULL DEFAULT 0, 
+    highlight NVARCHAR(255) NULL, 
+    service_quality NVARCHAR(255) NULL;
+GO
+
+-- (Tùy chọn) Xóa các đánh giá cũ đang có trong bảng để dọn dẹp
+-- Nếu bạn muốn giữ lại dữ liệu cũ thì bỏ qua 2 dòng dưới này nhé!
+-- DELETE FROM Reviews;
+-- GO

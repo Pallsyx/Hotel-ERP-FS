@@ -797,6 +797,15 @@ public partial class HotelDbContext : DbContext
                 .HasMaxLength(255)
                 .HasColumnName("image_public_id");
             entity.Property(e => e.ImageUrl).HasColumnName("image_url");
+            entity.Property(e => e.LikeCount)
+                .HasDefaultValue(0)
+                .HasColumnName("like_count");
+            entity.Property(e => e.Highlight)
+                .HasMaxLength(255)
+                .HasColumnName("highlight");
+            entity.Property(e => e.ServiceQuality)
+                .HasMaxLength(255)
+                .HasColumnName("service_quality");
             entity.Property(e => e.IsApproved)
                 .HasDefaultValue(true, "DF_Reviews_IsApproved")
                 .HasColumnName("is_approved");

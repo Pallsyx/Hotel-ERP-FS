@@ -12,6 +12,7 @@ import ArticleDetailPage from './pages/Home/ArticleDetailPage';
 import UserProfile from './pages/Profile/UserProfile';
 import AttractionsPage from './pages/Home/AttractionsPage';
 import SearchResultsPage from './pages/Home/SearchResultsPage';
+import CustomerReviewsPage from './pages/Home/CustomerReviewsPage';
 
 function App() {
   return (
@@ -27,6 +28,9 @@ function App() {
 
         {/* Trang khám phá điểm đến */}
         <Route path="/attractions" element={<AttractionsPage />} />
+
+        {/* Trang ý kiến khách hàng */}
+        <Route path="/reviews" element={<CustomerReviewsPage />} />
 
         {/* 2. THÊM DÒNG NÀY: Đăng ký hộ khẩu cho trang đăng nhập */}
         <Route path="/login" element={<LoginPage />} />

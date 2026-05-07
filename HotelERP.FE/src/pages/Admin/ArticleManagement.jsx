@@ -25,7 +25,7 @@ export default function ArticleManagement() {
       const response = await articleApi.getAllForAdmin();
       setArticles(response.data);
     } catch (error) {
-      message.error('Lỗi khi tải danh sách bài viết!');
+      // message.error('Lỗi khi tải danh sách bài viết!');
       console.error(error);
     } finally {
       setLoading(false);
