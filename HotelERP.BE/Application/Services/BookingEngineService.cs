@@ -22,19 +22,22 @@ public class BookingEngineService : IBookingEngineService
     private readonly IConnectionMultiplexer _redis;
     private readonly IBookingVoucherService _voucherService;
     private readonly INotificationService _notificationService;
+    private readonly IEmailService _emailService;
 
     public BookingEngineService(
         HotelDbContext context, 
         IDistributedLockFactory lockFactory, 
         IConnectionMultiplexer redis,
         INotificationService notificationService,
-        IBookingVoucherService voucherService)
+        IBookingVoucherService voucherService,
+        IEmailService emailService)
     {
         _context = context;
         _lockFactory = lockFactory;
         _redis = redis;
         _notificationService = notificationService;
         _voucherService = voucherService;
+        _emailService = emailService;
     }
 
     // ====================================================================
@@ -193,6 +196,7 @@ public class BookingEngineService : IBookingEngineService
                 GuestPhone = request.GuestPhone,
                 Status = BookingStatus.Holding,
                 CreatedAt = DateTime.UtcNow,
+                Notes = request.Notes,
                 BookingCode = "BK-" + Guid.NewGuid().ToString().Substring(0, 8).ToUpper()
             };
             _context.Bookings.Add(booking);
@@ -332,6 +336,23 @@ public class BookingEngineService : IBookingEngineService
             await _notificationService.SendToRoleAsync("Admin", newBookingMsg);
             await _notificationService.SendToRoleAsync("Manager", newBookingMsg);
             await _notificationService.SendToRoleAsync("Receptionist", newBookingMsg);
+
+            // ✅ Gửi email "Ghi nhận yêu cầu" cho khách hàng
+            if (!string.IsNullOrWhiteSpace(booking.GuestEmail))
+            {
+                var subject = $"[Asteria Resort] Đã ghi nhận yêu cầu đặt phòng #{booking.BookingCode}";
+                var body = $@"
+                    <h3>Kính chào quý khách {booking.GuestName},</h3>
+                    <p>Asteria Resort đã nhận được yêu cầu đặt phòng của quý khách.</p>
+                    <p><strong>Mã đặt phòng:</strong> <span style='color:#b8956a;font-size:18px;'>{booking.BookingCode}</span></p>
+                    <p>Yêu cầu của quý khách đang được bộ phận Lễ tân xử lý. Chúng tôi sẽ liên hệ lại hoặc gửi email xác nhận chính thức trong thời gian sớm nhất.</p>
+                    <p>Nếu có thắc mắc, vui lòng liên hệ hotline của resort.</p>
+                    <br/>
+                    <p>Trân trọng,<br/><strong>Asteria Resort Team</strong></p>
+                ";
+                // Chạy ngầm tránh block response
+                _ = Task.Run(() => _emailService.SendEmailAsync(booking.GuestEmail, subject, body));
+            }
 
             return booking.Id;
         }

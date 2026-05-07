@@ -73,6 +73,11 @@ export default function UserProfile() {
   const [avatarUrl, setAvatarUrl] = useState('');
   const [sc, setSc] = useState(false);
 
+  // Tabs state
+  const [activeTab, setActiveTab] = useState('profile'); // 'profile' | 'bookings'
+  const [myBookings, setMyBookings] = useState([]);
+  const [loadingBookings, setLoadingBookings] = useState(false);
+
   // Profile form state
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -93,7 +98,22 @@ export default function UserProfile() {
   useEffect(() => {
     document.title = 'Hồ Sơ Cá Nhân - Asteria Resort';
     fetchProfile();
+    fetchMyBookings();
   }, []);
+
+  const fetchMyBookings = async () => {
+    setLoadingBookings(true);
+    try {
+      const res = await axios.get(`${API}/api/UserProfile/my-bookings`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setMyBookings(res.data.data || []);
+    } catch {
+      message.error('Không thể tải lịch sử đặt phòng!');
+    } finally {
+      setLoadingBookings(false);
+    }
+  };
 
   // 1. Lấy profile
   const fetchProfile = async () => {
@@ -304,8 +324,29 @@ export default function UserProfile() {
           </div>
         </div>
 
-        {/* ── 2 COLUMNS ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 24 }}>
+        {/* ── TABS NỘI DUNG ── */}
+        <div style={{ display: 'flex', gap: 32, marginBottom: 40, borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+          {[
+            { id: 'profile', label: 'Hồ Sơ & Bảo Mật' },
+            { id: 'bookings', label: 'Lịch Sử Đặt Phòng' }
+          ].map(tab => (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
+              background: 'none', border: 'none', padding: '0 0 16px', cursor: 'pointer',
+              color: activeTab === tab.id ? G : 'rgba(255,255,255,0.5)',
+              fontSize: 12, fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase',
+              borderBottom: `2px solid ${activeTab === tab.id ? G : 'transparent'}`,
+              transition: 'all 200ms',
+            }}
+              onMouseEnter={e => { if (activeTab !== tab.id) e.currentTarget.style.color = 'white'; }}
+              onMouseLeave={e => { if (activeTab !== tab.id) e.currentTarget.style.color = 'rgba(255,255,255,0.5)'; }}>
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* ── NỘI DUNG CHÍNH ── */}
+        {activeTab === 'profile' ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 24 }}>
 
           {/* ── CỘT TRÁI: THÔNG TIN CÁ NHÂN ── */}
           <div style={{
@@ -412,6 +453,71 @@ export default function UserProfile() {
             </form>
           </div>
         </div>
+        ) : (
+          /* ── TAB: LỊCH SỬ ĐẶT PHÒNG ── */
+          <div style={{
+            background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: 8, padding: '36px', backdropFilter: 'blur(10px)',
+          }}>
+            <SectionTitle label="Lịch Sử Đặt Phòng" sub="Đơn hàng của bạn" />
+            
+            {loadingBookings ? (
+              <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14 }}>Đang tải dữ liệu...</div>
+            ) : myBookings.length === 0 ? (
+              <div style={{ padding: '60px 0', textAlign: 'center' }}>
+                <span style={{ fontSize: 40, display: 'block', marginBottom: 16, opacity: 0.2 }}>🛌</span>
+                <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, margin: 0 }}>Bạn chưa có đơn đặt phòng nào.</p>
+                <button onClick={() => navigate('/')} style={{ marginTop: 24, padding: '10px 24px', background: G, border: 'none', color: 'white', borderRadius: 2, cursor: 'pointer', fontSize: 11, fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase' }}>Đặt phòng ngay</button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                {myBookings.map(b => (
+                  <div key={b.id} style={{
+                    border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8,
+                    background: 'rgba(0,0,0,0.2)', overflow: 'hidden'
+                  }}>
+                    {/* Header đơn */}
+                    <div style={{ padding: '16px 24px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)' }}>
+                      <div>
+                        <span style={{ color: G, fontSize: 13, fontWeight: 700, letterSpacing: '1px', marginRight: 16 }}>#{b.bookingCode}</span>
+                        <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12 }}>{new Date(b.createdAt).toLocaleDateString('vi-VN')}</span>
+                      </div>
+                      <div>
+                        {b.status === 'Pending' && <span style={{ color: '#eab308', background: 'rgba(234,179,8,0.1)', padding: '4px 10px', borderRadius: 4, fontSize: 11, fontWeight: 600 }}>Đang chờ</span>}
+                        {b.status === 'Holding' && <span style={{ color: '#3b82f6', background: 'rgba(59,130,246,0.1)', padding: '4px 10px', borderRadius: 4, fontSize: 11, fontWeight: 600 }}>Tạm giữ</span>}
+                        {b.status === 'Confirmed' && <span style={{ color: '#22c55e', background: 'rgba(34,197,94,0.1)', padding: '4px 10px', borderRadius: 4, fontSize: 11, fontWeight: 600 }}>Đã xác nhận</span>}
+                        {b.status === 'Checked_in' && <span style={{ color: '#a855f7', background: 'rgba(168,85,247,0.1)', padding: '4px 10px', borderRadius: 4, fontSize: 11, fontWeight: 600 }}>Đã nhận phòng</span>}
+                        {b.status === 'Completed' && <span style={{ color: '#64748b', background: 'rgba(100,116,139,0.1)', padding: '4px 10px', borderRadius: 4, fontSize: 11, fontWeight: 600 }}>Hoàn tất</span>}
+                        {(b.status === 'Cancelled' || b.status === 'CancelledByAdmin') && <span style={{ color: '#ef4444', background: 'rgba(239,68,68,0.1)', padding: '4px 10px', borderRadius: 4, fontSize: 11, fontWeight: 600 }}>Đã hủy</span>}
+                      </div>
+                    </div>
+                    {/* Chi tiết phòng */}
+                    <div style={{ padding: '20px 24px' }}>
+                      {b.details?.map((d, i) => (
+                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: i === b.details.length - 1 ? 0 : 16, paddingBottom: i === b.details.length - 1 ? 0 : 16, borderBottom: i === b.details.length - 1 ? 'none' : '1px dashed rgba(255,255,255,0.1)' }}>
+                          <div>
+                            <div style={{ color: 'white', fontSize: 14, fontWeight: 500, marginBottom: 4 }}>{d.roomTypeName}</div>
+                            <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12 }}>
+                              {new Date(d.checkInDate).toLocaleDateString('vi-VN')} - {new Date(d.checkOutDate).toLocaleDateString('vi-VN')} ({d.nights} đêm)
+                            </div>
+                          </div>
+                          <div style={{ color: 'white', fontSize: 14, fontWeight: 600 }}>
+                            {d.lineTotal.toLocaleString('vi-VN')} ₫
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {/* Tổng cộng */}
+                    <div style={{ padding: '16px 24px', background: 'rgba(0,0,0,0.3)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>Tổng thanh toán:</span>
+                      <span style={{ color: G, fontSize: 18, fontWeight: 700, ...SF }}>{b.finalAmount?.toLocaleString('vi-VN')} ₫</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

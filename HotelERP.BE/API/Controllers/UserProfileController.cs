@@ -3,6 +3,7 @@ using HotelERP.BE.Application.DTOs.UserProfile;
 using HotelERP.BE.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace HotelERP.BE.API.Controllers;
 
@@ -13,11 +14,13 @@ public class UserProfileController : ControllerBase
 {
     private readonly IUserProfileService _userProfileService;
     private readonly IPhotoService _photoService;
+    private readonly HotelERP.BE.Infrastructure.Data.HotelDbContext _context;
 
-    public UserProfileController(IUserProfileService userProfileService, IPhotoService photoService)
+    public UserProfileController(IUserProfileService userProfileService, IPhotoService photoService, HotelERP.BE.Infrastructure.Data.HotelDbContext context)
     {
         _userProfileService = userProfileService;
         _photoService = photoService;
+        _context = context;
     }
 
     // Hàm hỗ trợ lấy UserId từ Token đang đăng nhập
@@ -103,6 +106,97 @@ public class UserProfileController : ControllerBase
                 message = "Cập nhật ảnh đại diện thành công.",
                 avatarUrl = uploadResult.Url // Trả về link luôn cho Frontend hiển thị tức thì
             });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+    }
+
+    [HttpGet("my-bookings")]
+    public async Task<IActionResult> GetMyBookings()
+    {
+        try
+        {
+            int userId = GetCurrentUserId();
+            var bookings = await _context.Bookings
+                .Include(b => b.BookingDetails)
+                    .ThenInclude(bd => bd.RoomType)
+                .Where(b => b.UserId == userId)
+                .OrderByDescending(b => b.CreatedAt)
+                .Select(b => new {
+                    b.Id,
+                    b.BookingCode,
+                    b.Status,
+                    b.CreatedAt,
+                    b.FinalAmount,
+                    b.DepositAmount,
+                    b.PaymentStatus,
+                    Details = b.BookingDetails.Select(bd => new {
+                        bd.RoomTypeId,
+                        RoomTypeName = bd.RoomType != null ? bd.RoomType.Name : "",
+                        bd.CheckInDate,
+                        bd.CheckOutDate,
+                        bd.Nights,
+                        bd.PricePerNight,
+                        bd.LineTotal
+                    })
+                })
+                .ToListAsync();
+
+            return Ok(new { success = true, data = bookings });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+    }
+
+    [HttpGet("my-notifications")]
+    public async Task<IActionResult> GetMyNotifications()
+    {
+        try
+        {
+            int userId = GetCurrentUserId();
+            var notifications = await _context.Notifications
+                .Where(n => n.UserId == userId)
+                .OrderByDescending(n => n.CreatedAt)
+                .Take(20)
+                .Select(n => new {
+                    n.Id,
+                    n.Title,
+                    n.Content,
+                    n.Type,
+                    n.IsRead,
+                    n.CreatedAt
+                })
+                .ToListAsync();
+
+            return Ok(new { success = true, data = notifications });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+    }
+
+    [HttpPut("my-notifications/read-all")]
+    public async Task<IActionResult> MarkMyNotificationsAsRead()
+    {
+        try
+        {
+            int userId = GetCurrentUserId();
+            var unreadNotis = await _context.Notifications
+                .Where(n => n.UserId == userId && !n.IsRead)
+                .ToListAsync();
+
+            foreach (var noti in unreadNotis)
+            {
+                noti.IsRead = true;
+            }
+
+            await _context.SaveChangesAsync();
+            return Ok(new { success = true, message = "Đã đánh dấu đọc toàn bộ" });
         }
         catch (Exception ex)
         {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
-import { Dropdown, Avatar, Space, ConfigProvider, theme } from 'antd';
+import { Dropdown, Avatar, Space, ConfigProvider, theme, Badge, List, Button, Popover } from 'antd';
 import { UserOutlined, LogoutOutlined, DashboardOutlined, SettingOutlined } from '@ant-design/icons';
 import AttractionMap from '../../components/Map/AttractionMap';
 import articleApi from '../../api/articleApi';
@@ -56,6 +56,34 @@ export default function HomePage() {
   const [bookOpen, setBookOpen] = useState(false);
   const [dragStartX, setDragStartX] = useState(null);
   const [dragOffset, setDragOffset] = useState(0);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    if (token) {
+      fetchNotifications();
+    }
+  }, [token]);
+
+  const fetchNotifications = async () => {
+    try {
+      const res = await axiosClient.get('/UserProfile/my-notifications');
+      const data = res.data?.data || [];
+      setNotifications(data);
+      setUnreadCount(data.filter(n => !n.isRead).length);
+    } catch (err) {
+      console.error("Lỗi fetch Notifications", err);
+    }
+  };
+
+  const markAllAsRead = async () => {
+    try {
+      await axiosClient.put('/UserProfile/my-notifications/read-all');
+      fetchNotifications();
+    } catch (err) {
+      console.error("Lỗi mark as read", err);
+    }
+  };
 
   const handleDragStart = (e) => {
     setDragStartX(e.type === 'touchstart' ? e.touches[0].clientX : e.clientX);
@@ -145,12 +173,53 @@ export default function HomePage() {
               </div>
               <div style={{ width: 1, height: 14, background: 'rgba(255,255,255,0.15)' }} />
               {/* Notification */}
-              <span style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', padding: '4px 8px', borderRadius: 4, transition: 'background 200ms' }}
-                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                <span style={{ color: G, fontSize: 13 }}>🔔</span>
-                <span style={{ color: 'rgba(255,255,255,0.75)' }}>Thông báo</span>
-              </span>
+              {token ? (
+                <Popover
+                  content={
+                    <div style={{ width: 320, background: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, overflow: 'hidden', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}>
+                      <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: 'white', fontWeight: 600, fontSize: 13 }}>Thông báo</span>
+                        {unreadCount > 0 && (
+                          <span onClick={markAllAsRead} style={{ color: G, fontSize: 11, cursor: 'pointer' }}>Đánh dấu đã đọc</span>
+                        )}
+                      </div>
+                      <div style={{ maxHeight: 300, overflowY: 'auto' }}>
+                        {notifications.length === 0 ? (
+                          <div style={{ padding: 20, textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>Chưa có thông báo nào</div>
+                        ) : (
+                          notifications.map(n => (
+                            <div key={n.id} style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', background: n.isRead ? 'transparent' : 'rgba(184,149,106,0.1)', cursor: 'pointer', transition: 'background 200ms' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'} onMouseLeave={e => e.currentTarget.style.background = n.isRead ? 'transparent' : 'rgba(184,149,106,0.1)'}>
+                              <div style={{ color: n.isRead ? 'rgba(255,255,255,0.8)' : 'white', fontSize: 12, fontWeight: n.isRead ? 400 : 600, marginBottom: 4 }}>{n.title}</div>
+                              <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, lineHeight: 1.4 }}>{n.content}</div>
+                              <div style={{ color: G, fontSize: 10, marginTop: 4 }}>{new Date(n.createdAt).toLocaleDateString('vi-VN')} {new Date(n.createdAt).toLocaleTimeString('vi-VN')}</div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  }
+                  trigger="click"
+                  placement="bottomRight"
+                  overlayInnerStyle={{ padding: 0, background: 'transparent', border: 'none', boxShadow: 'none' }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', padding: '4px 8px', borderRadius: 4, transition: 'background 200ms' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                    <Badge count={unreadCount} size="small" offset={[2, 0]} color={G}>
+                      <span style={{ color: G, fontSize: 13 }}>🔔</span>
+                    </Badge>
+                    <span style={{ color: 'rgba(255,255,255,0.75)', marginLeft: 4 }}>Thông báo</span>
+                  </span>
+                </Popover>
+              ) : (
+                <span style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', padding: '4px 8px', borderRadius: 4, transition: 'background 200ms' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  onClick={() => nav('/login')}>
+                  <span style={{ color: G, fontSize: 13 }}>🔔</span>
+                  <span style={{ color: 'rgba(255,255,255,0.75)' }}>Thông báo</span>
+                </span>
+              )}
               <div style={{ width: 1, height: 14, background: 'rgba(255,255,255,0.15)' }} />
               {/* Auth — ngoài cùng bên phải */}
               {AuthBlock}

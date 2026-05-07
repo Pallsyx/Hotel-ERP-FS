@@ -59,36 +59,37 @@ export default function GuestBookingPage() {
   }
 
   const {
-    roomTypeId,
-    roomName,
-    basePrice,
-    checkIn,
-    checkOut,
-    adults,
-    children,
-    rooms,
-    nights
+    roomTypeId, roomName, basePrice,
+    checkIn, checkOut, adults, children, rooms, nights,
+    selectedRoomId = null, selectedRoomNumber = null, selectedFloor = null,
+    // Multi-cart
+    cartItems = null,
   } = state;
 
-  const totalPrice = basePrice * nights * rooms;
+  // Nếu có cartItems thì dùng, ngược lại wrap single-room thành cart
+  const resolvedCart = cartItems ?? (roomTypeId ? [{
+    roomTypeId, roomName, basePrice,
+    roomId: selectedRoomId, roomNumber: selectedRoomNumber, floor: selectedFloor,
+  }] : []);
+
+  const totalPrice = resolvedCart.reduce((s, c) => s + (c.basePrice ?? 0) * (nights ?? 1), 0);
 
   const onFinish = async (values) => {
     setLoading(true);
     try {
       const payload = {
-        GuestName: values.fullName,
+        GuestName:  values.fullName,
         GuestPhone: values.phone,
-        GuestEmail: values.email,
-        Notes: values.notes || '',
+        GuestEmail: values.email || '',
+        Notes:      values.notes || '',
         VoucherCode: values.voucherCode || null,
-        Items: [
-          {
-            RoomTypeId: roomTypeId,
-            Quantity: rooms,
-            CheckInDate: checkIn,
-            CheckOutDate: checkOut
-          }
-        ]
+        Items: resolvedCart.map(item => ({
+          RoomTypeId:  item.roomTypeId,
+          Quantity:    1,
+          CheckInDate:  checkIn,
+          CheckOutDate: checkOut,
+          RoomIds: item.roomId ? [item.roomId] : [],
+        }))
       };
 
       const res = await bookingApi.createMultiBooking(payload);
@@ -96,7 +97,9 @@ export default function GuestBookingPage() {
       const resData = res?.data ?? res;
       console.log('[GuestBooking] API response:', resData);
       if (resData?.success || resData?.bookingId) {
-        setSuccessCode(resData.bookingId || 'Thành công');
+        // Backend sẽ trả về bookingCode (VD: BK-A1B2C3D4). Nếu không có, dự phòng dùng bookingId
+        const code = resData.bookingCode || (resData.bookingId ? `BK-${resData.bookingId.toString().padStart(6, '0')}` : 'Thành công');
+        setSuccessCode(code);
       } else {
         message.error(resData?.message || 'Đặt phòng thất bại. Vui lòng thử lại.');
       }
@@ -204,26 +207,37 @@ export default function GuestBookingPage() {
                 Chi tiết đặt phòng
               </h2>
 
-              {/* Room details */}
+              {/* Room details — multi-cart */}
               <div style={{ marginBottom: 24 }}>
-                <div style={{ fontSize: 16, fontWeight: 600, color: '#18181b', marginBottom: 8 }}>{roomName}</div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#52525b', fontSize: 14, marginBottom: 4 }}>
-                  <span>Nhận phòng:</span>
-                  <span style={{ fontWeight: 500 }}>{formatDateVI(checkIn)} (14:00)</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#52525b', fontSize: 14, marginBottom: 4 }}>
-                  <span>Trả phòng:</span>
-                  <span style={{ fontWeight: 500 }}>{formatDateVI(checkOut)} (12:00)</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#52525b', fontSize: 14 }}>
-                  <span>Khách:</span>
-                  <span>{adults} Người lớn{children > 0 ? `, ${children} Trẻ em` : ''}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#52525b', fontSize: 14, marginTop: 4 }}>
-                  <span>Số lượng:</span>
-                  <span>{rooms} Phòng × {nights} Đêm</span>
-                </div>
+                {resolvedCart.length > 1 ? (
+                  <>
+                    <div style={{ fontSize: 16, fontWeight: 600, color: '#18181b', marginBottom: 12 }}>{resolvedCart.length} phòng đã chọn</div>
+                    {resolvedCart.map((item, i) => (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#f9f9f9', borderRadius: 6, marginBottom: 6, fontSize: 13 }}>
+                        <div>
+                          <span style={{ fontWeight: 600, color: '#111' }}>P.{item.roomNumber}</span>
+                          {item.floor && <span style={{ color: '#9ca3af', marginLeft: 6 }}>Tầng {item.floor}</span>}
+                          <span style={{ color: '#6b7280', marginLeft: 8 }}>{item.roomName}</span>
+                        </div>
+                        <span style={{ color: GOLD, fontWeight: 600 }}>{new Intl.NumberFormat('vi-VN',{style:'currency',currency:'VND',maximumFractionDigits:0}).format(item.basePrice)}/đêm</span>
+                      </div>
+                    ))}
+                  </>
+                ) : (
+                  <>
+                    <div style={{ fontSize: 16, fontWeight: 600, color: '#18181b', marginBottom: 6 }}>{resolvedCart[0]?.roomName}</div>
+                    {resolvedCart[0]?.roomNumber && (
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#dcfce7', border: '1px solid #bbf7d0', borderRadius: 6, padding: '5px 12px', marginBottom: 12, fontSize: 13, color: '#16a34a', fontWeight: 600 }}>
+                        <span>✓</span><span>Phòng {resolvedCart[0].roomNumber} · Tầng {resolvedCart[0].floor}</span>
+                      </div>
+                    )}
+                  </>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#52525b', fontSize: 14, marginBottom: 4 }}><span>Nhận phòng:</span><span style={{ fontWeight: 500 }}>{formatDateVI(checkIn)} (14:00)</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#52525b', fontSize: 14, marginBottom: 4 }}><span>Trả phòng:</span><span style={{ fontWeight: 500 }}>{formatDateVI(checkOut)} (12:00)</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#52525b', fontSize: 14 }}><span>Khách:</span><span>{adults} Người lớn{children > 0 ? `, ${children} Trẻ em` : ''}</span></div>
               </div>
+
 
               <Divider style={{ margin: '20px 0' }} />
 

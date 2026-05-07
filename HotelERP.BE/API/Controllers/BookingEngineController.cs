@@ -127,7 +127,8 @@ public class BookingEngineController : ControllerBase
         try 
         {
             var bookingId = await _bookingService.CreateMultiRoomBookingAsync(userId, request);
-            return Ok(new { success = true, message = "Đặt phòng thành công (Holding)", bookingId });
+            var booking = await _context.Bookings.FindAsync(bookingId);
+            return Ok(new { success = true, message = "Đặt phòng thành công (Holding)", bookingId, bookingCode = booking?.BookingCode });
         }
         catch (Exception ex)
         {
@@ -147,6 +148,50 @@ public class BookingEngineController : ControllerBase
         if (!result) return NotFound(new { message = "Không tìm thấy booking hoặc đã bị hủy trước đó." });
 
         return Ok(new { success = true, message = "Đã ép hủy và ghi nhận vào Audit Log." });
+    }
+
+    // ==========================================
+    //  LẤY PHÒNG VẬT LÝ TRỐNG (Cấu trúc B - User tự chọn phòng)
+    //  GET api/BookingEngine/available-rooms/{typeId}?checkIn=2025-06-01&checkOut=2025-06-03
+    //  Không cần đăng nhập — Guest xem được
+    // ==========================================
+    [HttpGet("available-rooms/{typeId}")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetAvailableRooms(int typeId, [FromQuery] DateTime checkIn, [FromQuery] DateTime checkOut)
+    {
+        if (checkIn.Date >= checkOut.Date)
+            return BadRequest(new { success = false, message = "Ngày không hợp lệ." });
+
+        // Tìm room_id đã bị đặt trùng ngày trong khoảng này
+        var bookedRoomIds = await _context.BookingDetails
+            .Where(bd =>
+                bd.RoomId.HasValue &&
+                bd.Status != BookingStatus.Cancelled &&
+                bd.Status != BookingStatus.CancelledByAdmin &&
+                bd.Booking!.Status != BookingStatus.Expired &&
+                bd.CheckInDate.Date < checkOut.Date &&
+                bd.CheckOutDate.Date > checkIn.Date)
+            .Select(bd => bd.RoomId!.Value)
+            .Distinct()
+            .ToListAsync();
+
+        // Lấy phòng vật lý còn trống của hạng phòng này
+        var rooms = await _context.Rooms
+            .Where(r =>
+                r.RoomTypeId == typeId &&
+                r.DeletedAt == null &&
+                r.Status == "Available" &&
+                !bookedRoomIds.Contains(r.Id))
+            .OrderBy(r => r.Floor).ThenBy(r => r.RoomNumber)
+            .Select(r => new {
+                id         = r.Id,
+                roomNumber = r.RoomNumber,
+                floor      = r.Floor,
+                status     = "Available"
+            })
+            .ToListAsync();
+
+        return Ok(new { success = true, data = rooms });
     }
 
     [HttpGet("assignable-rooms/{typeId}")]

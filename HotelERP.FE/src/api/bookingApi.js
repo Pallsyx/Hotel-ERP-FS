@@ -20,10 +20,18 @@ const bookingApi = {
     return axiosClient.post('/BookingEngine/multi-booking', data);
   },
 
-  // 4. Lấy danh sách phòng trống để gán cho khách Check-in
+  // 4. Lấy danh sách phòng trống để gán cho khách Check-in (Staff only)
   // [HttpGet("assignable-rooms/{typeId}")]
   getAssignableRooms: (typeId) => {
     return axiosClient.get(`/BookingEngine/assignable-rooms/${typeId}`);
+  },
+
+  // 4b. [Cấu trúc B] Lấy phòng vật lý còn trống theo hạng + ngày (Guest dùng được)
+  // GET /api/BookingEngine/available-rooms/{typeId}?checkIn=&checkOut=
+  getAvailablePhysicalRooms: (typeId, checkIn, checkOut) => {
+    return axiosClient.get(`/BookingEngine/available-rooms/${typeId}`, {
+      params: { checkIn, checkOut }
+    });
   },
 
   // 5. Ép hủy đặt phòng (Dành cho Admin/Manager)

@@ -20,7 +20,7 @@ public class BookingManagementService : IBookingManagementService
     private readonly HotelDbContext _context;
     private readonly IHubContext<RoomHub>? _hubContext;
     private readonly INotificationService _notificationService;
-
+    private readonly IEmailService _emailService;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private static readonly Dictionary<string, List<string>> _allowedTransitions = new()
     {
@@ -33,11 +33,14 @@ public class BookingManagementService : IBookingManagementService
     public BookingManagementService(
         HotelDbContext context, 
         IHubContext<RoomHub> hubContext,
-        INotificationService notificationService, IHttpContextAccessor httpContextAccessor)
+        INotificationService notificationService, 
+        IEmailService emailService,
+        IHttpContextAccessor httpContextAccessor)
     {
         _context = context;
         _hubContext = hubContext;
         _notificationService = notificationService;
+        _emailService = emailService;
         _httpContextAccessor = httpContextAccessor;
     }
 
@@ -234,6 +237,23 @@ public class BookingManagementService : IBookingManagementService
         await _context.SaveChangesAsync();
         msg.Id = dbNotif.Id; // ✅ Cập nhật ID sau khi save DB
         await _notificationService.SendToRoleAsync("Admin", msg);
+
+        // ✅ Gửi email "Xác nhận thành công" cho khách hàng
+        if (newStatus == BookingStatus.Confirmed && !string.IsNullOrWhiteSpace(booking.GuestEmail))
+        {
+            var subject = $"[Asteria Resort] Đặt phòng #{booking.BookingCode} đã được xác nhận";
+            var body = $@"
+                <h3>Kính chào quý khách {booking.GuestName},</h3>
+                <p>Tuyệt vời! Yêu cầu đặt phòng của quý khách đã được <strong>Xác Nhận Thành Công</strong>.</p>
+                <p><strong>Mã đặt phòng:</strong> <span style='color:#16a34a;font-size:18px;'>{booking.BookingCode}</span></p>
+                <p>Quý khách vui lòng mang theo giấy tờ tùy thân và đọc mã đặt phòng này khi đến nhận phòng tại Lễ tân.</p>
+                <p>Thời gian nhận phòng (Check-in): Từ 14:00.</p>
+                <p>Cảm ơn quý khách đã tin tưởng và lựa chọn Asteria Resort.</p>
+                <br/>
+                <p>Trân trọng,<br/><strong>Asteria Resort Team</strong></p>
+            ";
+            _ = Task.Run(() => _emailService.SendEmailAsync(booking.GuestEmail, subject, body));
+        }
 
         // Bắn SignalR realtime → cập nhật cột Kinh doanh trên trang Quản lý Quỹ phòng
         if (_hubContext != null)
