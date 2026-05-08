@@ -50,7 +50,7 @@ function LotteHeader({ activePage = '' }) {
           ))}
         </nav>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <a href="/login" style={{ fontSize: 10, fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'white', background: `linear-gradient(135deg, #c9a97a, #9a7b52)`, padding: '9px 20px', borderRadius: 2, textDecoration: 'none' }}>Đặt Phòng</a>
+          <a href="/" style={{ fontSize: 10, fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'white', background: `linear-gradient(135deg, #c9a97a, #9a7b52)`, padding: '9px 20px', borderRadius: 2, textDecoration: 'none' }}>Đặt Phòng</a>
           <button onClick={() => setMobileOpen(!mobileOpen)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'white', fontSize: 20 }}>{mobileOpen ? '✕' : '☰'}</button>
         </div>
       </div>
@@ -294,7 +294,7 @@ export default function AttractionsPage() {
                   <h4 style={{ fontFamily: "'Playfair Display', serif", fontSize: 17, color: GOLD, margin: '0 0 4px' }}>Sẵn sàng cho chuyến đi?</h4>
                   <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', margin: 0 }}>Đặt phòng tại Asteria để bắt đầu hành trình khám phá {selectedAttraction.name}.</p>
                 </div>
-                <button onClick={() => navigate('/booking/search')}
+                <button onClick={() => navigate('/')}
                   style={{ padding: '10px 22px', background: `linear-gradient(135deg, #c9a97a, #9a7b52)`, color: 'white', border: 'none', borderRadius: 2, fontSize: 10, fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                   ĐẶT PHÒNG NGAY →
                 </button>

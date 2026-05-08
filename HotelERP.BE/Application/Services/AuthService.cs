@@ -74,6 +74,8 @@ public class AuthService : IAuthService
             Email = request.Email,
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
             Phone = request.Phone,
+            Address = request.Address,
+            DateOfBirth = request.DateOfBirth,
             RoleId = customerRole.Id, // Tự động gán cứng ID của quyền Khách hàng
             Status = true, 
             CreatedAt = DateTime.UtcNow
@@ -113,6 +115,8 @@ public class AuthService : IAuthService
             Email = user.Email,
             Phone = user.Phone,
             AvatarUrl = user.AvatarUrl,
+            Address = user.Address,
+            DateOfBirth = user.DateOfBirth,
             LoyaltyPoints = user.LoyaltyPoints,
             RoleName = user.Role?.Name // Nếu có Role thì lấy Name, không thì để null
         };

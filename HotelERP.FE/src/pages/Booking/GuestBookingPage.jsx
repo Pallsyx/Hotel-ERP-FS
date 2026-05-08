@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Form, Input, Button, message, Divider, Space } from 'antd';
-import { ArrowLeftOutlined, CheckCircleOutlined, InfoCircleOutlined } from '@ant-design/icons';
+import { Form, Input, Button, message, Divider, Space, Tag } from 'antd';
+import { ArrowLeftOutlined, CheckCircleOutlined, InfoCircleOutlined, TagOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import bookingApi from '../../api/bookingApi';
 
 const GOLD = '#b8956a';
@@ -40,6 +40,29 @@ function formatDateVI(str) {
   return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
+// Custom Premium Input Style - Cập nhật cho Dark Mode
+const premiumInputStyle = {
+  borderRadius: '8px',
+  border: '1px solid rgba(255, 255, 255, 0.1)',
+  padding: '12px 16px',
+  fontSize: '15px',
+  transition: 'all 0.3s ease',
+  background: 'rgba(255, 255, 255, 0.05)',
+  color: '#ffffff', // Chữ trắng
+  boxShadow: 'none',
+};
+
+const premiumInputHoverStyle = `
+  .premium-input:focus, .premium-input:hover {
+    border-color: ${GOLD} !important;
+    background: rgba(184, 149, 106, 0.05) !important;
+    box-shadow: 0 0 0 2px rgba(184, 149, 106, 0.1) !important;
+  }
+  .premium-input::placeholder {
+    color: rgba(255, 255, 255, 0.3) !important;
+  }
+`;
+
 export default function GuestBookingPage() {
   const { state } = useLocation();
   const navigate = useNavigate();
@@ -48,10 +71,16 @@ export default function GuestBookingPage() {
   const [loading, setLoading] = useState(false);
   const [successCode, setSuccessCode] = useState(null);
 
+  // Voucher state
+  const [voucherCode, setVoucherCode] = useState('');
+  const [validatingVoucher, setValidatingVoucher] = useState(false);
+  const [appliedVoucher, setAppliedVoucher] = useState(null);
+  const [discountAmount, setDiscountAmount] = useState(0);
+
   // Fallback if no state
   if (!state) {
     return (
-      <div style={{ padding: '100px 20px', textAlign: 'center' }}>
+      <div style={{ padding: '100px 20px', textAlign: 'center', color: 'white' }}>
         <p>Không có thông tin phòng. Vui lòng quay lại tìm kiếm.</p>
         <Button onClick={() => navigate('/booking/search')}>Quay lại tìm kiếm</Button>
       </div>
@@ -62,17 +91,67 @@ export default function GuestBookingPage() {
     roomTypeId, roomName, basePrice,
     checkIn, checkOut, adults, children, rooms, nights,
     selectedRoomId = null, selectedRoomNumber = null, selectedFloor = null,
-    // Multi-cart
     cartItems = null,
   } = state;
 
-  // Nếu có cartItems thì dùng, ngược lại wrap single-room thành cart
   const resolvedCart = cartItems ?? (roomTypeId ? [{
     roomTypeId, roomName, basePrice,
     roomId: selectedRoomId, roomNumber: selectedRoomNumber, floor: selectedFloor,
   }] : []);
 
-  const totalPrice = resolvedCart.reduce((s, c) => s + (c.basePrice ?? 0) * (nights ?? 1), 0);
+  const subtotal = resolvedCart.reduce((s, c) => s + (c.basePrice ?? 0) * (nights ?? 1), 0);
+  const totalPrice = subtotal - discountAmount;
+
+  const handleApplyVoucher = async () => {
+    if (!voucherCode.trim()) {
+      message.warning('Vui lòng nhập mã voucher');
+      return;
+    }
+    setValidatingVoucher(true);
+    try {
+      const res = await bookingApi.validateVoucher(voucherCode.trim(), subtotal);
+      const resData = res?.data ?? res;
+      if (resData?.success) {
+        const voucher = resData.data;
+        setAppliedVoucher(voucher);
+        
+        let discount = 0;
+        if (voucher.discountType === 'PERCENT') {
+          discount = subtotal * (voucher.discountValue / 100);
+        } else {
+          discount = voucher.discountValue;
+        }
+        
+        if (discount > subtotal) discount = subtotal;
+        setDiscountAmount(discount);
+        message.success('Áp dụng mã giảm giá thành công!');
+      } else {
+        // Dịch lỗi từ Backend sang tiếng Việt
+        const errorMsg = resData?.message || '';
+        let displayMsg = 'Mã voucher không hợp lệ.';
+        
+        if (errorMsg === 'VOUCHER_NOT_FOUND') displayMsg = 'Mã giảm giá không tồn tại.';
+        else if (errorMsg === 'VOUCHER_NOT_STARTED') displayMsg = 'Mã giảm giá này chưa đến thời gian sử dụng.';
+        else if (errorMsg === 'VOUCHER_EXPIRED') displayMsg = 'Mã giảm giá này đã hết hạn.';
+        else if (errorMsg === 'VOUCHER_USAGE_LIMIT_EXCEEDED') displayMsg = 'Mã giảm giá này đã hết lượt sử dụng.';
+        else if (errorMsg === 'MIN_BOOKING_NOT_MET') displayMsg = 'Đơn hàng chưa đạt giá trị tối thiểu để dùng mã này.';
+        
+        message.error(displayMsg);
+      }
+    } catch (err) {
+      const errMsg = err?.response?.data?.message || 'Không thể kiểm tra mã voucher lúc này.';
+      message.error(errMsg);
+    } finally {
+      setValidatingVoucher(false);
+    }
+  };
+
+  const removeVoucher = () => {
+    setAppliedVoucher(null);
+    setDiscountAmount(0);
+    setVoucherCode('');
+    message.info('Đã gỡ mã giảm giá.');
+  };
 
   const onFinish = async (values) => {
     setLoading(true);
@@ -82,7 +161,7 @@ export default function GuestBookingPage() {
         GuestPhone: values.phone,
         GuestEmail: values.email || '',
         Notes:      values.notes || '',
-        VoucherCode: values.voucherCode || null,
+        VoucherCode: appliedVoucher ? appliedVoucher.code : null,
         Items: resolvedCart.map(item => ({
           RoomTypeId:  item.roomTypeId,
           Quantity:    1,
@@ -93,11 +172,8 @@ export default function GuestBookingPage() {
       };
 
       const res = await bookingApi.createMultiBooking(payload);
-      // axiosClient trả về full axios response → cần đọc res.data
       const resData = res?.data ?? res;
-      console.log('[GuestBooking] API response:', resData);
       if (resData?.success || resData?.bookingId) {
-        // Backend sẽ trả về bookingCode (VD: BK-A1B2C3D4). Nếu không có, dự phòng dùng bookingId
         const code = resData.bookingCode || (resData.bookingId ? `BK-${resData.bookingId.toString().padStart(6, '0')}` : 'Thành công');
         setSuccessCode(code);
       } else {
@@ -114,25 +190,25 @@ export default function GuestBookingPage() {
 
   if (successCode) {
     return (
-      <div style={{ background: '#f5f5f4', minHeight: '100vh', fontFamily: "'Inter', sans-serif" }}>
+      <div style={{ background: '#0d0d0d', minHeight: '100vh', fontFamily: "'Inter', sans-serif" }}>
         <Header />
-        <div style={{ paddingTop: 100, paddingBottom: 60, maxWidth: 600, margin: '0 auto', textAlign: 'center' }}>
-          <div style={{ background: 'white', padding: 40, borderRadius: 12, boxShadow: '0 4px 24px rgba(0,0,0,0.06)' }}>
+        <div style={{ paddingTop: 100, paddingBottom: 60, maxWidth: 600, margin: '0 auto', paddingInline: 24 }}>
+          <div style={{ background: '#1a1a1a', padding: 40, borderRadius: 12, boxShadow: '0 4px 24px rgba(0,0,0,0.2)', textAlign: 'center', border: '1px solid rgba(255,255,255,0.05)' }}>
             <CheckCircleOutlined style={{ fontSize: 64, color: '#16a34a', marginBottom: 24 }} />
-            <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 28, color: '#18181b', margin: '0 0 16px' }}>Đặt Phòng Thành Công!</h1>
-            <p style={{ color: '#52525b', fontSize: 15, lineHeight: 1.6, marginBottom: 24 }}>
+            <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 28, color: 'white', margin: '0 0 16px' }}>Đặt Phòng Thành Công!</h1>
+            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 15, lineHeight: 1.6, marginBottom: 24 }}>
               Cảm ơn bạn đã lựa chọn Asteria Resort. Thông tin đặt phòng của bạn đã được ghi nhận. 
-              Vui lòng giữ lại mã đặt phòng hoặc kiểm tra email (nếu có) để xem chi tiết.
+              Mã đặt phòng của bạn là lời cam kết của chúng tôi cho một kỳ nghỉ tuyệt vời.
             </p>
-            <div style={{ background: '#fafafa', padding: 20, borderRadius: 8, marginBottom: 32, border: '1px dashed #d9d9d9' }}>
-              <p style={{ margin: 0, fontSize: 13, color: '#71717a', textTransform: 'uppercase', letterSpacing: '1px' }}>Mã đặt phòng</p>
+            <div style={{ background: 'rgba(184,149,106,0.1)', padding: 20, borderRadius: 8, marginBottom: 32, border: '1px dashed #b8956a' }}>
+              <p style={{ margin: 0, fontSize: 13, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '1px' }}>Mã đặt phòng của quý khách</p>
               <p style={{ margin: '8px 0 0', fontSize: 24, fontWeight: 700, color: GOLD }}>#{successCode}</p>
             </div>
             <Button 
               type="primary" 
               size="large" 
               onClick={() => navigate('/')}
-              style={{ background: DARK, borderColor: DARK, width: '100%', height: 48, fontWeight: 600, letterSpacing: '1px' }}
+              style={{ background: GOLD, borderColor: GOLD, color: 'white', width: '100%', height: 48, fontWeight: 600, letterSpacing: '1px' }}
             >
               VỀ TRANG CHỦ
             </Button>
@@ -143,19 +219,20 @@ export default function GuestBookingPage() {
   }
 
   return (
-    <div style={{ background: '#f5f5f4', minHeight: '100vh', fontFamily: "'Inter', sans-serif" }}>
+    <div style={{ background: '#0d0d0d', minHeight: '100vh', fontFamily: "'Inter', sans-serif", color: 'white' }}>
+      <style>{premiumInputHoverStyle}</style>
       <Header />
 
       <div style={{ paddingTop: 100, paddingBottom: 60, maxWidth: 1000, margin: '0 auto', paddingInline: 24 }}>
-        <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 32, color: '#18181b', margin: '0 0 32px' }}>
+        <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 32, color: 'white', margin: '0 0 32px' }}>
           Hoàn tất đặt phòng
         </h1>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 32 }}>
           
           {/* CỘT TRÁI: Form điền thông tin */}
-          <div style={{ background: 'white', padding: 32, borderRadius: 12, boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
-            <h2 style={{ fontSize: 18, fontWeight: 600, color: '#18181b', margin: '0 0 24px', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ background: '#1a1a1a', padding: 32, borderRadius: 12, border: '1px solid rgba(255,255,255,0.05)', boxShadow: '0 4px 20px rgba(0,0,0,0.2)' }}>
+            <h2 style={{ fontSize: 18, fontWeight: 600, color: 'white', margin: '0 0 24px', display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ display: 'inline-flex', width: 24, height: 24, background: GOLD, color: 'white', borderRadius: '50%', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>1</span>
               Thông tin liên hệ
             </h2>
@@ -163,106 +240,145 @@ export default function GuestBookingPage() {
             <Form form={form} layout="vertical" onFinish={onFinish} requiredMark="optional">
               <Form.Item 
                 name="fullName" 
-                label={<span style={{ fontWeight: 500, color: '#3f3f46' }}>Họ và tên</span>}
+                label={<span style={{ fontWeight: 600, color: 'rgba(255,255,255,0.85)', fontSize: '14px' }}>Họ và tên khách lưu trú</span>}
                 rules={[{ required: true, message: 'Vui lòng nhập họ tên' }]}
               >
-                <Input size="large" placeholder="Ví dụ: Nguyễn Văn A" style={{ padding: '10px 14px' }} />
+                <Input className="premium-input" size="large" placeholder="Ví dụ: Nguyễn Văn Asteria" style={premiumInputStyle} />
               </Form.Item>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
                 <Form.Item 
                   name="phone" 
-                  label={<span style={{ fontWeight: 500, color: '#3f3f46' }}>Số điện thoại</span>}
+                  label={<span style={{ fontWeight: 600, color: 'rgba(255,255,255,0.85)', fontSize: '14px' }}>Số điện thoại</span>}
                   rules={[{ required: true, message: 'Vui lòng nhập số điện thoại' }]}
                 >
-                  <Input size="large" placeholder="090 123 4567" style={{ padding: '10px 14px' }} />
+                  <Input className="premium-input" size="large" placeholder="090 123 4567" style={premiumInputStyle} />
                 </Form.Item>
 
                 <Form.Item 
                   name="email" 
-                  label={<span style={{ fontWeight: 500, color: '#3f3f46' }}>Email (Tùy chọn)</span>}
+                  label={<span style={{ fontWeight: 600, color: 'rgba(255,255,255,0.85)', fontSize: '14px' }}>Email <small style={{fontWeight: 400, color: 'rgba(255,255,255,0.45)'}}>(Tùy chọn)</small></span>}
                   rules={[{ type: 'email', message: 'Email không hợp lệ' }]}
                 >
-                  <Input size="large" placeholder="email@example.com" style={{ padding: '10px 14px' }} />
+                  <Input className="premium-input" size="large" placeholder="guest@example.com" style={premiumInputStyle} />
                 </Form.Item>
               </div>
 
-              <Divider style={{ margin: '24px 0' }} />
+              <Divider style={{ margin: '32px 0', borderColor: 'rgba(255,255,255,0.1)' }} />
 
-              <h2 style={{ fontSize: 18, fontWeight: 600, color: '#18181b', margin: '0 0 24px', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <h2 style={{ fontSize: 18, fontWeight: 600, color: 'white', margin: '0 0 24px', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ display: 'inline-flex', width: 24, height: 24, background: GOLD, color: 'white', borderRadius: '50%', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>2</span>
                 Yêu cầu bổ sung
               </h2>
 
-              <Form.Item name="notes" label={<span style={{ fontWeight: 500, color: '#3f3f46' }}>Ghi chú đặc biệt (Tùy chọn)</span>}>
-                <Input.TextArea rows={4} placeholder="Ví dụ: Yêu cầu phòng tầng cao, dị ứng hoa..." style={{ padding: '10px 14px' }} />
+              <Form.Item name="notes" label={<span style={{ fontWeight: 600, color: 'rgba(255,255,255,0.85)', fontSize: '14px' }}>Ghi chú đặc biệt <small style={{fontWeight: 400, color: 'rgba(255,255,255,0.45)'}}>(Tùy chọn)</small></span>}>
+                <Input.TextArea className="premium-input" rows={4} placeholder="Ví dụ: Tôi muốn yêu cầu phòng yên tĩnh hoặc quà tặng bất ngờ cho kỷ niệm ngày cưới..." style={{...premiumInputStyle, padding: '14px'}} />
               </Form.Item>
             </Form>
           </div>
 
           {/* CỘT PHẢI: Tóm tắt Đơn đặt phòng */}
           <div>
-            <div style={{ background: 'white', padding: 32, borderRadius: 12, boxShadow: '0 2px 12px rgba(0,0,0,0.04)', position: 'sticky', top: 90 }}>
-              <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, color: '#18181b', margin: '0 0 24px' }}>
+            <div style={{ background: '#1a1a1a', padding: 32, borderRadius: 12, border: '1px solid rgba(255,255,255,0.05)', boxShadow: '0 4px 20px rgba(0,0,0,0.2)', position: 'sticky', top: 90 }}>
+              <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, color: 'white', margin: '0 0 24px' }}>
                 Chi tiết đặt phòng
               </h2>
 
-              {/* Room details — multi-cart */}
+              {/* Room details */}
               <div style={{ marginBottom: 24 }}>
                 {resolvedCart.length > 1 ? (
                   <>
-                    <div style={{ fontSize: 16, fontWeight: 600, color: '#18181b', marginBottom: 12 }}>{resolvedCart.length} phòng đã chọn</div>
+                    <div style={{ fontSize: 15, fontWeight: 600, color: 'white', marginBottom: 12 }}>{resolvedCart.length} phòng đã chọn</div>
                     {resolvedCart.map((item, i) => (
-                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#f9f9f9', borderRadius: 6, marginBottom: 6, fontSize: 13 }}>
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 8, marginBottom: 8, fontSize: 14 }}>
                         <div>
-                          <span style={{ fontWeight: 600, color: '#111' }}>P.{item.roomNumber}</span>
-                          {item.floor && <span style={{ color: '#9ca3af', marginLeft: 6 }}>Tầng {item.floor}</span>}
-                          <span style={{ color: '#6b7280', marginLeft: 8 }}>{item.roomName}</span>
+                          <span style={{ fontWeight: 600, color: 'white' }}>P.{item.roomNumber}</span>
+                          {item.floor && <span style={{ color: 'rgba(255,255,255,0.45)', marginLeft: 6 }}>Tầng {item.floor}</span>}
+                          <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>{item.roomName}</div>
                         </div>
-                        <span style={{ color: GOLD, fontWeight: 600 }}>{new Intl.NumberFormat('vi-VN',{style:'currency',currency:'VND',maximumFractionDigits:0}).format(item.basePrice)}/đêm</span>
+                        <span style={{ color: GOLD, fontWeight: 600 }}>{formatVND(item.basePrice)}</span>
                       </div>
                     ))}
                   </>
                 ) : (
                   <>
-                    <div style={{ fontSize: 16, fontWeight: 600, color: '#18181b', marginBottom: 6 }}>{resolvedCart[0]?.roomName}</div>
+                    <div style={{ fontSize: 17, fontWeight: 600, color: 'white', marginBottom: 6 }}>{resolvedCart[0]?.roomName}</div>
                     {resolvedCart[0]?.roomNumber && (
-                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#dcfce7', border: '1px solid #bbf7d0', borderRadius: 6, padding: '5px 12px', marginBottom: 12, fontSize: 13, color: '#16a34a', fontWeight: 600 }}>
-                        <span>✓</span><span>Phòng {resolvedCart[0].roomNumber} · Tầng {resolvedCart[0].floor}</span>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(22, 163, 74, 0.1)', border: '1px solid rgba(22, 163, 74, 0.2)', borderRadius: 6, padding: '6px 14px', marginBottom: 16, fontSize: 13, color: '#4ade80', fontWeight: 600 }}>
+                        <CheckCircleOutlined /> <span>Phòng {resolvedCart[0].roomNumber} · Tầng {resolvedCart[0].floor}</span>
                       </div>
                     )}
                   </>
                 )}
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#52525b', fontSize: 14, marginBottom: 4 }}><span>Nhận phòng:</span><span style={{ fontWeight: 500 }}>{formatDateVI(checkIn)} (14:00)</span></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#52525b', fontSize: 14, marginBottom: 4 }}><span>Trả phòng:</span><span style={{ fontWeight: 500 }}>{formatDateVI(checkOut)} (12:00)</span></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#52525b', fontSize: 14 }}><span>Khách:</span><span>{adults} Người lớn{children > 0 ? `, ${children} Trẻ em` : ''}</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 6 }}><span>Nhận phòng:</span><span style={{ fontWeight: 500, color: 'white' }}>{formatDateVI(checkIn)} (14:00)</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 6 }}><span>Trả phòng:</span><span style={{ fontWeight: 500, color: 'white' }}>{formatDateVI(checkOut)} (12:00)</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'rgba(255,255,255,0.6)', fontSize: 14 }}><span>Khách:</span><span style={{ color: 'white' }}>{adults} Người lớn{children > 0 ? `, ${children} Trẻ em` : ''}</span></div>
               </div>
 
+              <Divider style={{ margin: '24px 0', borderColor: 'rgba(255,255,255,0.1)' }} />
 
-              <Divider style={{ margin: '20px 0' }} />
+              {/* VOUCHER SECTION */}
+              <div style={{ marginBottom: 24 }}>
+                <p style={{ fontWeight: 600, fontSize: 14, color: 'white', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <TagOutlined style={{color: GOLD}} /> Mã giảm giá (Voucher)
+                </p>
+                {!appliedVoucher ? (
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <Input 
+                      placeholder="Nhập mã ưu đãi..." 
+                      value={voucherCode}
+                      onChange={e => setVoucherCode(e.target.value)}
+                      style={{ ...premiumInputStyle, height: 44, padding: '0 16px' }}
+                      className="premium-input"
+                    />
+                    <Button 
+                      onClick={handleApplyVoucher} 
+                      loading={validatingVoucher}
+                      style={{ height: 44, borderColor: GOLD, color: GOLD, background: 'transparent', fontWeight: 600 }}
+                    >
+                      ÁP DỤNG
+                    </Button>
+                  </div>
+                ) : (
+                  <div style={{ background: 'rgba(22, 163, 74, 0.1)', border: '1px solid rgba(22, 163, 74, 0.2)', padding: '10px 14px', borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <Tag color="success" style={{margin: 0, fontWeight: 600}}>{appliedVoucher.code}</Tag>
+                      <span style={{ fontSize: 13, color: '#4ade80', marginLeft: 8 }}>Đã áp dụng ưu đãi</span>
+                    </div>
+                    <Button type="text" danger icon={<CloseCircleOutlined />} onClick={removeVoucher} />
+                  </div>
+                )}
+              </div>
 
               {/* Price summary */}
-              <div style={{ marginBottom: 24 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#52525b', fontSize: 14, marginBottom: 12 }}>
-                  <span>Giá gốc ({rooms} phòng × {nights} đêm)</span>
-                  <span>{formatVND(totalPrice)}</span>
+              <div style={{ background: 'rgba(255,255,255,0.02)', padding: 20, borderRadius: 10, border: '1px solid rgba(255,255,255,0.05)', marginBottom: 24 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 12 }}>
+                  <span>Giá tạm tính ({rooms} phòng × {nights} đêm)</span>
+                  <span style={{fontWeight: 500, color: 'white'}}>{formatVND(subtotal)}</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#16a34a', fontSize: 14, marginBottom: 12 }}>
-                  <span>Thuế & Phí dịch vụ (Đã bao gồm)</span>
-                  <span>0 đ</span>
+                {discountAmount > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#4ade80', fontSize: 14, marginBottom: 12 }}>
+                    <span>Ưu đãi áp dụng</span>
+                    <span style={{fontWeight: 600}}>- {formatVND(discountAmount)}</span>
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'rgba(255,255,255,0.4)', fontSize: 13, marginBottom: 12 }}>
+                  <span>Phí dịch vụ & Thuế (VAT)</span>
+                  <span>Đã bao gồm</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 16 }}>
-                  <span style={{ fontSize: 16, fontWeight: 600, color: '#18181b' }}>Tổng thanh toán</span>
-                  <span style={{ fontFamily: "'Playfair Display', serif", fontSize: 26, fontWeight: 700, color: GOLD }}>
+                <Divider style={{ margin: '12px 0', borderColor: 'rgba(255,255,255,0.1)' }} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                  <span style={{ fontSize: 16, fontWeight: 700, color: 'white' }}>Tổng thanh toán</span>
+                  <span style={{ fontFamily: "'Playfair Display', serif", fontSize: 26, fontWeight: 800, color: GOLD }}>
                     {formatVND(totalPrice)}
                   </span>
                 </div>
               </div>
 
-              <div style={{ background: '#fdf8f3', border: `1px solid rgba(184,149,106,0.3)`, borderRadius: 6, padding: '12px 16px', marginBottom: 24, display: 'flex', gap: 12 }}>
+              <div style={{ background: 'rgba(184,149,106,0.05)', border: `1px solid rgba(184,149,106,0.2)`, borderRadius: 8, padding: '14px 18px', marginBottom: 24, display: 'flex', gap: 12 }}>
                 <InfoCircleOutlined style={{ color: GOLD, fontSize: 18, marginTop: 2 }} />
-                <span style={{ fontSize: 13, color: '#71717a', lineHeight: 1.5 }}>
-                  Bạn sẽ thanh toán trực tiếp tại quầy Lễ tân khi nhận phòng. Không yêu cầu thẻ tín dụng lúc này.
+                <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>
+                  <strong style={{ color: GOLD }}>Thanh toán tại Resort:</strong> Quý khách sẽ thanh toán trực tiếp khi nhận phòng. Asteria Resort không yêu cầu trả trước hay thẻ tín dụng cho đặt phòng này.
                 </span>
               </div>
 
@@ -272,11 +388,12 @@ export default function GuestBookingPage() {
                 onClick={() => form.submit()}
                 loading={loading}
                 style={{ 
-                  background: DARK, borderColor: DARK, width: '100%', height: 50, 
-                  fontSize: 13, fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase'
+                  background: GOLD, borderColor: GOLD, width: '100%', height: 54, color: 'white',
+                  fontSize: 14, fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase',
+                  boxShadow: '0 4px 12px rgba(184,149,106,0.3)'
                 }}
               >
-                Xác nhận Đặt phòng
+                XÁC NHẬN ĐẶT PHÒNG
               </Button>
             </div>
           </div>

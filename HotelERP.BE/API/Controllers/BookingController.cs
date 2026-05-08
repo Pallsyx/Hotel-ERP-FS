@@ -33,8 +33,7 @@ public class BookingController : ControllerBase
             .Where(bd => bd.Booking != null && bd.Booking.Status != "Cancelled" && bd.Booking.Status != "CheckedOut")
             .Where(bd => checkIn < bd.CheckOutDate && checkOut > bd.CheckInDate)
             .Select(bd => bd.RoomId)
-            .Where(id => id != null)
-            .Select(id => id.Value)
+            .OfType<int>()
             .ToListAsync();
 
         var availableRooms = await _context.Rooms

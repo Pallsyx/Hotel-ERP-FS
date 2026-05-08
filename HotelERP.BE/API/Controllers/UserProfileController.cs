@@ -4,6 +4,7 @@ using HotelERP.BE.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using HotelERP.BE.Services.Loyalty;
 
 namespace HotelERP.BE.API.Controllers;
 
@@ -14,12 +15,18 @@ public class UserProfileController : ControllerBase
 {
     private readonly IUserProfileService _userProfileService;
     private readonly IPhotoService _photoService;
+    private readonly ILoyaltyPointService _loyaltyPointService;
     private readonly HotelERP.BE.Infrastructure.Data.HotelDbContext _context;
 
-    public UserProfileController(IUserProfileService userProfileService, IPhotoService photoService, HotelERP.BE.Infrastructure.Data.HotelDbContext context)
+    public UserProfileController(
+        IUserProfileService userProfileService, 
+        IPhotoService photoService, 
+        ILoyaltyPointService loyaltyPointService,
+        HotelERP.BE.Infrastructure.Data.HotelDbContext context)
     {
         _userProfileService = userProfileService;
         _photoService = photoService;
+        _loyaltyPointService = loyaltyPointService;
         _context = context;
     }
 
@@ -197,6 +204,35 @@ public class UserProfileController : ControllerBase
 
             await _context.SaveChangesAsync();
             return Ok(new { success = true, message = "Đã đánh dấu đọc toàn bộ" });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+    }
+
+    [HttpPost("redeem-points")]
+    public async Task<IActionResult> RedeemLoyaltyPoints([FromBody] int points)
+    {
+        try
+        {
+            int userId = GetCurrentUserId();
+            var result = await _loyaltyPointService.RedeemPointsForVoucherAsync(userId, points, default);
+            return StatusCode(result.StatusCode, result);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+    }
+
+    [HttpPost("sync-points")]
+    public async Task<IActionResult> SyncLoyaltyPoints()
+    {
+        try
+        {
+            var result = await _loyaltyPointService.SyncAllAwardablePointsAsync(default);
+            return StatusCode(result.StatusCode, result);
         }
         catch (Exception ex)
         {

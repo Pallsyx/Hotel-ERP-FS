@@ -264,9 +264,9 @@ public class RoomService : IRoomService
             roleName: roleName,
             actionType: "CREATE",
             entityType: "LossAndDamage",
-            message: $"Ghi nhận hỏng {request.ItemName} tại phòng {room.RoomNumber}.",
-            contextParams: new { damageId = damage.Id, roomNumber = room.RoomNumber, targetItem = request.ItemName },
-            changes: new { oldData = (object)null, newData = new { request.Quantity, request.PenaltyAmount, Description = request.Description ?? request.Reason } }
+            message: $"Ghi nhận hỏng {request.ItemName ?? "Vật tư"} tại phòng {room.RoomNumber}.",
+            contextParams: new { damageId = damage.Id, roomNumber = room.RoomNumber, targetItem = request.ItemName ?? "Vật tư" },
+            changes: new { oldData = (object?)null, newData = new { request.Quantity, request.PenaltyAmount, Description = request.Description ?? request.Reason ?? "Không có mô tả" } }
         );
         return true;
     }

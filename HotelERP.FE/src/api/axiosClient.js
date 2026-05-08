@@ -48,14 +48,14 @@ axiosClient.interceptors.response.use(
           refreshToken: refreshToken,
         });
 
-        const { accessToken, newRefreshToken } = response.data.data;
-
+        const { accessToken, refreshToken } = response.data.data;
+        
         localStorage.setItem('token', accessToken);
-        localStorage.setItem('refreshToken', newRefreshToken);
+        localStorage.setItem('refreshToken', refreshToken);
         useAuthStore.getState().login(
           useAuthStore.getState().user,
           accessToken,
-          newRefreshToken
+          refreshToken
         );
 
         isRefreshing = false;

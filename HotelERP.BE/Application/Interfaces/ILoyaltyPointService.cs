@@ -8,4 +8,11 @@ public interface ILoyaltyPointService
     Task<ApiResult<LoyaltyPointAwardResultDto>> AddPointsAfterBookingPaidAsync(
         int bookingId,
         CancellationToken cancellationToken = default);
+
+    Task<ApiResult<object>> RedeemPointsForVoucherAsync(
+        int userId,
+        int pointsToRedeem,
+        CancellationToken cancellationToken = default);
+
+    Task<ApiResult<int>> SyncAllAwardablePointsAsync(CancellationToken cancellationToken = default);
 }

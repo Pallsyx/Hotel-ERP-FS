@@ -54,7 +54,6 @@ export default function HomePage() {
   const [cur, setCur] = useState(0);
   const [play, setPlay] = useState(true);
   const [sc, setSc] = useState(false);
-  const [bookOpen, setBookOpen] = useState(false);
   const [dragStartX, setDragStartX] = useState(null);
   const [dragOffset, setDragOffset] = useState(0);
   const [notifications, setNotifications] = useState([]);
@@ -201,7 +200,7 @@ export default function HomePage() {
                   }
                   trigger="click"
                   placement="bottomRight"
-                  overlayInnerStyle={{ padding: 0, background: 'transparent', border: 'none', boxShadow: 'none' }}
+                  styles={{ content: { padding: 0, background: 'transparent', border: 'none', boxShadow: 'none' } }}
                 >
                   <span style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', padding: '4px 8px', borderRadius: 4, transition: 'background 200ms' }}
                     onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
@@ -432,64 +431,7 @@ export default function HomePage() {
       {/* FOOTER */}
       <MainFooter />
 
-      {/* ── MODAL OVERLAY ── */}
-      {bookOpen && (
-        <div
-          onClick={() => setBookOpen(false)}
-          style={{
-            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-            background: 'rgba(0,0,0,0.55)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            zIndex: 9998,
-            animation: 'backdropIn 200ms ease',
-          }}
-        >
-          <style>{`
-            @keyframes backdropIn{from{opacity:0}to{opacity:1}}
-            @keyframes modalIn{from{opacity:0;transform:scale(0.93) translateY(12px)}to{opacity:1;transform:scale(1) translateY(0)}}
-            @media(max-width:480px){.book-modal-inner{width:100vw!important;max-height:100dvh!important;border-radius:16px 16px 0 0!important;align-self:flex-end!important;}}
-          `}</style>
-          <div
-            className="book-modal-inner"
-            onClick={e => e.stopPropagation()}
-            style={{
-              width: 'min(400px,94vw)',
-              maxHeight: '90dvh',
-              overflowY: 'auto',
-              borderRadius: 10,
-              animation: 'modalIn 250ms cubic-bezier(0.34,1.4,0.64,1)',
-              boxShadow: '0 24px 80px rgba(0,0,0,0.35)',
-            }}
-          >
-            <RoomSearchWidget onClose={() => setBookOpen(false)} />
-          </div>
-        </div>
-      )}
 
-      {/* ── FAB TRIGGER BUTTON ── */}
-      <div style={{ position: 'fixed', bottom: 32, right: 32, zIndex: 9999 }}>
-        <button
-          onClick={() => setBookOpen(!bookOpen)}
-          style={{
-            width: 72, height: 72, borderRadius: '50%', border: 'none', cursor: 'pointer',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
-            background: bookOpen ? '#3f3f46' : 'linear-gradient(135deg,#c9a97a,#9a7b52)',
-            color: 'white',
-            boxShadow: bookOpen ? 'none' : '0 8px 32px rgba(184,149,106,0.45)',
-            transform: 'scale(1)',
-            transition: 'transform 200ms ease, background 300ms ease, box-shadow 300ms ease',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.08)'; }}
-          onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}>
-          {bookOpen
-            ? <span style={{ fontSize: 22, lineHeight: 1 }}>✕</span>
-            : (<>
-              <span style={{ fontSize: 20, lineHeight: 1 }}>📅</span>
-              <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase' }}>Book</span>
-            </>)
-          }
-        </button>
-      </div>
     </div>
   );
 }

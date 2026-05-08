@@ -45,10 +45,15 @@ const bookingApi = {
     return axiosClient.post(`/bookings/${bookingId}/apply-voucher`, { voucherCode });
   },
 
-  // 7. Gỡ voucher khỏi booking
   // POST /api/bookings/{bookingId}/remove-voucher
   removeVoucher: (bookingId) => {
     return axiosClient.post(`/bookings/${bookingId}/remove-voucher`);
+  },
+
+  // 8. Kiểm tra voucher trước khi đặt (Validate)
+  // POST /api/BookingEngine/validate-voucher
+  validateVoucher: (code, subtotal) => {
+    return axiosClient.post('/BookingEngine/validate-voucher', { code, subtotal });
   },
 };
 

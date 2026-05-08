@@ -13,6 +13,7 @@ using HotelERP.BE.DTOs.Notifications;
 using HotelERP.BE.Models.Enums;
 using HotelERP.BE.Models;
 using HotelERP.BE.Helpers.AuditLogs;
+using HotelERP.BE.Services.Loyalty;
 using Hangfire;
 
 namespace HotelERP.BE.Application.Services
@@ -26,17 +27,20 @@ namespace HotelERP.BE.Application.Services
         private readonly INotificationService _notificationService;
         private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly Hangfire.IBackgroundJobClient _backgroundJobClient;
+        private readonly ILoyaltyPointService _loyaltyPointService;
         private readonly IEmailService _emailService;
 
         public InvoiceService(
             HotelDbContext dbContext, Hangfire.IBackgroundJobClient backgroundJobClient, IEmailService emailService, 
             INotificationService notificationService,
+            ILoyaltyPointService loyaltyPointService,
             IHttpContextAccessor httpContextAccessor)
         {
             _dbContext = dbContext;
             _notificationService = notificationService;
             _httpContextAccessor = httpContextAccessor;
             _backgroundJobClient = backgroundJobClient;
+            _loyaltyPointService = loyaltyPointService;
             _emailService = emailService;
         }
 
@@ -674,6 +678,27 @@ namespace HotelERP.BE.Application.Services
 
             await _dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
+
+            // Cộng điểm thưởng Loyalty Points
+            try
+            {
+                if (invoice.BookingId.HasValue)
+                {
+                    var loyaltyResult = await _loyaltyPointService.AddPointsAfterBookingPaidAsync(invoice.BookingId.Value, cancellationToken);
+                    if (loyaltyResult.Success)
+                    {
+                        Console.WriteLine($"[LoyaltyPoint] Cộng {loyaltyResult.Data?.PointsAdded} điểm thành công cho Booking #{invoice.BookingId.Value}. Số dư mới: {loyaltyResult.Data?.LoyaltyPointsAfter}");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"[LoyaltyPoint] Không thể cộng điểm cho Booking #{invoice.BookingId.Value}: {loyaltyResult.Message} ({loyaltyResult.Code})");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[LoyaltyPoint] Lỗi nghiêm trọng khi cộng điểm cho Booking #{invoice.BookingId}: {ex.Message}");
+            }
 
             // Gửi Notification
             var payMsg = new NotificationMessage

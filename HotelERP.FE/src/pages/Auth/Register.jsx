@@ -11,7 +11,7 @@ const SLIDE = 'https://images.unsplash.com/photo-1566665797739-1674de7a421a?q=80
 export default function Register() {
   const navigate = useNavigate();
 
-  const [form, setForm] = useState({ fullName: '', email: '', password: '', confirmPassword: '' });
+  const [form, setForm] = useState({ fullName: '', email: '', password: '', confirmPassword: '', phone: '', address: '', dateOfBirth: '' });
   const [showPass, setShowPass] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -49,7 +49,14 @@ export default function Register() {
     }
     setLoading(true);
     try {
-      await authApi.register({ fullName: form.fullName, email: form.email, password: form.password });
+      await authApi.register({ 
+        fullName: form.fullName, 
+        email: form.email, 
+        password: form.password,
+        phone: form.phone,
+        address: form.address,
+        dateOfBirth: form.dateOfBirth || null
+      });
       message.success('Đăng ký thành công! Vui lòng đăng nhập.');
       navigate('/login');
     } catch (err) {
@@ -175,6 +182,50 @@ export default function Register() {
                   placeholder="your@email.com"
                   className={`auth-input ${focusField === 'email' ? 'focused' : ''}`}
                   autoComplete="email"
+                />
+              </div>
+            </div>
+
+            {/* Phone & Date of Birth */}
+            <div style={{ display: 'flex', gap: 16, marginBottom: 18 }}>
+              <div style={{ flex: 1 }}>
+                <label className={`field-label ${focusField === 'phone' ? 'active' : ''}`}>Số điện thoại</label>
+                <input
+                  type="tel"
+                  value={form.phone}
+                  onChange={onChange('phone')}
+                  onFocus={() => setFocusField('phone')}
+                  onBlur={() => setFocusField('')}
+                  placeholder="09xx xxx xxx"
+                  className={`auth-input ${focusField === 'phone' ? 'focused' : ''}`}
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label className={`field-label ${focusField === 'dob' ? 'active' : ''}`}>Ngày sinh</label>
+                <input
+                  type="date"
+                  value={form.dateOfBirth}
+                  onChange={onChange('dateOfBirth')}
+                  onFocus={() => setFocusField('dob')}
+                  onBlur={() => setFocusField('')}
+                  className={`auth-input ${focusField === 'dob' ? 'focused' : ''}`}
+                  style={{ paddingRight: 12 }}
+                />
+              </div>
+            </div>
+
+            {/* Address */}
+            <div style={{ marginBottom: 18 }}>
+              <label className={`field-label ${focusField === 'address' ? 'active' : ''}`}>Địa chỉ</label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="text"
+                  value={form.address}
+                  onChange={onChange('address')}
+                  onFocus={() => setFocusField('address')}
+                  onBlur={() => setFocusField('')}
+                  placeholder="Số nhà, tên đường, quận/huyện..."
+                  className={`auth-input ${focusField === 'address' ? 'focused' : ''}`}
                 />
               </div>
             </div>

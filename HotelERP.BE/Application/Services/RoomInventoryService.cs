@@ -11,7 +11,7 @@ using HotelERP.BE.DTOs.Hubs;
 
 namespace HotelERP.BE.Application.Services;
 
-public class RoomInventoryService(HotelDbContext context, IHttpContextAccessor httpContextAccessor, IHubContext<RoomHub> hubContext) : IRoomInventoryService
+public class RoomInventoryService(HotelDbContext context, IHttpContextAccessor httpContextAccessor) : IRoomInventoryService
 {
     private (int UserId, string RoleName) ResolveUser()
     {

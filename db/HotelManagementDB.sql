@@ -2539,6 +2539,13 @@ BEGIN
 END
 GO
 
+IF NOT EXISTS (SELECT 1 FROM [__EFMigrationsHistory] WHERE [MigrationId] = N'20260508130233_AddLoyaltyPointHistoryTable')
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260508130233_AddLoyaltyPointHistoryTable', N'10.0.5');
+END
+GO
+
 -- Đồng bộ trạng thái bài viết (Dựa trên db_admin_reset)
 UPDATE [dbo].[Articles] SET [status] = 'Published' WHERE [id] <= 10;
 GO
@@ -2582,6 +2589,29 @@ ALTER TABLE Reviews ADD
     like_count INT NOT NULL DEFAULT 0, 
     highlight NVARCHAR(255) NULL, 
     service_quality NVARCHAR(255) NULL;
+GO
+
+-- ==========================================
+-- 11. LỊCH SỬ ĐIỂM THƯỞNG (LOYALTY) - BỔ SUNG MỚI
+-- ==========================================
+IF OBJECT_ID(N'[dbo].[Loyalty_Point_Histories]') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[Loyalty_Point_Histories] (
+        [id] int NOT NULL IDENTITY(1,1) PRIMARY KEY,
+        [booking_id] int NOT NULL,
+        [user_id] int NOT NULL,
+        [action_type] nvarchar(50) NOT NULL,
+        [source_amount] decimal(18,2) NOT NULL,
+        [points_added] int NOT NULL,
+        [balance_before] int NOT NULL,
+        [balance_after] int NOT NULL,
+        [reason] nvarchar(500) NOT NULL,
+        [created_at] datetime NOT NULL DEFAULT GETDATE()
+    );
+    CREATE UNIQUE INDEX [UQ_Loyalty_Point_Histories_BookingAction] ON [dbo].[Loyalty_Point_Histories] ([booking_id], [action_type]);
+    CREATE INDEX [IX_Loyalty_Point_Histories_user_id] ON [dbo].[Loyalty_Point_Histories] ([user_id]);
+    PRINT 'Đã thêm bảng Loyalty_Point_Histories';
+END
 GO
 
 -- (Tùy chọn) Xóa các đánh giá cũ đang có trong bảng để dọn dẹp

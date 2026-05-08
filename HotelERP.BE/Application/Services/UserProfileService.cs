@@ -1,8 +1,10 @@
 using HotelERP.BE.Application.DTOs.Auth;
 using HotelERP.BE.Application.DTOs.UserProfile;
 using HotelERP.BE.Application.Interfaces;
+using HotelERP.BE.Domain.Models;
 using HotelERP.BE.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using HotelERP.BE.Models;
 
 namespace HotelERP.BE.Application.Services;
 
@@ -23,6 +25,9 @@ public class UserProfileService : IUserProfileService
 
         if (user == null) throw new Exception("Không tìm thấy thông tin người dùng.");
 
+        // Kiểm tra và tặng quà sinh nhật nếu đúng ngày
+        await CheckAndIssueBirthdayVoucherAsync(user);
+
         return new UserProfileResponse
         {
             Id = user.Id,
@@ -30,6 +35,8 @@ public class UserProfileService : IUserProfileService
             Email = user.Email,
             Phone = user.Phone,
             AvatarUrl = user.AvatarUrl,
+            Address = user.Address,
+            DateOfBirth = user.DateOfBirth,
             LoyaltyPoints = user.LoyaltyPoints,
             RoleName = user.Role?.Name
         };
@@ -40,9 +47,22 @@ public class UserProfileService : IUserProfileService
         var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId && u.Status == true);
         if (user == null) throw new Exception("Không tìm thấy thông tin người dùng.");
 
-        // Chỉ cho phép cập nhật tên và số điện thoại
+        // Quy tắc: Nếu ngày sinh đã có, không cho phép đổi
+        if (user.DateOfBirth.HasValue && request.DateOfBirth.HasValue && user.DateOfBirth.Value.Date != request.DateOfBirth.Value.Date)
+        {
+            throw new Exception("Ngày sinh đã được thiết lập và không thể thay đổi.");
+        }
+
+        // Chỉ cho phép cập nhật tên, số điện thoại, địa chỉ và ngày sinh (nếu chưa có)
         user.FullName = request.FullName;
         user.Phone = request.Phone;
+        user.Address = request.Address;
+        
+        if (!user.DateOfBirth.HasValue && request.DateOfBirth.HasValue)
+        {
+            user.DateOfBirth = request.DateOfBirth;
+        }
+
         user.UpdatedAt = DateTime.UtcNow;
 
         _context.Users.Update(user);
@@ -73,6 +93,7 @@ public class UserProfileService : IUserProfileService
 
         return true;
     }
+
     public async Task<bool> UpdateAvatarAsync(int userId, string avatarUrl, string avatarPublicId)
     {
         var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId && u.Status == true);
@@ -85,5 +106,59 @@ public class UserProfileService : IUserProfileService
         _context.Users.Update(user);
         await _context.SaveChangesAsync();
         return true;
+    }
+
+    private async Task CheckAndIssueBirthdayVoucherAsync(User user)
+    {
+        if (!user.DateOfBirth.HasValue) return;
+
+        var today = DateTime.UtcNow.AddHours(7); // Giả định múi giờ VN
+        var birthday = user.DateOfBirth.Value;
+
+        // Kiểm tra xem có đúng ngày sinh nhật không
+        if (birthday.Month == today.Month && birthday.Day == today.Day)
+        {
+            // Kiểm tra xem năm nay đã nhận chưa
+            if (!user.LastBirthdayCouponYear.HasValue || user.LastBirthdayCouponYear.Value < today.Year)
+            {
+                // TẠO VOUCHER SINH NHẬT
+                string voucherCode = $"BDAY-{user.Id}-{today.Year}";
+                
+                // Kiểm tra xem mã này đã tồn tại chưa
+                var exists = await _context.Vouchers.AnyAsync(v => v.Code == voucherCode);
+                if (!exists)
+                {
+                    var birthdayVoucher = new Voucher
+                    {
+                        Code = voucherCode,
+                        DiscountType = "FIXED_AMOUNT",
+                        DiscountValue = 500000, 
+                        MinBookingValue = 2000000, 
+                        ValidFrom = today,
+                        ValidTo = today.AddDays(30), 
+                        UsageLimit = 1
+                    };
+
+                    await _context.Vouchers.AddAsync(birthdayVoucher);
+
+                    var notification = new Notification
+                    {
+                        UserId = user.Id,
+                        Title = "🎉 Chúc mừng sinh nhật quý khách!",
+                        Content = $"Asteria Resort xin gửi tặng bạn món quà đặc biệt: Voucher {voucherCode} giảm giá 500.000đ cho đơn hàng từ 2.000.000đ. Chúc bạn có một ngày sinh nhật thật tuyệt vời!",
+                        Type = "PROMOTION",
+                        IsRead = false,
+                        CreatedAt = today
+                    };
+
+                    await _context.Notifications.AddAsync(notification);
+
+                    user.LastBirthdayCouponYear = today.Year;
+                    _context.Users.Update(user);
+
+                    await _context.SaveChangesAsync();
+                }
+            }
+        }
     }
 }

@@ -409,6 +409,11 @@ public class BookingEngineService : IBookingEngineService
         return true;
     }
 
+    public async Task<(bool IsSuccess, string ErrorCode, Domain.Models.Voucher? Voucher)> ValidateVoucherAsync(string voucherCode, decimal subtotal)
+    {
+        return await _voucherService.ValidateVoucherAsync(voucherCode, subtotal);
+    }
+
     public async Task<IEnumerable<object>> GetAssignableRoomsAsync(int roomTypeId)
     {
         return await _context.Rooms

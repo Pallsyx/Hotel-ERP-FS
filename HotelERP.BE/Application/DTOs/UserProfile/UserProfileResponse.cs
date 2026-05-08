@@ -7,6 +7,8 @@ public class UserProfileResponse
     public string Email { get; set; } = null!;
     public string? Phone { get; set; }
     public string? AvatarUrl { get; set; }
+    public string? Address { get; set; }
+    public DateTime? DateOfBirth { get; set; }
     public int LoyaltyPoints { get; set; }
     
     // Chỉ trả về Tên quyền (VD: "Admin", "Customer") thay vì cả bảng Role

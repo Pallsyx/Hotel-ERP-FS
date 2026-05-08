@@ -240,6 +240,120 @@ public class LoyaltyPointService : ILoyaltyPointService
         return $"amountSource={Normalize(_options.AmountSource)}; moneyPerPoint={_options.MoneyPerPoint}; roundingMode={Normalize(_options.RoundingMode)}; minimumEligibleAmount={_options.MinimumEligibleAmount}";
     }
 
+    public async Task<ApiResult<object>> RedeemPointsForVoucherAsync(
+        int userId,
+        int pointsToRedeem,
+        CancellationToken cancellationToken = default)
+    {
+        if (pointsToRedeem <= 0)
+        {
+            return ApiResult<object>.Fail(StatusCodes.Status400BadRequest, "INVALID_POINTS", "Số điểm quy đổi phải lớn hơn 0.");
+        }
+
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        try
+        {
+            var user = await _dbContext.Users.FirstOrDefaultAsync(x => x.Id == userId, cancellationToken);
+            if (user is null)
+            {
+                return ApiResult<object>.Fail(StatusCodes.Status404NotFound, "USER_NOT_FOUND", "Không tìm thấy người dùng.");
+            }
+
+            if (user.LoyaltyPoints < pointsToRedeem)
+            {
+                return ApiResult<object>.Fail(StatusCodes.Status400BadRequest, "INSUFFICIENT_POINTS", "Bạn không có đủ điểm để quy đổi.");
+            }
+
+            // Giả sử quy đổi: 1 điểm = 100 VNĐ (Ví dụ: 1000 điểm = 100,000 VNĐ)
+            decimal discountValue = pointsToRedeem * 100;
+            
+            var voucherCode = $"REDEEM-{userId}-{DateTime.UtcNow.Ticks.ToString().Substring(10, 5)}";
+            var voucher = new Voucher
+            {
+                Code = voucherCode,
+                DiscountType = "FIXED_AMOUNT",
+                DiscountValue = discountValue,
+                MinBookingValue = discountValue * 5, // Yêu cầu đơn hàng gấp 5 lần giá trị voucher
+                ValidFrom = DateTime.UtcNow,
+                ValidTo = DateTime.UtcNow.AddDays(30), // Có hiệu lực 30 ngày
+                UsageLimit = 1,
+                Reason = $"Quy đổi từ {pointsToRedeem} điểm tích lũy của user {userId}"
+            };
+
+            _dbContext.Vouchers.Add(voucher);
+
+            // Cập nhật điểm user
+            var balanceBefore = user.LoyaltyPoints;
+            user.LoyaltyPoints -= pointsToRedeem;
+            user.UpdatedAt = DateTime.UtcNow;
+
+            // Ghi lịch sử điểm
+            var history = new LoyaltyPointHistory
+            {
+                UserId = user.Id,
+                ActionType = "REDEEM_VOUCHER",
+                PointsAdded = -pointsToRedeem, // Âm vì là trừ điểm
+                BalanceBefore = balanceBefore,
+                BalanceAfter = user.LoyaltyPoints,
+                Reason = $"Quy đổi điểm lấy voucher {voucherCode}",
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _dbContext.LoyaltyPointHistories.Add(history);
+
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+
+            return ApiResult<object>.Ok(new
+            {
+                voucherCode = voucherCode,
+                discountValue = discountValue,
+                pointsRedeemed = pointsToRedeem,
+                newBalance = user.LoyaltyPoints
+            }, "Quy đổi điểm thành công!", "REDEEM_POINTS_SUCCESS");
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return ApiResult<object>.Fail(StatusCodes.Status500InternalServerError, "REDEEM_ERROR", $"Lỗi quy đổi: {ex.Message}");
+        }
+    }
+
+    public async Task<ApiResult<int>> SyncAllAwardablePointsAsync(CancellationToken cancellationToken = default)
+    {
+        var count = 0;
+        try
+        {
+            // Tìm tất cả booking có ít nhất 1 invoice PAID hoặc trạng thái booking là PAID
+            // và chưa có bản ghi cộng điểm nào.
+            var awardableBookings = await _dbContext.Bookings
+                .Include(x => x.User)
+                .Include(x => x.Invoices)
+                .Where(b => b.UserId != null && b.User!.Status)
+                .ToListAsync(cancellationToken);
+
+            foreach (var booking in awardableBookings)
+            {
+                if (!IsBookingPaid(booking)) continue;
+
+                var alreadyAwarded = await _dbContext.LoyaltyPointHistories
+                    .AnyAsync(h => h.BookingId == booking.Id && h.ActionType == BookingPaidEarnAction, cancellationToken);
+
+                if (alreadyAwarded) continue;
+
+                var result = await AddPointsAfterBookingPaidAsync(booking.Id, cancellationToken);
+                if (result.Success) count++;
+            }
+
+            return ApiResult<int>.Ok(count, $"Đã đồng bộ và cộng điểm cho {count} đơn đặt phòng.");
+        }
+        catch (Exception ex)
+        {
+            return ApiResult<int>.Fail(StatusCodes.Status500InternalServerError, "SYNC_ERROR", $"Lỗi đồng bộ: {ex.Message}");
+        }
+    }
+
     private static bool IsUniqueHistoryViolation(DbUpdateException exception)
     {
         return exception.InnerException is SqlException sqlException

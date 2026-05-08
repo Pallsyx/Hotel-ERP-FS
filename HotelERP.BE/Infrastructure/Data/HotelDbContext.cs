@@ -1177,6 +1177,14 @@ public partial class HotelDbContext : DbContext
                 .HasColumnType("datetime")
                 .HasColumnName("last_login_at");
             entity.Property(e => e.LoyaltyPoints).HasColumnName("loyalty_points");
+            entity.Property(e => e.Address)
+                .HasMaxLength(500)
+                .HasColumnName("address");
+            entity.Property(e => e.DateOfBirth)
+                .HasColumnType("date")
+                .HasColumnName("date_of_birth");
+            entity.Property(e => e.LastBirthdayCouponYear)
+                .HasColumnName("last_birthday_coupon_year");
             entity.Property(e => e.MembershipId).HasColumnName("membership_id");
             entity.Property(e => e.PasswordHash)
                 .HasMaxLength(255)

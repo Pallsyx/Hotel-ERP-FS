@@ -1,7 +1,9 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { App as AntdApp, ConfigProvider, theme } from 'antd';
 import AdminRoutes from './routes/AdminRoutes.jsx';
 import HomePage from './pages/Home/HomePage';
+import FloatingSidebar from './components/Layout/FloatingSidebar';
 
 // 1. THÊM DÒNG NÀY: Import trang Login của bạn vào đây
 import LoginPage from './pages/Auth/Login';
@@ -18,40 +20,54 @@ import CustomerReviewsPage from './pages/Home/CustomerReviewsPage';
 function App() {
   return (
     <BrowserRouter>
+      <FloatingSidebar />
       <Routes>
-        {/* Trang chủ dành cho khách hàng sẽ nằm ở đường dẫn gốc "/" */}
-        <Route path="/" element={<HomePage />} />
-        
-        {/* Trang tin tức - danh sách */}
-        <Route path="/news" element={<NewsPage />} />
-        {/* Trang chi tiết bài viết */}
-        <Route path="/news/:slug" element={<ArticleDetailPage />} />
+        {/* NHÁNH CHO KHÁCH HÀNG: Sử dụng Theme Dark Sang Trọng */}
+        <Route path="/*" element={
+          <ConfigProvider
+            theme={{
+              algorithm: theme.darkAlgorithm,
+              token: {
+                colorPrimary: '#b8956a',
+                borderRadius: 8,
+                colorBgBase: '#0d0d0d',
+              },
+            }}
+          >
+            <AntdApp>
+              <Routes>
+                <Route path="/" element={<HomePage />} />
+                <Route path="/news" element={<NewsPage />} />
+                <Route path="/news/:slug" element={<ArticleDetailPage />} />
+                <Route path="/attractions" element={<AttractionsPage />} />
+                <Route path="/reviews" element={<CustomerReviewsPage />} />
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/register" element={<RegisterPage />} />
+                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                <Route path="/profile" element={<UserProfile />} />
+                <Route path="/rooms/search-results" element={<SearchResultsPage />} />
+                <Route path="/booking/new" element={<GuestBookingPage />} />
+              </Routes>
+            </AntdApp>
+          </ConfigProvider>
+        } />
 
-        {/* Trang khám phá điểm đến */}
-        <Route path="/attractions" element={<AttractionsPage />} />
-
-        {/* Trang ý kiến khách hàng */}
-        <Route path="/reviews" element={<CustomerReviewsPage />} />
-
-        {/* 2. THÊM DÒNG NÀY: Đăng ký hộ khẩu cho trang đăng nhập */}
-        <Route path="/login" element={<LoginPage />} />
-
-        {/* Trang đăng ký tài khoản */}
-        <Route path="/register" element={<RegisterPage />} />
-
-        {/* Trang quên mật khẩu */}
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-
-        {/* Trang thông tin cá nhân */}
-        <Route path="/profile" element={<UserProfile />} />
-        {/* Kết quả tìm kiếm phòng */}
-        <Route path="/rooms/search-results" element={<SearchResultsPage />} />
-        
-        {/* Màn hình Checkout / Thanh toán của Khách */}
-        <Route path="/booking/new" element={<GuestBookingPage />} />
-
-        {/* Toàn bộ các trang Admin của bạn sẽ được dời vào nhánh "/admin" */}
-        <Route path="/admin/*" element={<AdminRoutes />} />
+        {/* NHÁNH CHO ADMIN: Trả về Theme Sáng (Light Mode) như cũ */}
+        <Route path="/admin/*" element={
+          <ConfigProvider
+            theme={{
+              algorithm: theme.defaultAlgorithm, // Trả về theme cũ
+              token: {
+                borderRadius: 4,
+                // Bạn có thể tùy chỉnh lại màu primary của admin ở đây nếu cần
+              },
+            }}
+          >
+            <AntdApp>
+              <AdminRoutes />
+            </AntdApp>
+          </ConfigProvider>
+        } />
       </Routes>
     </BrowserRouter>
   );

@@ -223,4 +223,20 @@ public class BookingEngineController : ControllerBase
         return BadRequest(ex.Message);
     }
     }
+
+    [HttpPost("validate-voucher")]
+    public async Task<IActionResult> ValidateVoucher([FromBody] ValidateVoucherRequest request)
+    {
+        var (isSuccess, errorCode, voucher) = await _bookingService.ValidateVoucherAsync(request.Code, request.Subtotal);
+        if (!isSuccess)
+            return BadRequest(new { success = false, message = errorCode });
+
+        return Ok(new { success = true, data = voucher });
+    }
+}
+
+public class ValidateVoucherRequest
+{
+    public string Code { get; set; } = string.Empty;
+    public decimal Subtotal { get; set; }
 }

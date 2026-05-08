@@ -279,10 +279,10 @@ export default function RoomSearchWidget({ onClose }) {
 
   /* ── render ── */
   return (
-    <div style={{ width: 360, background: 'white', borderRadius: 4, overflow: 'visible', fontFamily: "'Inter', sans-serif", boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+    <div style={{ width: 420, background: 'white', borderRadius: 0, overflow: 'hidden', fontFamily: "'Inter', sans-serif" }}>
       {/* Header */}
-      <div style={{ background: DARK, padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h3 style={{ fontFamily: "'Playfair Display', serif", color: GOLD, fontSize: 18, margin: 0, letterSpacing: '.05em' }}>Tìm kiếm phòng</h3>
+      <div style={{ background: DARK, padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h3 style={{ fontFamily: "'Playfair Display', serif", color: GOLD, fontSize: 20, margin: 0, letterSpacing: '.05em' }}>Tìm kiếm phòng</h3>
         {onClose && (
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,.5)', fontSize: 18, lineHeight: 1, padding: 0, transition: 'color 150ms' }}
             onMouseEnter={e => e.target.style.color = 'white'} onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,.5)'}>✕</button>

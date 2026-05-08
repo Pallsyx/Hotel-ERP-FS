@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using HotelERP.BE.Models;
 
@@ -25,6 +25,9 @@ public partial class User
     public string? AvatarPublicId { get; set; }
 
     public int LoyaltyPoints { get; set; }
+    public string? Address { get; set; }
+    public DateTime? DateOfBirth { get; set; }
+    public int? LastBirthdayCouponYear { get; set; }
 
     public bool Status { get; set; }
 

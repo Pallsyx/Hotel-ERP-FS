@@ -103,6 +103,27 @@ namespace HotelERP.BE.Services.Bookings
             });
         }
 
+        public async Task<(bool IsSuccess, string ErrorCode, Domain.Models.Voucher? Voucher)> ValidateVoucherAsync(string voucherCode, decimal subtotal)
+        {
+            var normalizedCode = voucherCode?.Trim().ToUpperInvariant();
+            if (string.IsNullOrWhiteSpace(normalizedCode)) return (false, "VOUCHER_NOT_FOUND", null);
+
+            var voucher = await _context.Vouchers.FirstOrDefaultAsync(v => v.Code == normalizedCode);
+            if (voucher == null) return (false, "VOUCHER_NOT_FOUND", null);
+
+            var now = DateTime.UtcNow;
+            var usedCount = await GetUsedCountAsync(voucher.Id);
+            var status = ResolveVoucherStatus(voucher, usedCount, now);
+
+            if (status != "ACTIVE")
+                return (false, status, null); // Return the specific error code (NOT_STARTED, EXPIRED, etc.)
+
+            if (subtotal < voucher.MinBookingValue)
+                return (false, "MIN_BOOKING_NOT_MET", null);
+
+            return (true, string.Empty, voucher);
+        }
+
         private async Task<int> GetUsedCountAsync(int voucherId)
         {
             return await _context.Bookings.CountAsync(x => x.VoucherId == voucherId && x.Status != "Cancelled" && x.Status != "CancelledByAdmin" && x.Status != "Expired");
@@ -110,19 +131,22 @@ namespace HotelERP.BE.Services.Bookings
 
         private static string ResolveVoucherStatus(Domain.Models.Voucher voucher, int usedCount, DateTime now)
         {
-            if (voucher.ValidFrom.HasValue && voucher.ValidFrom.Value > now)
+            // Thêm "grace period" 12 giờ để tránh lệch múi giờ
+            var effectiveNow = now.AddHours(12); 
+
+            if (voucher.ValidFrom.HasValue && voucher.ValidFrom.Value > effectiveNow)
             {
-                return "INACTIVE";
+                return "VOUCHER_NOT_STARTED";
             }
 
             if (voucher.ValidTo.HasValue && voucher.ValidTo.Value < now)
             {
-                return "INACTIVE";
+                return "VOUCHER_EXPIRED";
             }
 
             if (voucher.UsageLimit.HasValue && usedCount >= voucher.UsageLimit.Value)
             {
-                return "INACTIVE";
+                return "VOUCHER_USAGE_LIMIT_EXCEEDED";
             }
 
             return "ACTIVE";

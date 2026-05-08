@@ -15,8 +15,6 @@ function formatDate(str) {
 const FALLBACK = 'https://images.unsplash.com/photo-1566073771259-6a8506099945?q=80&w=900&auto=format&fit=crop';
 
 /* ─── Shared Header ───────────────────────────────────────────── */
-function Header() {
-/* ─── Shared Navbar ───────────────────────────────────────── */
 export function LotteHeader({ activePage = '' }) {
   const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
@@ -111,50 +109,6 @@ function ArticleCard({ article, onClick, variant = 'default' }) {
           {article.categoryName && <span style={{ fontSize: 9, color: GOLD, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase' }}>{article.categoryName}</span>}
           <h4 style={{ ...SF, fontSize: 15, color: '#111', margin: '4px 0 6px', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{article.title}</h4>
           <span style={{ fontSize: 11, color: '#9ca3af' }}>{formatDate(article.publishedAt)}</span>
-    <footer style={{ background: '#0a0a0a', color: '#71717a', paddingTop: 64, paddingBottom: 32, borderTop: '1px solid rgba(255,255,255,0.06)', fontFamily: "'Inter', sans-serif" }}>
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 48, marginBottom: 48 }}>
-          {/* Brand */}
-          <div style={{ gridColumn: 'span 2' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-              <div style={{ width: 32, height: 32, border: '1px solid white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Playfair Display', serif", fontSize: 14, color: 'white' }}>A</div>
-              <span style={{ color: 'white', fontSize: 11, fontWeight: 600, letterSpacing: '0.2em', textTransform: 'uppercase' }}>Asteria Resort</span>
-            </div>
-            <p style={{ fontSize: 13, lineHeight: 1.8, color: '#71717a', maxWidth: 320, marginBottom: 20 }}>
-              Số 10, Huỳnh Văn Nghệ, phường Bửu Long, TP. Biên Hòa, tỉnh Đồng Nai
-            </p>
-            <p style={{ fontSize: 13, color: '#71717a' }}>📞 0987 244 924</p>
-          </div>
-
-          {/* Links */}
-          <div>
-            <h4 style={{ color: 'white', fontSize: 10, fontWeight: 700, letterSpacing: '0.25em', textTransform: 'uppercase', marginBottom: 20 }}>Liên Kết Nhanh</h4>
-            {[
-              { label: 'Trang Chủ', href: '/' },
-              { label: 'Giới Thiệu', href: '#' },
-              { label: 'Phòng Nghỉ', href: '#' },
-              { label: 'Tin Tức', href: '/news' },
-              { label: 'Ý kiến khách hàng', href: '/reviews' },
-              { label: 'Liên Hệ', href: '#' }
-            ].map(item => (
-              <div key={item.label} style={{ marginBottom: 12 }}>
-                <a href={item.href} style={{ color: '#71717a', fontSize: 13, textDecoration: 'none', transition: 'color 200ms' }}
-                  onMouseEnter={e => e.target.style.color = '#b8956a'}
-                  onMouseLeave={e => e.target.style.color = '#71717a'}>
-                  {item.label}
-                </a>
-              </div>
-            ))}
-          </div>
-
-          {/* Newsletter */}
-          <div>
-            <h4 style={{ color: 'white', fontSize: 10, fontWeight: 700, letterSpacing: '0.25em', textTransform: 'uppercase', marginBottom: 20 }}>Đăng Ký Bản Tin</h4>
-            <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.2)', paddingBottom: 8 }}>
-              <input type="email" placeholder="Email của bạn" style={{ background: 'transparent', border: 'none', outline: 'none', flex: 1, fontSize: 13, color: 'white' }} />
-              <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#b8956a', fontSize: 16 }}>→</button>
-            </div>
-          </div>
         </div>
       </div>
     );
@@ -225,7 +179,7 @@ export default function NewsPage() {
 
   return (
     <div style={{ background: '#fafafa', minHeight: '100vh', fontFamily: "'Inter', sans-serif" }}>
-      <Header />
+      <LotteHeader />
 
       {/* ── HERO BANNER ── */}
       <div style={{ position: 'relative', height: 400, background: DARK, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -373,35 +327,49 @@ export default function NewsPage() {
       </div>
 
       {/* ── FOOTER ── */}
-      <footer style={{ background: '#080808', color: '#52525b', paddingTop: 56, paddingBottom: 28, fontFamily: "'Inter', sans-serif" }}>
-        <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px' }}>
+      <footer style={{ background: '#0a0a0a', color: '#71717a', paddingTop: 64, paddingBottom: 32, borderTop: '1px solid rgba(255,255,255,0.06)', fontFamily: "'Inter', sans-serif" }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 48, marginBottom: 48 }}>
+            {/* Brand */}
             <div style={{ gridColumn: 'span 2' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-                <div style={{ width: 30, height: 30, border: '1px solid white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', ...SF, fontSize: 14, color: 'white' }}>A</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+                <div style={{ width: 32, height: 32, border: '1px solid white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Playfair Display', serif", fontSize: 14, color: 'white' }}>A</div>
                 <span style={{ color: 'white', fontSize: 11, fontWeight: 600, letterSpacing: '0.2em', textTransform: 'uppercase' }}>Asteria Resort</span>
               </div>
-              <p style={{ fontSize: 13, lineHeight: 1.8, color: '#71717a', maxWidth: 300, marginBottom: 12 }}>
+              <p style={{ fontSize: 13, lineHeight: 1.8, color: '#71717a', maxWidth: 320, marginBottom: 20 }}>
                 Số 10, Huỳnh Văn Nghệ, phường Bửu Long, TP. Biên Hòa, tỉnh Đồng Nai
               </p>
               <p style={{ fontSize: 13, color: '#71717a' }}>📞 0987 244 924</p>
             </div>
+
+            {/* Links */}
             <div>
-              <h4 style={{ color: 'white', fontSize: 10, fontWeight: 700, letterSpacing: '0.25em', textTransform: 'uppercase', marginBottom: 18 }}>Khám Phá</h4>
-              {['Trang Chủ', 'Phòng Nghỉ', 'Điểm Đến', 'Tin Tức', 'Liên Hệ'].map(item => (
-                <div key={item} style={{ marginBottom: 10 }}>
-                  <a href="#" style={{ color: '#71717a', fontSize: 13, textDecoration: 'none', transition: 'color 200ms' }}
-                    onMouseEnter={e => e.target.style.color = GOLD} onMouseLeave={e => e.target.style.color = '#71717a'}>{item}</a>
+              <h4 style={{ color: 'white', fontSize: 10, fontWeight: 700, letterSpacing: '0.25em', textTransform: 'uppercase', marginBottom: 20 }}>Liên Kết Nhanh</h4>
+              {[
+                { label: 'Trang Chủ', href: '/' },
+                { label: 'Giới Thiệu', href: '#' },
+                { label: 'Phòng Nghỉ', href: '#' },
+                { label: 'Tin Tức', href: '/news' },
+                { label: 'Ý kiến khách hàng', href: '/reviews' },
+                { label: 'Liên Hệ', href: '#' }
+              ].map(item => (
+                <div key={item.label} style={{ marginBottom: 12 }}>
+                  <a href={item.href} style={{ color: '#71717a', fontSize: 13, textDecoration: 'none', transition: 'color 200ms' }}
+                    onMouseEnter={e => e.target.style.color = GOLD}
+                    onMouseLeave={e => e.target.style.color = '#71717a'}>
+                    {item.label}
+                  </a>
                 </div>
               ))}
             </div>
-          </div>
-          <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 24, display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, fontSize: 11, color: '#52525b' }}>
-            <p>© 2026 ASTERIA RESORT. All rights reserved.</p>
-            <div style={{ display: 'flex', gap: 20 }}>
-              {['Chính sách bảo mật', 'Điều khoản sử dụng'].map(t => (
-                <a key={t} href="#" style={{ color: '#52525b', textDecoration: 'none' }}>{t}</a>
-              ))}
+
+            {/* Newsletter */}
+            <div>
+              <h4 style={{ color: 'white', fontSize: 10, fontWeight: 700, letterSpacing: '0.25em', textTransform: 'uppercase', marginBottom: 20 }}>Đăng Ký Bản Tin</h4>
+              <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.2)', paddingBottom: 8 }}>
+                <input type="email" placeholder="Email của bạn" style={{ background: 'transparent', border: 'none', outline: 'none', flex: 1, fontSize: 13, color: 'white' }} />
+                <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: GOLD, fontSize: 16 }}>→</button>
+              </div>
             </div>
           </div>
         </div>
