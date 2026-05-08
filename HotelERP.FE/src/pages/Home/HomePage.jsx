@@ -8,6 +8,7 @@ import articleApi from '../../api/articleApi';
 import attractionApi from '../../api/attractionApi';
 import axiosClient from '../../api/axiosClient';
 import RoomSearchWidget from '../../components/RoomSearch/RoomSearchWidget';
+import MainFooter from '../../components/Layout/MainFooter';
 
 const SLIDES = [
   { id: 1, img: 'https://images.unsplash.com/photo-1611892440504-42a792e24d32?q=80&w=2000', title: "Không gian nghỉ dưỡng đẳng cấp,\nhòa mình cùng thiên nhiên." },
@@ -260,11 +261,9 @@ export default function HomePage() {
                   {`NGHỈ DƯỠNG\nĐẲNG CẤP THẾ GIỚI`}
                 </h1>
                 <p style={{ fontSize: 16, color: 'rgba(255,255,255,.8)', lineHeight: 1.8, marginBottom: 48, maxWidth: 520 }}>
-                  Lotte Hotels & Resorts — nơi hội tụ tinh hoa ẩm thực, spa thư giãn và những trải nghiệm độc đáo dành riêng cho những vị khách tinh tế nhất.
+                  Asteria Resort — nơi hội tụ tinh hoa ẩm thực, spa thư giãn và những trải nghiệm độc đáo dành riêng cho những vị khách tinh tế nhất.
                 </p>
-                <button onClick={(e) => { e.stopPropagation(); nav('/attractions'); }} style={{ fontSize: 14, fontWeight: 600, color: 'white', background: 'none', border: 'none', borderBottom: '1px solid white', paddingBottom: 4, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8, transition: 'opacity 200ms' }} onMouseEnter={e => e.currentTarget.style.opacity = 0.7} onMouseLeave={e => e.currentTarget.style.opacity = 1}>
-                  Xem chi tiết <span style={{ fontSize: 16 }}>→</span>
-                </button>
+
               </div>
             </div>
           ))}
@@ -325,8 +324,7 @@ export default function HomePage() {
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button style={{ background: '#18181b', color: 'white', border: 'none', borderRadius: 999, padding: '8px 20px', fontSize: 13, cursor: 'pointer' }}>Nổi bật</button>
-                <button style={{ background: 'white', color: '#18181b', border: '1px solid #e4e4e7', borderRadius: 999, padding: '8px 20px', fontSize: 13, cursor: 'pointer', transition: 'background 200ms' }} onMouseEnter={e => e.target.style.background = '#f4f4f5'} onMouseLeave={e => e.target.style.background = 'white'}>Tất cả</button>
+                <button style={{ background: '#18181b', color: 'white', border: 'none', borderRadius: 999, padding: '8px 20px', fontSize: 13, cursor: 'default' }}>Nổi bật</button>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={() => document.getElementById('dest-slider').scrollBy({ left: -350, behavior: 'smooth' })} style={{ width: 40, height: 40, borderRadius: '50%', border: '1px solid #e4e4e7', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#18181b', transition: 'background 200ms' }} onMouseEnter={e => e.target.style.background = '#f4f4f5'} onMouseLeave={e => e.target.style.background = 'white'}>
@@ -345,48 +343,48 @@ export default function HomePage() {
           <div id="dest-slider" style={{ display: 'flex', gap: 24, overflowX: 'auto', scrollBehavior: 'smooth', paddingBottom: 24, scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
             <style>{`#dest-slider::-webkit-scrollbar { display: none; }`}</style>
             {attractions.length === 0 ? <p style={{ width: '100%', textAlign: 'center', color: '#71717a', fontSize: 14 }}>Đang tải...</p> : (attractions.length < 4 ? [...attractions, ...attractions, ...attractions] : attractions).map((a, i) => (
-              <div key={a.id + '-' + i} style={{ position: 'relative', flexShrink: 0, width: 320, height: 480, overflow: 'hidden', cursor: 'pointer', borderRadius: 4 }}
-                onMouseEnter={e => {
-                  e.currentTarget.querySelector('img').style.transform = 'scale(1.08)';
-                  e.currentTarget.querySelector('.overlay-bg').style.background = 'rgba(0,0,0,0.6)';
-                  e.currentTarget.querySelector('.hover-content').style.opacity = '1';
-                  e.currentTarget.querySelector('.hover-content').style.transform = 'translateY(0)';
-                  e.currentTarget.querySelector('.default-title').style.opacity = '0';
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.querySelector('img').style.transform = 'scale(1)';
-                  e.currentTarget.querySelector('.overlay-bg').style.background = 'linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 50%)';
-                  e.currentTarget.querySelector('.hover-content').style.opacity = '0';
-                  e.currentTarget.querySelector('.hover-content').style.transform = 'translateY(20px)';
-                  e.currentTarget.querySelector('.default-title').style.opacity = '1';
-                }}
-                onClick={() => nav('/attractions')}
-              >
-                <img src={a.imageUrl || 'https://images.unsplash.com/photo-1597435877854-c2cbfa9cc2c2?w=600'} alt={a.name} style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 700ms ease' }} />
-                <div className="overlay-bg" style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 50%)', transition: 'background 400ms ease' }} />
+                  <div key={a.id + '-' + i} style={{ position: 'relative', flexShrink: 0, width: 320, height: 480, overflow: 'hidden', cursor: 'pointer', borderRadius: 4 }}
+                    onMouseEnter={e => {
+                      e.currentTarget.querySelector('img').style.transform = 'scale(1.08)';
+                      e.currentTarget.querySelector('.overlay-bg').style.background = 'rgba(0,0,0,0.6)';
+                      e.currentTarget.querySelector('.hover-content').style.opacity = '1';
+                      e.currentTarget.querySelector('.hover-content').style.transform = 'translateY(0)';
+                      e.currentTarget.querySelector('.default-title').style.opacity = '0';
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.querySelector('img').style.transform = 'scale(1)';
+                      e.currentTarget.querySelector('.overlay-bg').style.background = 'linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 50%)';
+                      e.currentTarget.querySelector('.hover-content').style.opacity = '0';
+                      e.currentTarget.querySelector('.hover-content').style.transform = 'translateY(20px)';
+                      e.currentTarget.querySelector('.default-title').style.opacity = '1';
+                    }}
+                    onClick={() => nav('/attractions')}
+                  >
+                    <img src={a.imageUrl || 'https://images.unsplash.com/photo-1597435877854-c2cbfa9cc2c2?w=600'} alt={a.name} style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 700ms ease' }} />
+                    <div className="overlay-bg" style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 50%)', transition: 'background 400ms ease' }} />
 
-                {/* Default Title (bottom) */}
-                <div className="default-title" style={{ position: 'absolute', bottom: 32, left: 24, right: 24, transition: 'opacity 400ms ease' }}>
-                  <h3 style={{ color: 'white', fontSize: 20, fontWeight: 600, margin: 0, textShadow: '0 2px 10px rgba(0,0,0,0.3)' }}>{a.name}</h3>
-                </div>
+                    {/* Default Title (bottom) */}
+                    <div className="default-title" style={{ position: 'absolute', bottom: 32, left: 24, right: 24, transition: 'opacity 400ms ease' }}>
+                      <h3 style={{ color: 'white', fontSize: 20, fontWeight: 600, margin: 0, textShadow: '0 2px 10px rgba(0,0,0,0.3)' }}>{a.name}</h3>
+                    </div>
 
-                {/* Hover Content */}
-                <div className="hover-content" style={{ position: 'absolute', inset: 0, padding: 32, display: 'flex', flexDirection: 'column', justifyContent: 'center', opacity: 0, transform: 'translateY(20px)', transition: 'all 400ms ease' }}>
-                  <h3 style={{ color: 'white', fontSize: 22, fontWeight: 600, marginBottom: 24, textAlign: 'center' }}>{a.name}</h3>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center' }}>
-                    <button style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.5)', color: 'white', padding: '8px 16px', borderRadius: 999, fontSize: 11, textTransform: 'uppercase', letterSpacing: '1px', cursor: 'pointer', transition: 'background 200ms, border-color 200ms' }}
-                      onMouseEnter={e => { e.target.style.background = 'white'; e.target.style.color = '#18181b'; }}
-                      onMouseLeave={e => { e.target.style.background = 'transparent'; e.target.style.color = 'white'; }}>
-                      Xem chi tiết
-                    </button>
-                    <button style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.5)', color: 'white', padding: '8px 16px', borderRadius: 999, fontSize: 11, textTransform: 'uppercase', letterSpacing: '1px', cursor: 'pointer', transition: 'background 200ms, border-color 200ms' }}
-                      onMouseEnter={e => { e.target.style.background = 'white'; e.target.style.color = '#18181b'; }}
-                      onMouseLeave={e => { e.target.style.background = 'transparent'; e.target.style.color = 'white'; }}>
-                      Bản đồ
-                    </button>
+                    {/* Hover Content */}
+                    <div className="hover-content" style={{ position: 'absolute', inset: 0, padding: 32, display: 'flex', flexDirection: 'column', justifyContent: 'center', opacity: 0, transform: 'translateY(20px)', transition: 'all 400ms ease' }}>
+                      <h3 style={{ color: 'white', fontSize: 22, fontWeight: 600, marginBottom: 24, textAlign: 'center' }}>{a.name}</h3>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center' }}>
+                        <button style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.5)', color: 'white', padding: '8px 16px', borderRadius: 999, fontSize: 11, textTransform: 'uppercase', letterSpacing: '1px', cursor: 'pointer', transition: 'background 200ms, border-color 200ms' }}
+                          onMouseEnter={e => { e.target.style.background = 'white'; e.target.style.color = '#18181b'; }}
+                          onMouseLeave={e => { e.target.style.background = 'transparent'; e.target.style.color = 'white'; }}>
+                          Xem chi tiết
+                        </button>
+                        <button style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.5)', color: 'white', padding: '8px 16px', borderRadius: 999, fontSize: 11, textTransform: 'uppercase', letterSpacing: '1px', cursor: 'pointer', transition: 'background 200ms, border-color 200ms' }}
+                          onMouseEnter={e => { e.target.style.background = 'white'; e.target.style.color = '#18181b'; }}
+                          onMouseLeave={e => { e.target.style.background = 'transparent'; e.target.style.color = 'white'; }}>
+                          Bản đồ
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
             ))}
           </div>
         </div>
@@ -432,57 +430,7 @@ export default function HomePage() {
       </section>
 
       {/* FOOTER */}
-      <footer style={{ background: '#111111', color: 'rgba(255,255,255,0.7)', padding: '80px 24px 40px', fontFamily: "'Times New Roman', Times, serif", borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-          {/* Header Row */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 64, flexWrap: 'wrap', gap: 24 }}>
-            <h2 style={{ fontSize: 'clamp(24px,3vw,32px)', color: 'white', letterSpacing: '1px', margin: 0 }}>ASTERIA RESORT</h2>
-            <div style={{ display: 'flex', gap: 24 }}>
-            </div>
-          </div>
-
-          {/* Links Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 40, marginBottom: 64, borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: 64 }}>
-            <div>
-              <h4 style={{ color: 'white', fontSize: 15, letterSpacing: '1px', marginBottom: 24, textTransform: 'uppercase' }}>ĐIỂM ĐẾN</h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {['Về Asteria', 'Thương hiệu Asteria', 'Liên hệ chi nhánh', 'Ý kiến khách hàng'].map(t => (
-                  <a key={t} href="#" style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, textDecoration: 'none', transition: 'color 200ms' }} onMouseEnter={e => e.target.style.color = 'white'} onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.7)'}>{t}</a>
-                ))}
-              </div>
-            </div>
-            <div>
-              <h4 style={{ color: 'white', fontSize: 15, letterSpacing: '1px', marginBottom: 24, textTransform: 'uppercase' }}>CÔNG TY</h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {['Tập đoàn Asteria', 'Giới thiệu', 'Tuyển dụng', 'Phát triển', 'Học viện dịch vụ'].map(t => (
-                  <a key={t} href="#" style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, textDecoration: 'none', transition: 'color 200ms' }} onMouseEnter={e => e.target.style.color = 'white'} onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.7)'}>{t}</a>
-                ))}
-              </div>
-            </div>
-            <div>
-              <h4 style={{ color: 'white', fontSize: 15, letterSpacing: '1px', marginBottom: 24, textTransform: 'uppercase' }}>HOTLINE</h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <a href="#" style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, textDecoration: 'none', transition: 'color 200ms' }} onMouseEnter={e => e.target.style.color = 'white'} onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.7)'}>Hotline</a>
-              </div>
-            </div>
-            <div>
-              <h4 style={{ color: 'white', fontSize: 15, letterSpacing: '1px', marginBottom: 24, textTransform: 'uppercase' }}>ĐIỀU KHOẢN & CHÍNH SÁCH</h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {['Điều khoản khách sạn', 'Điều khoản dịch vụ'].map(t => (
-                  <a key={t} href="#" style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, textDecoration: 'none', transition: 'color 200ms' }} onMouseEnter={e => e.target.style.color = 'white'} onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.7)'}>{t}</a>
-                ))}
-              </div>
-            </div>
-            <div>
-              <h4 style={{ color: 'white', fontSize: 15, letterSpacing: '1px', marginBottom: 24, textTransform: 'uppercase' }}>LIÊN HỆ</h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14, color: 'rgba(255,255,255,0.7)', fontSize: 13, lineHeight: 1.8 }}>
-                <span>Số 10, Huỳnh Văn Nghệ, phường Bửu Long, TP. Biên Hòa, tỉnh Đồng Nai</span>
-                <div style={{ marginTop: 8, borderRadius: 4, overflow: 'hidden', height: 150 }}><AttractionMap isFooter={true} /></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <MainFooter />
 
       {/* ── MODAL OVERLAY ── */}
       {bookOpen && (

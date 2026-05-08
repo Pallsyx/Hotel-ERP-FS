@@ -25,8 +25,24 @@ public class ReviewController(HotelDbContext context, ICloudinaryService cloudin
     {
         // Chỉ lấy những bài đã được Admin duyệt
         var reviews = await context.Reviews
+            .Include(r => r.User)
+            .Include(r => r.RoomType)
             .Where(r => r.IsApproved == true && r.Status == "APPROVED")
             .OrderByDescending(r => r.CreatedAt)
+            .Select(r => new {
+                r.Id,
+                r.UserId,
+                r.RoomTypeId,
+                r.Rating,
+                r.Comment,
+                r.ImageUrl,
+                r.CreatedAt,
+                r.LikeCount,
+                r.Highlight,
+                r.ServiceQuality,
+                User = r.User != null ? new { FullName = r.User.FullName } : null,
+                RoomType = r.RoomType != null ? new { Name = r.RoomType.Name } : null
+            })
             .ToListAsync();
         return Ok(reviews);
     }
@@ -155,5 +171,19 @@ public class ReviewController(HotelDbContext context, ICloudinaryService cloudin
         context.Reviews.Remove(review);
         await context.SaveChangesAsync();
         return Ok(new { message = "Đã xóa vĩnh viễn đánh giá." });
+    }
+
+    // ==========================================
+    // 6. KHÁCH HÀNG LIKE ĐÁNH GIÁ
+    // ==========================================
+    [HttpPut("{id}/like")]
+    public async Task<IActionResult> LikeReview(int id)
+    {
+        var review = await context.Reviews.FirstOrDefaultAsync(r => r.Id == id);
+        if (review is null) return NotFound("Không tìm thấy đánh giá.");
+
+        review.LikeCount += 1;
+        await context.SaveChangesAsync();
+        return Ok(new { message = "Đã thích đánh giá.", likeCount = review.LikeCount });
     }
 }

@@ -67,7 +67,7 @@ namespace HotelERP.BE.Migrations
                     b.HasIndex(new[] { "Name" }, "UQ_Amenities_Name")
                         .IsUnique();
 
-                    b.ToTable("Amenities", (string)null);
+                    b.ToTable("Amenities");
                 });
 
             modelBuilder.Entity("HotelERP.BE.Domain.Models.Article", b =>
@@ -98,10 +98,14 @@ namespace HotelERP.BE.Migrations
                         .HasDefaultValueSql("(getdate())", "DF_Articles_CreatedAt");
 
                     b.Property<string>("MetaDescription")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("meta_description");
 
                     b.Property<string>("MetaTitle")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("meta_title");
 
                     b.Property<DateTime>("PublishedAt")
                         .ValueGeneratedOnAdd()
@@ -129,7 +133,8 @@ namespace HotelERP.BE.Migrations
                         .HasColumnName("summary");
 
                     b.Property<string>("Tags")
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("tags");
 
                     b.Property<string>("ThumbnailPublicId")
                         .HasMaxLength(255)
@@ -160,7 +165,7 @@ namespace HotelERP.BE.Migrations
                     b.HasIndex(new[] { "Slug" }, "UQ_Articles_Slug")
                         .IsUnique();
 
-                    b.ToTable("Articles", (string)null);
+                    b.ToTable("Articles");
                 });
 
             modelBuilder.Entity("HotelERP.BE.Domain.Models.ArticleCategory", b =>
@@ -273,63 +278,42 @@ namespace HotelERP.BE.Migrations
                     b.HasKey("Id")
                         .HasName("PK__Attracti__3213E83F6D39421C");
 
-                    b.ToTable("Attractions", (string)null);
+                    b.ToTable("Attractions");
                 });
 
             modelBuilder.Entity("HotelERP.BE.Domain.Models.AuditLog", b =>
                 {
-                    b.Property<int>("Id")
+                    b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
+                        .HasColumnType("bigint")
                         .HasColumnName("id");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
 
-                    b.Property<string>("Action")
+                    b.Property<string>("LogData")
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)")
-                        .HasColumnName("action");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("datetime")
-                        .HasColumnName("created_at")
-                        .HasDefaultValueSql("(getdate())", "DF_AuditLogs_CreatedAt");
-
-                    b.Property<string>("NewValue")
                         .HasColumnType("nvarchar(max)")
-                        .HasColumnName("new_value");
+                        .HasColumnName("log_data");
 
-                    b.Property<string>("OldValue")
-                        .HasColumnType("nvarchar(max)")
-                        .HasColumnName("old_value");
+                    b.Property<DateTime>("LogDate")
+                        .HasColumnType("date")
+                        .HasColumnName("log_date");
 
-                    b.Property<string>("Reason")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)")
-                        .HasColumnName("reason");
+                    b.Property<string>("RoleName")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("role_name");
 
-                    b.Property<int>("RecordId")
-                        .HasColumnType("int")
-                        .HasColumnName("record_id");
-
-                    b.Property<string>("TableName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)")
-                        .HasColumnName("table_name");
-
-                    b.Property<int?>("UserId")
+                    b.Property<int>("UserId")
                         .HasColumnType("int")
                         .HasColumnName("user_id");
 
                     b.HasKey("Id")
-                        .HasName("PK__Audit_Lo__3213E83FFBFD106E");
+                        .HasName("PK_Audit_Logs");
 
-                    b.HasIndex("UserId");
-
-                    b.HasIndex(new[] { "TableName", "RecordId", "CreatedAt" }, "IX_AuditLogs_Trace");
+                    b.HasIndex(new[] { "UserId", "RoleName", "LogDate" }, "UIX_Audit_Daily")
+                        .IsUnique()
+                        .HasFilter("[role_name] IS NOT NULL");
 
                     b.ToTable("Audit_Logs", (string)null);
                 });
@@ -366,7 +350,10 @@ namespace HotelERP.BE.Migrations
                         .HasDefaultValueSql("(getdate())", "DF_Bookings_CreatedAt");
 
                     b.Property<decimal>("DepositAmount")
-                        .HasColumnType("decimal(18,2)");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("decimal(18, 2)")
+                        .HasDefaultValue(0m)
+                        .HasColumnName("deposit_amount");
 
                     b.Property<decimal>("DiscountAmount")
                         .HasColumnType("decimal(18, 2)")
@@ -444,7 +431,7 @@ namespace HotelERP.BE.Migrations
                     b.HasIndex(new[] { "BookingCode" }, "UQ_Bookings_Code")
                         .IsUnique();
 
-                    b.ToTable("Bookings", (string)null);
+                    b.ToTable("Bookings");
                 });
 
             modelBuilder.Entity("HotelERP.BE.Domain.Models.BookingDetail", b =>
@@ -682,8 +669,7 @@ namespace HotelERP.BE.Migrations
                         .HasColumnName("manual_adjustment_amount");
 
                     b.Property<string>("Notes")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnType("nvarchar(max)")
                         .HasColumnName("notes");
 
                     b.Property<DateTime?>("PaidAt")
@@ -730,7 +716,7 @@ namespace HotelERP.BE.Migrations
                         .IsUnique()
                         .HasFilter("[invoice_code] IS NOT NULL");
 
-                    b.ToTable("Invoices", (string)null);
+                    b.ToTable("Invoices");
                 });
 
             modelBuilder.Entity("HotelERP.BE.Domain.Models.InvoiceBookingDetail", b =>
@@ -984,7 +970,7 @@ namespace HotelERP.BE.Migrations
                     b.HasIndex(new[] { "TierName" }, "UQ_Memberships_TierName")
                         .IsUnique();
 
-                    b.ToTable("Memberships", (string)null);
+                    b.ToTable("Memberships");
                 });
 
             modelBuilder.Entity("HotelERP.BE.Domain.Models.OrderService", b =>
@@ -1163,7 +1149,7 @@ namespace HotelERP.BE.Migrations
 
                     b.HasIndex("InvoiceId");
 
-                    b.ToTable("Payments", (string)null);
+                    b.ToTable("Payments");
                 });
 
             modelBuilder.Entity("HotelERP.BE.Domain.Models.Permission", b =>
@@ -1203,7 +1189,7 @@ namespace HotelERP.BE.Migrations
                     b.HasIndex(new[] { "Name" }, "UQ_Permissions_Name")
                         .IsUnique();
 
-                    b.ToTable("Permissions", (string)null);
+                    b.ToTable("Permissions");
                 });
 
             modelBuilder.Entity("HotelERP.BE.Domain.Models.RefreshToken", b =>
@@ -1275,6 +1261,11 @@ namespace HotelERP.BE.Migrations
                         .HasColumnName("created_at")
                         .HasDefaultValueSql("(getdate())", "DF_Reviews_CreatedAt");
 
+                    b.Property<string>("Highlight")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("highlight");
+
                     b.Property<string>("ImagePublicId")
                         .HasMaxLength(255)
                         .HasColumnType("nvarchar(255)")
@@ -1290,6 +1281,12 @@ namespace HotelERP.BE.Migrations
                         .HasColumnName("is_approved")
                         .HasDefaultValue(true, "DF_Reviews_IsApproved");
 
+                    b.Property<int>("LikeCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0)
+                        .HasColumnName("like_count");
+
                     b.Property<int>("Rating")
                         .HasColumnType("int")
                         .HasColumnName("rating");
@@ -1297,6 +1294,11 @@ namespace HotelERP.BE.Migrations
                     b.Property<int?>("RoomTypeId")
                         .HasColumnType("int")
                         .HasColumnName("room_type_id");
+
+                    b.Property<string>("ServiceQuality")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("service_quality");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -1321,7 +1323,7 @@ namespace HotelERP.BE.Migrations
 
                     b.HasIndex(new[] { "RoomTypeId", "IsApproved", "Status" }, "IX_Reviews_Moderation");
 
-                    b.ToTable("Reviews", (string)null);
+                    b.ToTable("Reviews");
                 });
 
             modelBuilder.Entity("HotelERP.BE.Domain.Models.Role", b =>
@@ -1368,7 +1370,7 @@ namespace HotelERP.BE.Migrations
                     b.HasIndex(new[] { "Name" }, "UQ_Roles_Name")
                         .IsUnique();
 
-                    b.ToTable("Roles", (string)null);
+                    b.ToTable("Roles");
                 });
 
             modelBuilder.Entity("HotelERP.BE.Domain.Models.RolePermission", b =>
@@ -1459,7 +1461,7 @@ namespace HotelERP.BE.Migrations
                     b.HasIndex(new[] { "RoomNumber" }, "UQ_Rooms_Number")
                         .IsUnique();
 
-                    b.ToTable("Rooms", (string)null);
+                    b.ToTable("Rooms");
                 });
 
             modelBuilder.Entity("HotelERP.BE.Domain.Models.RoomImage", b =>
@@ -1732,7 +1734,7 @@ namespace HotelERP.BE.Migrations
 
                     b.HasIndex("CategoryId");
 
-                    b.ToTable("Services", (string)null);
+                    b.ToTable("Services");
                 });
 
             modelBuilder.Entity("HotelERP.BE.Domain.Models.ServiceCategory", b =>
@@ -1856,7 +1858,7 @@ namespace HotelERP.BE.Migrations
                     b.HasIndex(new[] { "Email" }, "UQ_Users_Email")
                         .IsUnique();
 
-                    b.ToTable("Users", (string)null);
+                    b.ToTable("Users");
                 });
 
             modelBuilder.Entity("HotelERP.BE.Domain.Models.Voucher", b =>
@@ -1906,7 +1908,7 @@ namespace HotelERP.BE.Migrations
                     b.HasIndex(new[] { "Code" }, "UQ_Vouchers_Code")
                         .IsUnique();
 
-                    b.ToTable("Vouchers", (string)null);
+                    b.ToTable("Vouchers");
                 });
 
             modelBuilder.Entity("HotelERP.BE.Models.Notification", b =>
@@ -2001,6 +2003,8 @@ namespace HotelERP.BE.Migrations
                     b.HasOne("HotelERP.BE.Domain.Models.User", "User")
                         .WithMany("AuditLogs")
                         .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
                         .HasConstraintName("FK_AuditLogs_Users");
 
                     b.Navigation("User");

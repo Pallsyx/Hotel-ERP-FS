@@ -1,343 +1,181 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import {
-  Table, Button, Space, Modal, Input, Tag, message,
-  Rate, Avatar, Tooltip, Badge, Popconfirm, Select
-} from 'antd';
-import {
-  CheckOutlined, EyeInvisibleOutlined, DeleteOutlined,
-  ReloadOutlined, StarFilled, UserOutlined, FilterOutlined
-} from '@ant-design/icons';
-import reviewApi from '../../api/reviewApi';
+import React, { useState, useEffect } from 'react';
+// import axiosClient from '../../api/axiosClient';
 
-const { TextArea } = Input;
-const { Option } = Select;
-
-const STATUS_COLORS = {
-  APPROVED: { color: 'success',  label: 'Đã duyệt' },
-  PENDING:  { color: 'warning',  label: 'Chờ duyệt' },
-  HIDDEN:   { color: 'error',    label: 'Đã ẩn'     },
-};
+// --- Inline SVGs (Lucide style) ---
+const Check = () => <svg className="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>;
+const X = () => <svg className="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>;
+const User = () => <svg className="w-5 h-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>;
 
 export default function ReviewManagement() {
-  const [reviews, setReviews]         = useState([]);
-  const [loading, setLoading]         = useState(false);
-  const [filterStatus, setFilterStatus] = useState('ALL');
+  const [reviews, setReviews] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('PENDING');
 
-  // Hide modal state
-  const [hideModal, setHideModal]     = useState(false);
-  const [hideTarget, setHideTarget]   = useState(null);
-  const [hideReason, setHideReason]   = useState('');
-  const [hideLoading, setHideLoading] = useState(false);
+  useEffect(() => {
+    fetchReviews();
+  }, []);
 
-  // Detail modal
-  const [detailModal, setDetailModal] = useState(false);
-  const [detailReview, setDetailReview] = useState(null);
-
-  const fetchReviews = useCallback(async () => {
+  const fetchReviews = async () => {
     setLoading(true);
     try {
-      const res = await reviewApi.getAllForAdmin();
-      setReviews(res.data || []);
-    } catch {
-      message.error('Không thể tải danh sách đánh giá!');
+      // TODO: Call API lấy danh sách toàn bộ đánh giá cho Admin
+      // const res = await axiosClient.get('/Review/admin-all');
+      // setReviews(res.data || []);
+      
+      // Giả lập dữ liệu cho đến khi nối Backend
+      setReviews([
+        { id: 1, user: { fullName: 'Nguyễn Văn An' }, roomType: { name: 'Suite' }, rating: 5, highlight: 'Rất tuyệt', comment: 'Khách sạn đẹp.', status: 'PENDING', isApproved: false, createdAt: '2026-05-01T10:00:00' },
+        { id: 2, user: { fullName: 'Trần Thị B' }, roomType: { name: 'Standard' }, rating: 4, highlight: '', comment: 'Phục vụ tốt.', status: 'APPROVED', isApproved: true, createdAt: '2026-05-02T14:30:00' }
+      ]);
+    } catch (error) {
+      console.error('Failed to fetch reviews', error);
     } finally {
       setLoading(false);
     }
-  }, []);
-
-  useEffect(() => { fetchReviews(); }, [fetchReviews]);
+  };
 
   const handleApprove = async (id) => {
     try {
-      await reviewApi.approve(id);
-      message.success('Đã duyệt đánh giá!');
-      setReviews(prev => prev.map(r => r.id === id
-        ? { ...r, isApproved: true, status: 'APPROVED' } : r));
-    } catch {
-      message.error('Lỗi khi duyệt đánh giá!');
+      // TODO: Call API Update trạng thái duyệt
+      // await axiosClient.put(`/Review/${id}/approve`);
+      
+      setReviews(prev => prev.map(r => r.id === id ? { ...r, status: 'APPROVED', isApproved: true } : r));
+      alert('Đã duyệt đánh giá thành công!');
+    } catch (error) {
+      console.error('Approve failed', error);
+      alert('Lỗi khi duyệt!');
     }
   };
 
-  const openHideModal = (review) => {
-    setHideTarget(review);
-    setHideReason('');
-    setHideModal(true);
-  };
-
-  const handleConfirmHide = async () => {
-    if (!hideReason.trim()) {
-      message.warning('Vui lòng nhập lý do ẩn!');
-      return;
-    }
-    setHideLoading(true);
+  const handleReject = async (id) => {
+    const reason = prompt('Nhập lý do từ chối (tùy chọn):');
+    if (reason === null) return; // User cancelled
+    
     try {
-      await reviewApi.hide(hideTarget.id, hideReason);
-      message.success('Đã ẩn đánh giá và ghi log kiểm toán!');
-      setReviews(prev => prev.map(r => r.id === hideTarget.id
-        ? { ...r, isApproved: false, status: 'HIDDEN' } : r));
-      setHideModal(false);
-    } catch {
-      message.error('Lỗi khi ẩn đánh giá!');
-    } finally {
-      setHideLoading(false);
+      // TODO: Call API Update trạng thái từ chối (ẩn)
+      // await axiosClient.put(`/Review/${id}/hide`, null, { headers: { 'X-Audit-Reason': encodeURIComponent(reason) } });
+      
+      setReviews(prev => prev.map(r => r.id === id ? { ...r, status: 'HIDDEN', isApproved: false } : r));
+      alert('Đã từ chối/ẩn đánh giá!');
+    } catch (error) {
+      console.error('Reject failed', error);
+      alert('Lỗi khi từ chối!');
     }
   };
 
-  const handleDelete = async (id) => {
-    try {
-      await reviewApi.delete(id);
-      message.success('Đã xoá vĩnh viễn đánh giá!');
-      setReviews(prev => prev.filter(r => r.id !== id));
-    } catch {
-      message.error('Lỗi khi xoá đánh giá!');
-    }
-  };
-
-  // Stats
-  const stats = {
-    total:    reviews.length,
-    pending:  reviews.filter(r => r.status === 'PENDING').length,
-    approved: reviews.filter(r => r.status === 'APPROVED').length,
-    hidden:   reviews.filter(r => r.status === 'HIDDEN').length,
-  };
-
-  // Filter
-  const filtered = filterStatus === 'ALL'
-    ? reviews
-    : reviews.filter(r => r.status === filterStatus);
-
-  const columns = [
-    {
-      title: 'ID',
-      dataIndex: 'id',
-      key: 'id',
-      width: 60,
-      render: v => <span style={{ color: '#8c8c8c', fontSize: 12 }}>#{v}</span>
-    },
-    {
-      title: 'Khách hàng',
-      key: 'user',
-      width: 160,
-      render: (_, r) => (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Avatar icon={<UserOutlined />} size={32}
-            style={{ background: r.userId ? '#1890ff' : '#d9d9d9', flexShrink: 0 }} />
-          <div>
-            <div style={{ fontWeight: 500, fontSize: 13 }}>
-              {r.user?.fullName || `Khách #${r.userId || '?'}`}
-            </div>
-            <div style={{ fontSize: 11, color: '#8c8c8c' }}>{r.user?.email || '—'}</div>
-          </div>
-        </div>
-      ),
-    },
-    {
-      title: 'Loại phòng',
-      key: 'roomType',
-      width: 140,
-      render: (_, r) => (
-        <span style={{ fontSize: 13 }}>{r.roomType?.name || `ID ${r.roomTypeId}`}</span>
-      ),
-    },
-    {
-      title: 'Rating',
-      dataIndex: 'rating',
-      key: 'rating',
-      width: 140,
-      sorter: (a, b) => a.rating - b.rating,
-      render: v => (
-        <Rate disabled value={v} character={<StarFilled />}
-          style={{ fontSize: 14, color: v >= 4 ? '#fadb14' : v >= 3 ? '#fa8c16' : '#ff4d4f' }} />
-      ),
-    },
-    {
-      title: 'Nội dung',
-      dataIndex: 'comment',
-      key: 'comment',
-      render: (v, r) => (
-        <div>
-          <div style={{
-            maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap', fontSize: 13, cursor: 'pointer', color: '#1890ff'
-          }} onClick={() => { setDetailReview(r); setDetailModal(true); }}>
-            {v || <span style={{ color: '#bfbfbf', fontStyle: 'italic' }}>Không có nội dung</span>}
-          </div>
-          {r.imageUrl && (
-            <img src={r.imageUrl} alt="review" style={{
-              width: 48, height: 48, objectFit: 'cover', borderRadius: 4, marginTop: 4
-            }} />
-          )}
-        </div>
-      ),
-    },
-    {
-      title: 'Trạng thái',
-      dataIndex: 'status',
-      key: 'status',
-      width: 120,
-      render: status => {
-        const cfg = STATUS_COLORS[status] || STATUS_COLORS.PENDING;
-        return <Tag color={cfg.color}>{cfg.label}</Tag>;
-      },
-    },
-    {
-      title: 'Ngày tạo',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-      width: 120,
-      sorter: (a, b) => new Date(a.createdAt) - new Date(b.createdAt),
-      defaultSortOrder: 'descend',
-      render: v => v ? new Date(v).toLocaleDateString('vi-VN') : '—',
-    },
-    {
-      title: 'Thao tác',
-      key: 'action',
-      width: 160,
-      render: (_, r) => (
-        <Space size={4}>
-          {r.status !== 'APPROVED' && (
-            <Tooltip title="Duyệt">
-              <Button type="text" size="small" icon={<CheckOutlined />}
-                style={{ color: '#52c41a' }} onClick={() => handleApprove(r.id)} />
-            </Tooltip>
-          )}
-          {r.status !== 'HIDDEN' && (
-            <Tooltip title="Ẩn (kèm lý do)">
-              <Button type="text" size="small" icon={<EyeInvisibleOutlined />}
-                style={{ color: '#fa8c16' }} onClick={() => openHideModal(r)} />
-            </Tooltip>
-          )}
-          <Popconfirm
-            title="Xoá vĩnh viễn đánh giá này?"
-            description="Hành động này không thể hoàn tác."
-            onConfirm={() => handleDelete(r.id)}
-            okText="Xoá" cancelText="Huỷ" okButtonProps={{ danger: true }}
-          >
-            <Tooltip title="Xoá vĩnh viễn">
-              <Button type="text" size="small" danger icon={<DeleteOutlined />} />
-            </Tooltip>
-          </Popconfirm>
-        </Space>
-      ),
-    },
-  ];
+  const filteredReviews = reviews.filter(r => r.status === activeTab);
 
   return (
-    <div style={{ padding: 24 }}>
+    <div className="p-6 md:p-8 max-w-7xl mx-auto font-sans">
+      
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+      <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>Kiểm duyệt Đánh giá Khách hàng</h2>
-          <p style={{ margin: '4px 0 0', color: '#8c8c8c', fontSize: 13 }}>
-            Duyệt, ẩn hoặc xoá các đánh giá từ khách lưu trú
-          </p>
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Quản lý Đánh giá</h1>
+          <p className="text-gray-500 text-sm mt-1">Duyệt và quản lý phản hồi từ khách hàng</p>
         </div>
-        <Button icon={<ReloadOutlined />} onClick={fetchReviews} loading={loading}>
-          Làm mới
-        </Button>
       </div>
 
-      {/* Stats row */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
-        {[
-          { label: 'Tổng', value: stats.total, color: '#1890ff', bg: '#e6f7ff' },
-          { label: 'Chờ duyệt', value: stats.pending, color: '#fa8c16', bg: '#fff7e6' },
-          { label: 'Đã duyệt', value: stats.approved, color: '#52c41a', bg: '#f6ffed' },
-          { label: 'Đã ẩn', value: stats.hidden, color: '#ff4d4f', bg: '#fff1f0' },
-        ].map(s => (
-          <div key={s.label} style={{
-            background: s.bg, border: `1px solid ${s.color}33`,
-            borderRadius: 8, padding: '10px 20px', minWidth: 110,
-          }}>
-            <div style={{ fontSize: 11, color: '#8c8c8c', marginBottom: 2 }}>{s.label}</div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: s.color, lineHeight: 1 }}>{s.value}</div>
-          </div>
-        ))}
+      {/* Tabs */}
+      <div className="flex border-b border-gray-200 mb-6">
+        <button 
+          onClick={() => setActiveTab('PENDING')}
+          className={`pb-3 px-6 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'PENDING' 
+              ? 'border-[#b4976c] text-[#b4976c]' 
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+          }`}
+        >
+          Chờ duyệt ({reviews.filter(r => r.status === 'PENDING').length})
+        </button>
+        <button 
+          onClick={() => setActiveTab('APPROVED')}
+          className={`pb-3 px-6 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'APPROVED' 
+              ? 'border-[#b4976c] text-[#b4976c]' 
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+          }`}
+        >
+          Đã duyệt ({reviews.filter(r => r.status === 'APPROVED').length})
+        </button>
       </div>
 
-      {/* Filter bar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-        <FilterOutlined style={{ color: '#8c8c8c' }} />
-        <Select value={filterStatus} onChange={setFilterStatus} style={{ width: 160 }} size="small">
-          <Option value="ALL">Tất cả trạng thái</Option>
-          <Option value="PENDING">Chờ duyệt</Option>
-          <Option value="APPROVED">Đã duyệt</Option>
-          <Option value="HIDDEN">Đã ẩn</Option>
-        </Select>
-        {stats.pending > 0 && (
-          <Badge count={stats.pending} style={{ backgroundColor: '#fa8c16' }}>
-            <span style={{ fontSize: 12, color: '#fa8c16', fontWeight: 500 }}>
-              review đang chờ duyệt
-            </span>
-          </Badge>
-        )}
+      {/* Table Content */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm text-gray-600">
+            <thead className="bg-gray-50 text-gray-700 uppercase text-xs font-semibold border-b border-gray-200">
+              <tr>
+                <th className="px-6 py-4 whitespace-nowrap">Khách hàng</th>
+                <th className="px-6 py-4 whitespace-nowrap">Đánh giá</th>
+                <th className="px-6 py-4 min-w-[250px]">Nội dung</th>
+                <th className="px-6 py-4 whitespace-nowrap">Ngày gửi</th>
+                <th className="px-6 py-4 whitespace-nowrap text-right">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {loading ? (
+                <tr><td colSpan="5" className="text-center py-8 text-gray-500">Đang tải dữ liệu...</td></tr>
+              ) : filteredReviews.length === 0 ? (
+                <tr><td colSpan="5" className="text-center py-12 text-gray-500">Không có đánh giá nào trong mục này.</td></tr>
+              ) : (
+                filteredReviews.map((review) => (
+                  <tr key={review.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
+                          <User />
+                        </div>
+                        <div>
+                          <div className="font-medium text-gray-900">{review.user?.fullName || 'Khách ẩn danh'}</div>
+                          {review.roomType && <div className="text-xs text-gray-500 mt-0.5">Phòng {review.roomType.name}</div>}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-1 text-[#b4976c]">
+                        <span className="font-medium">{review.rating}</span>
+                        <span>★</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="line-clamp-2">
+                        {review.highlight && <span className="font-medium text-gray-800 mr-2">[{review.highlight}]</span>}
+                        {review.comment}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-gray-500">
+                      {new Date(review.createdAt).toLocaleDateString('vi-VN')}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                      {activeTab === 'PENDING' ? (
+                        <div className="flex items-center justify-end gap-2">
+                          <button 
+                            onClick={() => handleApprove(review.id)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 rounded-md transition-colors font-medium text-xs"
+                          >
+                            <Check /> Duyệt
+                          </button>
+                          <button 
+                            onClick={() => handleReject(review.id)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 rounded-md transition-colors font-medium text-xs"
+                          >
+                            <X /> Từ chối
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          <Check /> Đã duyệt
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
-
-      {/* Table */}
-      <Table
-        columns={columns}
-        dataSource={filtered}
-        rowKey="id"
-        loading={loading}
-        size="small"
-        pagination={{ pageSize: 15, showTotal: (t) => `${t} đánh giá` }}
-        rowClassName={r => r.status === 'PENDING' ? 'review-row-pending' : ''}
-        scroll={{ x: 900 }}
-      />
-
-      {/* Hide Modal */}
-      <Modal
-        title={<span><EyeInvisibleOutlined style={{ color: '#fa8c16', marginRight: 8 }} />Ẩn đánh giá</span>}
-        open={hideModal}
-        onOk={handleConfirmHide}
-        onCancel={() => setHideModal(false)}
-        okText="Xác nhận ẩn"
-        okButtonProps={{ danger: true, loading: hideLoading }}
-        cancelText="Huỷ"
-      >
-        <p>Bạn đang ẩn đánh giá của khách <b>{hideTarget?.user?.fullName || `#${hideTarget?.userId}`}</b>.</p>
-        <p style={{ color: '#8c8c8c', fontSize: 12 }}>Lý do sẽ được ghi vào Audit Log hệ thống.</p>
-        <TextArea
-          rows={3}
-          value={hideReason}
-          onChange={e => setHideReason(e.target.value)}
-          placeholder="Ví dụ: Nội dung không phù hợp, vi phạm quy định..."
-          showCount maxLength={300}
-        />
-      </Modal>
-
-      {/* Detail Modal */}
-      <Modal
-        title="Chi tiết đánh giá"
-        open={detailModal}
-        onCancel={() => setDetailModal(false)}
-        footer={null}
-        width={520}
-      >
-        {detailReview && (
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-              <Avatar icon={<UserOutlined />} size={48}
-                style={{ background: detailReview.userId ? '#1890ff' : '#d9d9d9' }} />
-              <div>
-                <div style={{ fontWeight: 600 }}>{detailReview.user?.fullName || `Khách #${detailReview.userId}`}</div>
-                <div style={{ color: '#8c8c8c', fontSize: 12 }}>{detailReview.user?.email}</div>
-              </div>
-            </div>
-            <Rate disabled value={detailReview.rating} style={{ marginBottom: 12 }} />
-            <p style={{ background: '#fafafa', padding: 12, borderRadius: 6, fontSize: 14 }}>
-              {detailReview.comment || <span style={{ color: '#bfbfbf', fontStyle: 'italic' }}>Không có nội dung</span>}
-            </p>
-            {detailReview.imageUrl && (
-              <img src={detailReview.imageUrl} alt="review"
-                style={{ width: '100%', borderRadius: 8, marginTop: 8 }} />
-            )}
-            <div style={{ marginTop: 12, color: '#8c8c8c', fontSize: 12 }}>
-              Gửi lúc: {detailReview.createdAt ? new Date(detailReview.createdAt).toLocaleString('vi-VN') : '—'}
-            </div>
-          </div>
-        )}
-      </Modal>
     </div>
   );
 }

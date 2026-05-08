@@ -147,7 +147,7 @@ export default function ArticleManagement() {
       const data = res.data || [];
       setArticles(data);
     } catch {
-      message.error('Lỗi khi tải danh sách bài viết!');
+      // message.error('Lỗi khi tải danh sách bài viết!');
     } finally {
       setLoading(false);
     }

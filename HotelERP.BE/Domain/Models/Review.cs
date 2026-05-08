@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace HotelERP.BE.Domain.Models;
@@ -18,6 +18,12 @@ public partial class Review
     public string? ImageUrl { get; set; }
 
     public string? ImagePublicId { get; set; }
+
+    public int LikeCount { get; set; }
+
+    public string? Highlight { get; set; }
+
+    public string? ServiceQuality { get; set; }
 
     public bool IsApproved { get; set; }
 

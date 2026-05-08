@@ -256,18 +256,15 @@ export default function AttractionsPage() {
                   </p>
                 )}
               </div>
-              {selectedAttraction && (
-                <Select value={travelMode} onChange={setTravelMode} style={{ width: 120 }} size="small"
-                  options={[{ value: 'DRIVING', label: '🚗 Ô tô' }, { value: 'TWO_WHEELER', label: '🛵 Xe máy' }, { value: 'WALKING', label: '🚶 Đi bộ' }]} />
-              )}
+
             </div>
 
             {/* Map */}
             <div style={{ flex: 1, position: 'relative' }}>
               {useMapFallback ? (
-                // Fallback: Google Maps Iframe (không cần API key)
+                // Fallback: OpenStreetMap Iframe with dynamic marker
                 <iframe
-                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d15668.790518386828!2d106.79093836373703!3d10.948386121980646!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3174d9e03d40cb93%3A0xe5560b4de0c92ec9!2zVHLGsOG7nW5nIMSR4bqhaSBo4buNYyBM4bqhYyBI4buTbmc!5e0!3m2!1svi!2s!4v1714000000000!5m2!1svi!2s"
+                  src={`https://www.openstreetmap.org/export/embed.html?bbox=${(selectedAttraction ? Number(selectedAttraction.longitude) : hotelLocation.lng) - 0.005}%2C${(selectedAttraction ? Number(selectedAttraction.latitude) : hotelLocation.lat) - 0.005}%2C${(selectedAttraction ? Number(selectedAttraction.longitude) : hotelLocation.lng) + 0.005}%2C${(selectedAttraction ? Number(selectedAttraction.latitude) : hotelLocation.lat) + 0.005}&layer=mapnik&marker=${selectedAttraction ? Number(selectedAttraction.latitude) : hotelLocation.lat}%2C${selectedAttraction ? Number(selectedAttraction.longitude) : hotelLocation.lng}`}
                   width="100%"
                   height="100%"
                   style={{ border: 0, display: 'block' }}

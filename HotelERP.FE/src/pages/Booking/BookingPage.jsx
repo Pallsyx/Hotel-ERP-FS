@@ -876,15 +876,14 @@ const BookingDetail = () => {
     }
   };
 
-  const renderRooms =
-    booking.originalRooms && booking.originalRooms.length > 0
-      ? booking.originalRooms
-      : [
-          { id: 1, typeName: 'Phòng tiêu chuẩn 1 giường đơn', roomNum: 'P.102', checkIn: '04/04/2026 14:00', checkOut: '06/04/2026 12:00', price: 400000, status: booking.status || 'Chờ xử lý' },
-          { id: 2, typeName: 'Phòng tiêu chuẩn 1 giường đơn', roomNum: 'P.103', checkIn: '04/04/2026 14:00', checkOut: '06/04/2026 12:00', price: 400000, status: booking.status || 'Chờ xử lý' },
-          { id: 3, typeName: 'Phòng tiêu chuẩn 1 giường đơn', roomNum: 'P.104', checkIn: '04/04/2026 14:00', checkOut: '06/04/2026 12:00', price: 400000, status: booking.status || 'Chờ xử lý' },
-        ];
-
+  // Load danh sách phòng thật sự đã đặt (ưu tiên từ dữ liệu giả vừa lưu, nếu không có thì fallback)
+  const renderRooms = booking.originalRooms && booking.originalRooms.length > 0 ? booking.originalRooms : [
+    { id: 1, typeName: 'Phòng tiêu chuẩn 1 giường đơn', roomNum: 'P.102', checkIn: '04/04/2026 14:00', checkOut: '06/04/2026 12:00', price: 400000, status: booking.status || 'Chờ xử lý' },
+    { id: 2, typeName: 'Phòng tiêu chuẩn 1 giường đơn', roomNum: 'P.103', checkIn: '04/04/2026 14:00', checkOut: '06/04/2026 12:00', price: 400000, status: booking.status || 'Chờ xử lý' },
+    { id: 3, typeName: 'Phòng tiêu chuẩn 1 giường đơn', roomNum: 'P.104', checkIn: '04/04/2026 14:00', checkOut: '06/04/2026 12:00', price: 400000, status: booking.status || 'Chờ xử lý' }
+  ];
+  
+  // Format tổng tiền liên kết với booking
   const displayTotal = booking.totalAmount ? booking.totalAmount.toLocaleString() : '2.400.000';
 
   return (
@@ -934,7 +933,7 @@ const BookingDetail = () => {
               <div><Text type="secondary" style={{ width: 150, display: 'inline-block' }}>Giảm giá:</Text> <Text type="danger">-{booking.discountAmount?.toLocaleString()} đ</Text></div>
               <div><Text type="secondary" style={{ width: 150, display: 'inline-block' }}>Đã đặt cọc:</Text> <Text style={{ color: '#52c41a' }}>+{(booking.deposit || 0).toLocaleString()} đ</Text></div>
               <div style={{ marginTop: 8 }}><Text type="secondary" style={{ width: 150, display: 'inline-block', fontSize: 16 }}>Tổng tiền (Dự kiến):</Text> <Text strong style={{ fontSize: 18, color: '#1890ff' }}>{displayTotal} đ</Text></div>
-              <div style={{ marginTop: 4 }}><Text type="secondary" style={{ width: 150, display: 'inline-block', fontSize: 16 }}>Còn lại cần thanh toán:</Text> <Text strong type="danger" style={{ fontSize: 16 }}>{((booking.totalAmount || 2400000) - (booking.deposit || 0)).toLocaleString()} đ</Text></div>
+              <div style={{ marginTop: 4 }}><Text type="secondary" style={{ width: 150, display: 'inline-block', fontSize: 16 }}>Còn lại cần thanh toán:</Text> <Text strong type="danger" style={{ fontSize: 16 }}>{((booking.totalAmount || 0) - (booking.deposit || 0)).toLocaleString()} đ</Text></div>
             </div>
           </Card>
         </Col>
