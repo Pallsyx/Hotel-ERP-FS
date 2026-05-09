@@ -133,7 +133,11 @@ export default function UserProfile() {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const tab = params.get('tab');
-    if (tab) setActiveTab(tab);
+    if (tab) {
+      setActiveTab(tab);
+    } else {
+      setActiveTab('profile');
+    }
   }, [location.search]);
 
   useEffect(() => {
@@ -274,7 +278,14 @@ export default function UserProfile() {
           { id: 'bookings', label: 'Lịch Sử Đặt Phòng' },
           { id: 'vouchers', label: 'Phiếu Giảm Giá' }
         ].map(tab => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
+          <button key={tab.id} onClick={() => {
+            setActiveTab(tab.id);
+            if (tab.id === 'profile') {
+              navigate('/profile', { replace: true });
+            } else {
+              navigate(`/profile?tab=${tab.id}`, { replace: true });
+            }
+          }} style={{
             background: 'none', border: 'none', padding: '0 0 16px', cursor: 'pointer',
             color: activeTab === tab.id ? G : theme.subText,
             fontSize: 11, fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase',

@@ -36,7 +36,7 @@ public class AuthService : IAuthService
                 .ThenInclude(rp => rp.Permission) // Lấy tận cùng tên quyền hạn của Role
         .Include(u => u.UserPermissions)
             .ThenInclude(up => up.Permission)     // Lấy thêm quyền ngoại lệ của cá nhân
-        .FirstOrDefaultAsync(u => u.Email == request.Email && u.Status == true);
+        .FirstOrDefaultAsync(u => (u.Email == request.Username || u.Phone == request.Username) && u.Status == true);
 
     if (user == null)
         throw new Exception("Email hoặc mật khẩu không chính xác.");

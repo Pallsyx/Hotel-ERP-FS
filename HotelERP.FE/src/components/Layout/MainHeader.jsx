@@ -165,10 +165,10 @@ export default function MainHeader({ transparent = true }) {
         {/* Top Row */}
         <div style={{ 
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', 
-          height: (scrolled && transparent) ? 0 : 64, 
-          opacity: (scrolled && transparent) ? 0 : 1, 
+          height: scrolled ? 0 : 64, 
+          opacity: scrolled ? 0 : 1, 
           overflow: 'hidden', 
-          borderBottom: (scrolled && transparent) ? 'none' : '1px solid rgba(255,255,255,0.1)', 
+          borderBottom: scrolled ? 'none' : '1px solid rgba(255,255,255,0.1)', 
           padding: '0 clamp(24px,5vw,80px)', 
           transition: 'height 300ms ease, opacity 300ms ease, border-bottom 300ms ease' 
         }}>
@@ -236,7 +236,7 @@ export default function MainHeader({ transparent = true }) {
 
         {/* Bottom Row */}
         <div style={{ display: 'flex', alignItems: 'center', height: 60, position: 'relative', padding: '0 clamp(40px,8vw,160px)' }}>
-          <div style={{ position: 'absolute', left: 'clamp(40px,8vw,160px)', opacity: (scrolled || !transparent) ? 1 : 0, pointerEvents: (scrolled || !transparent) ? 'auto' : 'none', transition: 'opacity 300ms ease', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }} onClick={() => navigate('/')}>
+          <div style={{ position: 'absolute', left: 'clamp(40px,8vw,160px)', opacity: scrolled ? 1 : 0, pointerEvents: scrolled ? 'auto' : 'none', transition: 'opacity 300ms ease', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }} onClick={() => navigate('/')}>
             <div style={{ width: 24, height: 24, border: '1px solid white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', ...SF, fontSize: 11, color: 'white' }}>A</div>
           </div>
           <nav style={{ display: 'flex', gap: 48, width: '100%', justifyContent: 'center' }}>
@@ -271,7 +271,7 @@ export default function MainHeader({ transparent = true }) {
               );
             })}
           </nav>
-          <div style={{ position: 'absolute', right: 'clamp(40px,8vw,160px)', opacity: (scrolled || !transparent) ? 1 : 0, pointerEvents: (scrolled || !transparent) ? 'auto' : 'none', transition: 'opacity 300ms ease' }}>
+          <div style={{ position: 'absolute', right: 'clamp(40px,8vw,160px)', opacity: scrolled ? 1 : 0, pointerEvents: scrolled ? 'auto' : 'none', transition: 'opacity 300ms ease' }}>
             {AuthBlock}
           </div>
         </div>

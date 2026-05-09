@@ -28,7 +28,7 @@ export default function Login() {
   const loginStore = useAuthStore(s => s.login);
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -44,10 +44,10 @@ export default function Login() {
 
   const onSubmit = async (e) => {
     e.preventDefault();
-    if (!email || !password) { message.warning('Vui lòng điền đầy đủ thông tin!'); return; }
+    if (!username || !password) { message.warning('Vui lòng điền đầy đủ thông tin!'); return; }
     setLoading(true);
     try {
-      const response = await authApi.login({ email, password });
+      const response = await authApi.login({ username, password });
       const { accessToken, refreshToken } = response.data.data || response.data;
       if (!accessToken) { message.error('Token không hợp lệ!'); return; }
 
@@ -170,18 +170,18 @@ export default function Login() {
           {/* Form */}
           <form onSubmit={onSubmit} noValidate>
             <div style={{ marginBottom: 22 }}>
-              <label className={`field-label ${focusField === 'email' ? 'active' : ''}`}>Địa chỉ Email</label>
+              <label className={`field-label ${focusField === 'username' ? 'active' : ''}`}>Email hoặc Số điện thoại</label>
               <div style={{ position: 'relative' }}>
                 <input
-                  id="login-email"
-                  type="email"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  onFocus={() => setFocusField('email')}
+                  id="login-username"
+                  type="text"
+                  value={username}
+                  onChange={e => setUsername(e.target.value)}
+                  onFocus={() => setFocusField('username')}
                   onBlur={() => setFocusField('')}
-                  placeholder="your@email.com"
-                  className={`auth-input ${focusField === 'email' ? 'focused' : ''}`}
-                  autoComplete="email"
+                  placeholder="Nhập email hoặc số điện thoại"
+                  className={`auth-input ${focusField === 'username' ? 'focused' : ''}`}
+                  autoComplete="username"
                 />
               </div>
             </div>

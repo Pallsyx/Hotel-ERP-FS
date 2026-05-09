@@ -34,7 +34,7 @@ const InventoryChecklist = () => {
 
     // Kết nối SignalR để nhận cập nhật realtime trạng thái phòng
     const connection = new signalR.HubConnectionBuilder()
-      .withUrl('https://localhost:7100/roomHub')
+      .withUrl('http://localhost:5080/roomHub')
       .withAutomaticReconnect()
       .build();
 

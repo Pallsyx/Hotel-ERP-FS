@@ -15,7 +15,7 @@ const { RangePicker } = DatePicker;
 const { Text, Title } = Typography;
 
 // Đường dẫn API (Bạn cần điều chỉnh lại cho khớp với BE)
-const API_URL = 'https://localhost:7100/api/LossAndDamages';
+const API_URL = 'http://localhost:5080/api/LossAndDamages';
 
 // Dữ liệu giả lập ban đầu để hiển thị giao diện giống 100% ảnh chụp
 const INITIAL_DATA = [

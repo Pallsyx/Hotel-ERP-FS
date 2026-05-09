@@ -446,6 +446,8 @@ public class BookingManagementService : IBookingManagementService
             .Include(bd => bd.RoomType)
             .Where(bd => bd.CheckInDate >= today && bd.CheckInDate < tomorrow &&
                         bd.Status != BookingStatus.CheckedIn && 
+                        bd.Status != BookingStatus.CheckedOut &&
+                        bd.Status != "Checked_out" &&
                         bd.Status != BookingStatus.Cancelled &&
                         bd.Status != BookingStatus.CancelledByAdmin &&
                         bd.Status != BookingStatus.Completed)

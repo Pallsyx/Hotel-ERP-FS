@@ -17,7 +17,7 @@ const { Header, Sider, Content } = Layout;
 const { Option } = Select;
 const { TabPane } = Tabs;
 
-const API_URL = 'https://localhost:7100/api';
+const API_URL = 'http://localhost:5080/api';
 
 // --- COMPONENT CHÍNH ---
 export default function App() {
@@ -51,7 +51,7 @@ export default function App() {
     let isMounted = true;
     import('@microsoft/signalr').then(signalR => {
       const connection = new signalR.HubConnectionBuilder()
-        .withUrl("https://localhost:7100/roomHub")
+        .withUrl("http://localhost:5080/roomHub")
         .withAutomaticReconnect()
         .build();
 

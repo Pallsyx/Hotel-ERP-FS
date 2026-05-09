@@ -81,7 +81,7 @@ export default function LossAndDamages() {
   // --- KẾT NỐI SIGNALR ---
   useEffect(() => {
     const connection = new signalR.HubConnectionBuilder()
-      .withUrl("https://localhost:7100/damageHub") // Bật URL này khi Backend SS
+      .withUrl("http://localhost:5080/damageHub") // Bật URL này khi Backend SS
       .withAutomaticReconnect()
       .build();
 

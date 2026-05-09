@@ -5,7 +5,7 @@ import { Button } from 'antd';
 import { notification } from '../utils/antdGlobal';
 import { useAuthStore } from '../store/authStore';
 
-const API_ROOT = (import.meta.env.VITE_API_BASE_URL || 'https://localhost:7100/api').replace(/\/api\/?$/, '');
+const API_ROOT = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5080/api').replace(/\/api\/?$/, '');
 
 export const useSignalR = () => {
   const [connection, setConnection] = useState(null);

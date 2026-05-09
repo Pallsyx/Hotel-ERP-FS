@@ -25,7 +25,7 @@ const { Content } = Layout;
 // 1. AXIOS CONFIGURATION
 // =====================================================================
 const apiClient = axios.create({
-  baseURL: 'https://localhost:7100/api', 
+  baseURL: 'http://localhost:5080/api', 
   timeout: 10000,
 });
 

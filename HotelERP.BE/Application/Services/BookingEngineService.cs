@@ -67,7 +67,10 @@ public class BookingEngineService : IBookingEngineService
             int occupiedRooms = await _context.BookingDetails
                 .CountAsync(bd => 
                     bd.RoomTypeId == roomTypeId &&
-                    bd.Status != "Cancelled" && 
+                    (bd.Status == BookingStatus.Confirmed || 
+                     bd.Status == BookingStatus.CheckedIn || 
+                     bd.Status == BookingStatus.Holding ||
+                     bd.Status == BookingStatus.Pending) && 
                     bd.CheckInDate < checkOut && 
                     bd.CheckOutDate > checkIn);
 
@@ -158,9 +161,10 @@ public class BookingEngineService : IBookingEngineService
                 TotalPhysicalRooms = _context.Rooms.Count(r => r.RoomTypeId == rt.Id && r.Status == RoomPhysicalStatus.Available),
                 OccupiedRooms = _context.BookingDetails.Count(bd => 
                         bd.RoomTypeId == rt.Id &&
-                        bd.Status != BookingStatus.Cancelled && 
-                        bd.Status != BookingStatus.CancelledByAdmin && 
-                        bd.Booking!.Status != BookingStatus.Expired && 
+                        (bd.Status == BookingStatus.Confirmed || 
+                         bd.Status == BookingStatus.CheckedIn || 
+                         bd.Status == BookingStatus.Holding ||
+                         bd.Status == BookingStatus.Pending) && 
                         bd.CheckInDate < request.CheckOutDate && 
                         bd.CheckOutDate > request.CheckInDate)
             })
@@ -234,9 +238,10 @@ public class BookingEngineService : IBookingEngineService
                         int requested = item.RoomIds[i];
                         bool taken = await _context.BookingDetails.AnyAsync(bd =>
                             bd.RoomId == requested &&
-                            bd.Status != BookingStatus.Cancelled &&
-                            bd.Status != BookingStatus.CancelledByAdmin &&
-                            bd.Booking!.Status != BookingStatus.Expired &&
+                            (bd.Status == BookingStatus.Confirmed || 
+                             bd.Status == BookingStatus.CheckedIn || 
+                             bd.Status == BookingStatus.Holding ||
+                             bd.Status == BookingStatus.Pending) &&
                             bd.CheckInDate < item.CheckOutDate &&
                             bd.CheckOutDate > item.CheckInDate);
 
@@ -250,9 +255,10 @@ public class BookingEngineService : IBookingEngineService
                         // Backend tự tìm phòng trống: lấy ID phòng đã bị đặt trùng ngày
                         var bookedRoomIds = await _context.BookingDetails
                             .Where(bd =>
-                                bd.Status != BookingStatus.Cancelled &&
-                                bd.Status != BookingStatus.CancelledByAdmin &&
-                                bd.Booking!.Status != BookingStatus.Expired &&
+                                (bd.Status == BookingStatus.Confirmed || 
+                                 bd.Status == BookingStatus.CheckedIn || 
+                                 bd.Status == BookingStatus.Holding ||
+                                 bd.Status == BookingStatus.Pending) &&
                                 bd.RoomId.HasValue &&
                                 bd.CheckInDate < item.CheckOutDate &&
                                 bd.CheckOutDate > item.CheckInDate)

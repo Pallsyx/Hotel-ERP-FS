@@ -29,7 +29,7 @@ const siderStyle = {
   height: '100vh',
   position: 'sticky',
   top: 0,
-  overflow: 'auto',
+  overflow: 'hidden', // Changed to hidden to let inner flex container handle scroll
 };
 
 /* Custom menu styles injected via a <style> tag so Ant tokens apply */
@@ -62,6 +62,13 @@ const menuCss = `
   .lotte-sider-menu .ant-menu-sub {
     background: rgba(0,0,0,0.2) !important;
   }
+  .lotte-sider-menu .ant-menu-item-group-title {
+    color: rgba(255,255,255,0.3) !important;
+    font-size: 10px !important;
+    letter-spacing: 1px !important;
+    text-transform: uppercase !important;
+    margin-top: 12px !important;
+  }
   .lotte-sider-menu .ant-menu-submenu-arrow { color: rgba(255,255,255,0.3) !important; }
   .lotte-sider-menu .ant-menu-submenu-open > .ant-menu-submenu-title,
   .lotte-sider-menu .ant-menu-submenu-active > .ant-menu-submenu-title {
@@ -79,33 +86,66 @@ const MainLayout = () => {
   const handleLogout = () => { logout(); navigate('/login'); };
   const isAdmin = user?.roleName === 'Admin' || user?.fullName === 'Admin';
 
-  /* ── Menu definition (unchanged from original) ── */
+  /* ── Menu definition ── */
   const rawMenuItems = [
-    { key: '/admin/dashboard',      icon: <DashboardOutlined />,      label: 'Dashboard',            requiredPermission: 'VIEW_DASHBOARD' },
-    { key: '/admin/room-types',     icon: <AppstoreOutlined />,       label: 'Hạng phòng',           requiredPermission: 'MANAGE_AMENITIES' },
-    { key: '/admin/rooms',          icon: <HomeOutlined />,           label: 'Quản lý phòng',        requiredPermission: 'MANAGE_ROOMS' },
-    { key: '/admin/inventory',      icon: <DatabaseOutlined />,       label: 'Kho vật tư',           requiredPermission: 'MANAGE_INVENTORY' },
-    { key: '/admin/loss-and-damages', icon: <WarningOutlined />,      label: 'Thất thoát & Đền bù', requiredPermission: 'MANAGE_INVENTORY' },
-    { key: '/admin/housekeeping',   icon: <FormatPainterOutlined />,  label: 'Dọn phòng',            requiredPermission: 'UPDATE_ROOM_STATUS' },
+    { key: '/admin/dashboard', icon: <DashboardOutlined />, label: 'Dashboard', requiredPermission: 'VIEW_DASHBOARD' },
+
     {
-      key: 'reception_menu',
-      icon: <IdcardOutlined />,
-      label: 'Quầy lễ tân',
-      requiredPermission: 'MANAGE_BOOKINGS',
+      key: 'grp_frontdesk',
+      label: 'Lễ tân & Đặt phòng',
+      type: 'group',
       children: [
-        { key: '/admin/bookings',    label: 'Quản lý Đặt phòng' },
-        { key: '/admin/arrivals',    label: 'Khách đến hôm nay' },
-        { key: '/admin/in-house',    label: 'Khách đang lưu trú' },
-        { key: '/admin/departures',  label: 'Thủ tục trả phòng' },
+        {
+          key: 'reception_menu',
+          icon: <IdcardOutlined />,
+          label: 'Quầy lễ tân',
+          requiredPermission: 'MANAGE_BOOKINGS',
+          children: [
+            { key: '/admin/bookings',    label: 'Quản lý Đặt phòng' },
+            { key: '/admin/arrivals',    label: 'Khách đến hôm nay' },
+            { key: '/admin/in-house',    label: 'Khách đang lưu trú' },
+            { key: '/admin/departures',  label: 'Thủ tục trả phòng' },
+          ],
+        },
+        { key: '/admin/invoices', icon: <FileTextOutlined />, label: 'Quản lý Hóa đơn', requiredPermission: 'MANAGE_INVOICES' },
+        { key: '/admin/reviews', icon: <CommentOutlined />, label: 'Quản lý Đánh giá', requiredPermission: 'MANAGE_BOOKINGS' },
       ],
     },
-    { key: '/admin/vouchers',    icon: <GiftOutlined />,       label: 'Quản lý Voucher',       requiredPermission: 'MANAGE_SERVICES' },
-    { key: '/admin/posts',       icon: <EditOutlined />,       label: 'Quản lý Bài viết' },
-    { key: '/admin/attractions', icon: <HomeOutlined />,       label: 'Khám phá Điểm đến' },
-    { key: '/admin/reviews',     icon: <CommentOutlined />,    label: 'Quản lý Đánh giá',     requiredPermission: 'MANAGE_BOOKINGS' },
-    { key: '/admin/invoices',    icon: <FileTextOutlined />,   label: 'Quản lý hóa đơn',      requiredPermission: 'MANAGE_INVOICES' },
-    { key: '/admin/users',       icon: <TeamOutlined />,       label: 'Danh sách Nhân sự',     requiredPermission: 'MANAGE_USERS' },
-    { key: '/admin/roles',       icon: <SafetyCertificateOutlined />, label: 'Vai trò & Phân quyền', requiredPermission: 'MANAGE_ROLES' },
+
+    {
+      key: 'grp_room',
+      label: 'Buồng phòng & Vật tư',
+      type: 'group',
+      children: [
+        { key: '/admin/room-types', icon: <AppstoreOutlined />, label: 'Hạng phòng', requiredPermission: 'MANAGE_AMENITIES' },
+        { key: '/admin/rooms', icon: <HomeOutlined />, label: 'Quản lý phòng', requiredPermission: 'MANAGE_ROOMS' },
+        { key: '/admin/housekeeping', icon: <FormatPainterOutlined />, label: 'Dọn phòng', requiredPermission: 'UPDATE_ROOM_STATUS' },
+        { key: '/admin/inventory', icon: <DatabaseOutlined />, label: 'Kho vật tư', requiredPermission: 'MANAGE_INVENTORY' },
+        { key: '/admin/loss-and-damages', icon: <WarningOutlined />, label: 'Thất thoát & Đền bù', requiredPermission: 'MANAGE_INVENTORY' },
+      ],
+    },
+
+    {
+      key: 'grp_marketing',
+      label: 'Marketing & Nội dung',
+      type: 'group',
+      children: [
+        { key: '/admin/vouchers', icon: <GiftOutlined />, label: 'Quản lý Voucher', requiredPermission: 'MANAGE_SERVICES' },
+        { key: '/admin/posts', icon: <EditOutlined />, label: 'Quản lý Bài viết' },
+        { key: '/admin/attractions', icon: <HomeOutlined />, label: 'Khám phá Điểm đến' },
+      ],
+    },
+
+    {
+      key: 'grp_system',
+      label: 'Hệ thống',
+      type: 'group',
+      children: [
+        { key: '/admin/users', icon: <TeamOutlined />, label: 'Danh sách Nhân sự', requiredPermission: 'MANAGE_USERS' },
+        { key: '/admin/roles', icon: <SafetyCertificateOutlined />, label: 'Vai trò & Phân quyền', requiredPermission: 'MANAGE_ROLES' },
+        { key: '/admin/audit-logs', icon: <DatabaseOutlined />, label: 'Nhật ký Hệ thống', requiredPermission: 'MANAGE_USERS' },
+      ],
+    },
   ];
 
   const filterMenuItems = (items) =>
@@ -146,93 +186,97 @@ const MainLayout = () => {
 
           {/* ─── SIDEBAR ─────────────────────────────────────── */}
           <Sider
-            width={248}
+            width={260}
             collapsedWidth={64}
             collapsed={isHousekeeping ? true : collapsed}
             style={siderStyle}
           >
-            {/* Logo area */}
-            <div style={{
-              padding: collapsed || isHousekeeping ? '20px 12px' : '20px 20px',
-              borderBottom: '1px solid rgba(255,255,255,0.06)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              overflow: 'hidden',
-              transition: 'padding 200ms',
-            }}>
-              <div style={{
-                width: 36, height: 36, border: `1px solid ${GOLD}`, borderRadius: '50%',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontFamily: "'Playfair Display', serif", fontSize: 15, color: GOLD,
-                flexShrink: 0, cursor: 'pointer',
-              }} onClick={() => navigate('/')}>
-                A
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+              <div style={{ flex: 1, overflow: 'auto' }}>
+                {/* Logo area */}
+                <div style={{
+                  padding: collapsed || isHousekeeping ? '20px 12px' : '20px 20px',
+                  borderBottom: '1px solid rgba(255,255,255,0.06)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  overflow: 'hidden',
+                  transition: 'padding 200ms',
+                }}>
+                  <div style={{
+                    width: 36, height: 36, border: `1px solid ${GOLD}`, borderRadius: '50%',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontFamily: "'Playfair Display', serif", fontSize: 15, color: GOLD,
+                    flexShrink: 0, cursor: 'pointer',
+                  }} onClick={() => navigate('/')}>
+                    A
+                  </div>
+                  {!collapsed && !isHousekeeping && (
+                    <div style={{ overflow: 'hidden' }}>
+                      <div style={{ color: 'white', fontSize: 13, fontWeight: 600, letterSpacing: '0.15em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                        Asteria
+                      </div>
+                      <div style={{ color: GOLD, fontSize: 9, letterSpacing: '0.25em', textTransform: 'uppercase', marginTop: 1 }}>
+                        Hotel ERP
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* User info chip */}
+                {!collapsed && !isHousekeeping && (
+                  <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{
+                        width: 32, height: 32, borderRadius: '50%',
+                        background: `linear-gradient(135deg, ${GOLD}, #9a7b52)`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        color: 'white', fontSize: 12, fontWeight: 700, flexShrink: 0,
+                      }}>
+                        {(user?.fullName?.[0] || 'A').toUpperCase()}
+                      </div>
+                      <div style={{ overflow: 'hidden' }}>
+                        <div style={{ color: 'white', fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {user?.fullName || 'Admin'}
+                        </div>
+                        <div style={{ color: GOLD, fontSize: 10, letterSpacing: '0.1em' }}>
+                          {user?.roleName || 'Admin'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Navigation Menu */}
+                <Menu
+                  className="lotte-sider-menu"
+                  theme="dark"
+                  mode="inline"
+                  defaultOpenKeys={location.pathname.startsWith('/admin/') ? ['reception_menu'] : []}
+                  selectedKeys={[location.pathname]}
+                  items={menuItems}
+                  onClick={(e) => navigate(e.key)}
+                  style={{ background: 'transparent', border: 'none', marginTop: 8, paddingBottom: 24 }}
+                />
               </div>
-              {!collapsed && !isHousekeeping && (
-                <div style={{ overflow: 'hidden' }}>
-                  <div style={{ color: 'white', fontSize: 13, fontWeight: 600, letterSpacing: '0.15em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-                    Asteria
-                  </div>
-                  <div style={{ color: GOLD, fontSize: 9, letterSpacing: '0.25em', textTransform: 'uppercase', marginTop: 1 }}>
-                    Hotel ERP
-                  </div>
+
+              {/* Collapse toggle */}
+              {!isHousekeeping && (
+                <div style={{
+                  padding: '14px 20px',
+                  borderTop: '1px solid rgba(255,255,255,0.06)',
+                  background: DARK,
+                  flexShrink: 0,
+                }}>
+                  <Button
+                    type="text"
+                    onClick={() => setCollapsed(!collapsed)}
+                    icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+                    style={{ color: 'rgba(255,255,255,0.4)', width: '100%', textAlign: collapsed ? 'center' : 'left', fontSize: 14 }}
+                  />
                 </div>
               )}
             </div>
-
-            {/* User info chip */}
-            {!collapsed && !isHousekeeping && (
-              <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{
-                    width: 32, height: 32, borderRadius: '50%',
-                    background: `linear-gradient(135deg, ${GOLD}, #9a7b52)`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    color: 'white', fontSize: 12, fontWeight: 700, flexShrink: 0,
-                  }}>
-                    {(user?.fullName?.[0] || 'A').toUpperCase()}
-                  </div>
-                  <div style={{ overflow: 'hidden' }}>
-                    <div style={{ color: 'white', fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {user?.fullName || 'Admin'}
-                    </div>
-                    <div style={{ color: GOLD, fontSize: 10, letterSpacing: '0.1em' }}>
-                      {user?.roleName || 'Admin'}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Navigation Menu */}
-            <Menu
-              className="lotte-sider-menu"
-              theme="dark"
-              mode="inline"
-              defaultOpenKeys={location.pathname.startsWith('/admin/') ? ['reception_menu'] : []}
-              selectedKeys={[location.pathname]}
-              items={menuItems}
-              onClick={(e) => navigate(e.key)}
-              style={{ background: 'transparent', border: 'none', marginTop: 8 }}
-            />
-
-            {/* Collapse toggle */}
-            {!isHousekeeping && (
-              <div style={{
-                position: 'absolute', bottom: 0, left: 0, right: 0,
-                padding: '14px 20px',
-                borderTop: '1px solid rgba(255,255,255,0.06)',
-                background: DARK,
-              }}>
-                <Button
-                  type="text"
-                  onClick={() => setCollapsed(!collapsed)}
-                  icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-                  style={{ color: 'rgba(255,255,255,0.4)', width: '100%', textAlign: collapsed ? 'center' : 'left', fontSize: 14 }}
-                />
-              </div>
-            )}
           </Sider>
 
           {/* ─── MAIN AREA ───────────────────────────────────── */}

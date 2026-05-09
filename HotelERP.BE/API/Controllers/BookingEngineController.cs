@@ -166,9 +166,10 @@ public class BookingEngineController : ControllerBase
         var bookedRoomIds = await _context.BookingDetails
             .Where(bd =>
                 bd.RoomId.HasValue &&
-                bd.Status != BookingStatus.Cancelled &&
-                bd.Status != BookingStatus.CancelledByAdmin &&
-                bd.Booking!.Status != BookingStatus.Expired &&
+                (bd.Status == BookingStatus.Confirmed || 
+                 bd.Status == BookingStatus.CheckedIn || 
+                 bd.Status == BookingStatus.Holding ||
+                 bd.Status == BookingStatus.Pending) &&
                 bd.CheckInDate.Date < checkOut.Date &&
                 bd.CheckOutDate.Date > checkIn.Date)
             .Select(bd => bd.RoomId!.Value)

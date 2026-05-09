@@ -40,12 +40,12 @@ axiosClient.interceptors.response.use(
 
     if (!isRefreshing) {
       isRefreshing = true;
-      const refreshToken = localStorage.getItem('refreshToken');
+      const currentRefreshToken = localStorage.getItem('refreshToken');
 
       try {
         const response = await axios.post(`${API_BASE_URL}/Auth/refresh-token`, {
           accessToken: localStorage.getItem('token'),
-          refreshToken: refreshToken,
+          refreshToken: currentRefreshToken,
         });
 
         const { accessToken, refreshToken } = response.data.data;
@@ -55,7 +55,8 @@ axiosClient.interceptors.response.use(
         useAuthStore.getState().login(
           useAuthStore.getState().user,
           accessToken,
-          refreshToken
+          refreshToken,
+          useAuthStore.getState().permissions
         );
 
         isRefreshing = false;

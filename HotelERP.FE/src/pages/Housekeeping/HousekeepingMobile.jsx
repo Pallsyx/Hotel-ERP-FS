@@ -17,7 +17,7 @@ const HousekeepingMobile = () => {
     let isMounted = true;
 
     const connection = new signalR.HubConnectionBuilder()
-      .withUrl("https://localhost:7100/roomHub") // Đảm bảo port này khớp với BE của bạn
+      .withUrl("http://localhost:5080/roomHub") // Đảm bảo port này khớp với BE của bạn
       .withAutomaticReconnect()
       .build();
 
