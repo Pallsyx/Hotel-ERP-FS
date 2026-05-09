@@ -2613,8 +2613,23 @@ BEGIN
     PRINT 'Đã thêm bảng Loyalty_Point_Histories';
 END
 GO
+-- ========================================================================
+-- 7. BỔ SUNG CÁC CỘT CÒN THIẾU (VOUCHER USER_ID & MEMBERSHIP DISCOUNT)
+-- ========================================================================
+GO
 
--- (Tùy chọn) Xóa các đánh giá cũ đang có trong bảng để dọn dẹp
--- Nếu bạn muốn giữ lại dữ liệu cũ thì bỏ qua 2 dòng dưới này nhé!
--- DELETE FROM Reviews;
--- GO
+-- 1. Thêm cột user_id vào bảng Vouchers (Dùng cho voucher cá nhân)
+IF COL_LENGTH('dbo.Vouchers', 'user_id') IS NULL
+BEGIN
+    ALTER TABLE dbo.Vouchers ADD user_id INT NULL;
+    PRINT N'Đã thêm cột user_id vào bảng Vouchers thành công!';
+END
+GO
+
+-- 2. Thêm cột membership_discount_amount vào bảng Bookings (Lưu số tiền giảm giá hội viên)
+IF COL_LENGTH('dbo.Bookings', 'membership_discount_amount') IS NULL
+BEGIN
+    ALTER TABLE dbo.Bookings ADD membership_discount_amount DECIMAL(18, 2) NULL DEFAULT 0;
+    PRINT N'Đã thêm cột membership_discount_amount vào bảng Bookings thành công!';
+END
+GO

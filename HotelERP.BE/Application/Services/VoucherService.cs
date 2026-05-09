@@ -44,8 +44,7 @@ public class VoucherService : IVoucherService
         }
 
         var vouchers = await query
-            .OrderByDescending(x => x.ValidFrom ?? DateTime.MinValue)
-            .ThenByDescending(x => x.Id)
+            .OrderByDescending(x => x.Id)
             .ToListAsync(cancellationToken);
 
         var usedCountMap = await GetUsedCountMapAsync(cancellationToken);
@@ -56,6 +55,26 @@ public class VoucherService : IVoucherService
             .ToList();
 
         return ApiResult<List<VoucherResponseDto>>.Ok(items, "Lấy danh sách voucher thành công.", "VOUCHER_LIST_SUCCESS");
+    }
+
+    public async Task<ApiResult<List<VoucherResponseDto>>> GetMyVouchersAsync(int userId, CancellationToken cancellationToken = default)
+    {
+        IQueryable<Voucher> query = _dbContext.Vouchers
+            .AsNoTracking()
+            .Where(x => x.UserId == userId || x.UserId == null);
+
+        var vouchers = await query
+            .OrderByDescending(x => x.Id)
+            .ToListAsync(cancellationToken);
+
+        var usedCountMap = await GetUsedCountMapAsync(cancellationToken);
+
+        var items = vouchers
+            .Select(x => MapToResponse(x, usedCountMap))
+            .Where(x => x.Status == StatusActive)
+            .ToList();
+
+        return ApiResult<List<VoucherResponseDto>>.Ok(items, "Lấy danh sách voucher thành công.", "MY_VOUCHER_SUCCESS");
     }
 
     public async Task<ApiResult<VoucherResponseDto>> GetByIdAsync(int id, CancellationToken cancellationToken = default)

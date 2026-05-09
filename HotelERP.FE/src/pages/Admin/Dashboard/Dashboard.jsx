@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Typography, Row, Col, message, Spin } from 'antd';
+import { Typography, Row, Col, Spin } from 'antd';
+import { message } from '../../../utils/antdGlobal';
 import {
   DashboardOutlined,
   CrownOutlined,
@@ -203,7 +204,7 @@ const Dashboard = () => {
   const rolesObj = { user, permissions };
 
   return (
-    <Spin spinning={loading} size="large" tip="Đang tải dữ liệu...">
+    <Spin spinning={loading} size="large" description="Đang tải dữ liệu...">
       <div style={{ padding: 24 }}>
 
         {/* ── TIÊU ĐỀ & ROLE BADGE ── */}

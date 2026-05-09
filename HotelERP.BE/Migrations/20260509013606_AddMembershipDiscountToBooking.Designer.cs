@@ -4,6 +4,7 @@ using HotelERP.BE.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace HotelERP.BE.Migrations
 {
     [DbContext(typeof(HotelDbContext))]
-    partial class HotelDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260509013606_AddMembershipDiscountToBooking")]
+    partial class AddMembershipDiscountToBooking
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -387,12 +390,6 @@ namespace HotelERP.BE.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(false)
                         .HasColumnName("is_points_awarded");
-
-                    b.Property<decimal>("MembershipDiscountAmount")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("decimal(18, 2)")
-                        .HasDefaultValue(0m)
-                        .HasColumnName("membership_discount_amount");
 
                     b.Property<string>("Notes")
                         .HasMaxLength(1000)
@@ -1912,10 +1909,6 @@ namespace HotelERP.BE.Migrations
                     b.Property<int?>("UsageLimit")
                         .HasColumnType("int")
                         .HasColumnName("usage_limit");
-
-                    b.Property<int?>("UserId")
-                        .HasColumnType("int")
-                        .HasColumnName("user_id");
 
                     b.Property<DateTime?>("ValidFrom")
                         .HasColumnType("datetime")

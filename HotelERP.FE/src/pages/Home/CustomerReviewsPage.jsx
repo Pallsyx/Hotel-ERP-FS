@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { LotteHeader } from './NewsPage';
+import MainHeader from '../../components/Layout/MainHeader';
 import MainFooter from '../../components/Layout/MainFooter';
 import CustomerReviews from '../../components/CustomerReviews/CustomerReviews';
 
@@ -11,7 +11,7 @@ export default function CustomerReviewsPage() {
 
   return (
     <div style={{ background: '#fafafa', minHeight: '100vh', fontFamily: "'Inter', sans-serif" }}>
-      <LotteHeader activePage="" />
+      <MainHeader transparent={false} />
       <div style={{ paddingTop: 64 }}>
         <CustomerReviews />
       </div>

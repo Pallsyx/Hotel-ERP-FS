@@ -19,71 +19,177 @@ const SLIDES = [
 const G = '#b8956a', D = '#111111';
 const SF = { fontFamily: "'Playfair Display',serif" };
 
+/* ═══════════════════════════════════════════════════════════ */
+/*  HELPERS                                                     */
+/* ═══════════════════════════════════════════════════════════ */
+const CLOUDINARY_BASE = 'https://res.cloudinary.com/dfvdvkssv/image/upload/hotel_placeholders';
+
+const getPlaceholderImage = (item) => {
+  if (item.imageUrl && (item.imageUrl.startsWith('http') || item.imageUrl.startsWith('https'))) return item.imageUrl;
+  
+  const name = (item.name || '').toLowerCase();
+  const type = (item.type || '').toLowerCase();
+
+  if (name.includes('biển') || name.includes('beach') || name.includes('vịnh')) 
+    return `${CLOUDINARY_BASE}/beach_placeholder.jpg`;
+  if (name.includes('chợ') || name.includes('market') || name.includes('trung tâm')) 
+    return `${CLOUDINARY_BASE}/market_placeholder.jpg`;
+  if (name.includes('bảo tàng') || name.includes('museum') || name.includes('triển lãm') || name.includes('di tích')) 
+    return `${CLOUDINARY_BASE}/museum_placeholder.jpg`;
+  if (name.includes('phố') || name.includes('street') || name.includes('quảng trường')) 
+    return `${CLOUDINARY_BASE}/street_placeholder.jpg`;
+  if (name.includes('chùa') || name.includes('pagoda') || name.includes('đền') || name.includes('nhà thờ') || name.includes('tháp')) 
+    return `${CLOUDINARY_BASE}/pagoda_placeholder.jpg`;
+  if (name.includes('vui chơi') || name.includes('park') || name.includes('công viên') || type.includes('giải trí')) 
+    return `${CLOUDINARY_BASE}/park_placeholder.jpg`;
+  if (name.includes('nhà hàng') || name.includes('ăn uống') || name.includes('food') || name.includes('quán')) 
+    return `${CLOUDINARY_BASE}/food_placeholder.jpg`;
+  if (name.includes('thác') || name.includes('nước') || name.includes('suối')) 
+    return `${CLOUDINARY_BASE}/waterfall_placeholder.jpg`;
+  if (name.includes('núi') || name.includes('rừng') || name.includes('đèo')) 
+    return `${CLOUDINARY_BASE}/mountain_placeholder.jpg`;
+  if (name.includes('golf') || name.includes('sân')) 
+    return `${CLOUDINARY_BASE}/golf_placeholder.jpg`;
+  if (name.includes('làng') || name.includes('truyền thống') || name.includes('nghề')) 
+    return `${CLOUDINARY_BASE}/village_placeholder.jpg`;
+  if (name.includes('hoàng hôn') || name.includes('sunset') || name.includes('ngắm')) 
+    return `${CLOUDINARY_BASE}/sunset_placeholder.jpg`;
+  
+  return 'https://res.cloudinary.com/dfvdvkssv/image/upload/v1778288591/hotel_placeholders/market_placeholder.jpg';
+};
+
+const MembershipSection = ({ nav }) => {
+  const tiers = [
+    { name: 'Khách Mới', points: 0, discount: 0, color: '#a1a1aa', icon: '🌱' },
+    { name: 'Đồng', points: 500, discount: 2, color: '#cd7f32', icon: '🥉' },
+    { name: 'Bạc', points: 1000, discount: 5, color: '#c0c0c0', icon: '🥈' },
+    { name: 'Vàng', points: 3000, discount: 8, color: '#ffd700', icon: '🥇' },
+    { name: 'Bạch Kim', points: 5000, discount: 10, color: '#e5e4e2', icon: '💎' },
+    { name: 'Kim Cương', points: 10000, discount: 15, color: '#b9f2ff', icon: '✨' },
+    { name: 'Elite', points: 20000, discount: 20, color: '#ff8c00', icon: '🌟' },
+    { name: 'VIP', points: 50000, discount: 25, color: '#ff4500', icon: '👑' },
+    { name: 'VVIP', points: 100000, discount: 30, color: '#9400d3', icon: '🔥' },
+    { name: 'Signature', points: 200000, discount: 35, color: '#b8956a', icon: '⚜️' },
+  ];
+
+  return (
+    <section id="member" style={{ background: '#0a0a0a', padding: '120px 24px', color: 'white' }}>
+      <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+        <div style={{ textAlign: 'center', marginBottom: 80 }}>
+           <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.4em', textTransform: 'uppercase', color: G, display: 'block', marginBottom: 16 }}>Đặc Quyền Hội Viên</span>
+           <h2 style={{ ...SF, fontSize: 'clamp(36px,5vw,56px)', color: 'white', marginBottom: 28, fontWeight: 400 }}>Hội Viên Asteria Rewards</h2>
+           <p style={{ maxWidth: 700, margin: '0 auto', color: 'rgba(255,255,255,0.5)', fontSize: 16, lineHeight: 1.8, fontWeight: 300 }}>
+             Tham gia chương trình khách hàng thân thiết để tận hưởng thế giới đặc quyền. <br/>
+             Giảm giá trực tiếp khi đặt phòng, tích lũy điểm và trải nghiệm những dịch vụ cá nhân hóa đỉnh cao.
+           </p>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 24 }}>
+          {tiers.map((t, idx) => (
+            <div key={idx} style={{ 
+              background: 'linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%)', 
+              border: '1px solid rgba(255,255,255,0.08)', 
+              borderRadius: 4, 
+              padding: '40px 24px', 
+              textAlign: 'center',
+              transition: 'all 400ms cubic-bezier(0.25, 1, 0.5, 1)',
+              cursor: 'default',
+              position: 'relative',
+              overflow: 'hidden'
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.borderColor = G;
+              e.currentTarget.style.background = 'rgba(184,149,106,0.08)';
+              e.currentTarget.style.transform = 'translateY(-10px)';
+              e.currentTarget.querySelector('.glow').style.opacity = '0.5';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)';
+              e.currentTarget.style.background = 'linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%)';
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.querySelector('.glow').style.opacity = '0';
+            }}>
+              <div className="glow" style={{ position: 'absolute', inset: 0, background: `radial-gradient(circle at center, ${t.color}33 0%, transparent 70%)`, opacity: 0, transition: 'opacity 400ms' }} />
+              <div style={{ fontSize: 36, marginBottom: 20, filter: 'drop-shadow(0 0 10px rgba(0,0,0,0.5))' }}>{t.icon}</div>
+              <h3 style={{ color: t.color, fontSize: 20, marginBottom: 12, fontWeight: 500, letterSpacing: '0.5px' }}>{t.name}</h3>
+              <div style={{ fontSize: 32, fontWeight: 800, color: 'white', marginBottom: 16, fontFamily: "'Inter', sans-serif" }}>
+                {t.discount}% <span style={{fontSize: 12, fontWeight: 300, color: 'rgba(255,255,255,0.4)', verticalAlign: 'middle', marginLeft: 4}}>ƯU ĐÃI</span>
+              </div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: 600 }}>Từ {t.points.toLocaleString()} điểm</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ marginTop: 100, background: 'rgba(255,255,255,0.02)', borderRadius: 2, padding: '64px', border: '1px solid rgba(255,255,255,0.05)', position: 'relative' }}>
+           <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: 64, alignItems: 'center' }}>
+              <div>
+                <h4 style={{ color: G, fontSize: 24, marginBottom: 32, ...SF, fontWeight: 400, letterSpacing: '1px' }}>Quyền lợi hạng thẻ</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px 40px' }}>
+                   {[
+                     { t: 'Đặt phòng ưu đãi', d: 'Giảm giá trực tiếp từ 2% - 35% tùy theo hạng thành viên hiện tại.' },
+                     { t: 'Tích lũy linh hoạt', d: 'Nhận 1 điểm cho mỗi 10,000đ chi tiêu tại resort.' },
+                     { t: 'Quà tặng sinh nhật', d: 'Voucher nghỉ dưỡng đặc biệt gửi tặng vào tháng sinh nhật.' },
+                     { t: 'Ưu tiên dịch vụ', d: 'Check-in sớm, Check-out muộn và nâng hạng phòng miễn phí.' },
+                     { t: 'Secret Deals', d: 'Truy cập các gói ưu đãi bí mật không công khai trên Website.' },
+                     { t: 'Đội ngũ hỗ trợ 24/7', d: 'Đường dây nóng dành riêng cho hội viên cao cấp.' }
+                   ].map((item, i) => (
+                     <div key={i} style={{ display: 'flex', gap: 16 }}>
+                       <span style={{ color: G, fontSize: 18 }}>✦</span>
+                       <div>
+                         <div style={{ color: 'white', fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{item.t}</div>
+                         <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, lineHeight: 1.5 }}>{item.d}</div>
+                       </div>
+                     </div>
+                   ))}
+                </div>
+              </div>
+              <div style={{ textAlign: 'center', borderLeft: '1px solid rgba(255,255,255,0.05)', paddingLeft: 64 }}>
+                <div style={{ width: 60, height: 60, border: '1px solid rgba(255,255,255,0.1)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', fontSize: 24 }}>✨</div>
+                <h5 style={{ color: 'white', fontSize: 18, marginBottom: 16 }}>Gia nhập ngay hôm nay</h5>
+                <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, marginBottom: 32, lineHeight: 1.6 }}>Đăng ký tài khoản để bắt đầu hành trình tích lũy và tận hưởng ưu đãi.</p>
+                <button onClick={() => nav('/register')} style={{ background: 'white', color: 'black', border: 'none', padding: '18px 48px', borderRadius: 2, fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'all 300ms', letterSpacing: '2px', textTransform: 'uppercase' }} onMouseEnter={e => { e.target.style.background = G; e.target.style.color = 'white'; }} onMouseLeave={e => { e.target.style.background = 'white'; e.target.style.color = 'black'; }}>Đăng ký hội viên</button>
+              </div>
+           </div>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+import MainHeader from '../../components/Layout/MainHeader';
+
 export default function HomePage() {
   const nav = useNavigate();
-  const today = new Date().toLocaleDateString('en-CA');
   const { user, isAuthenticated, logout, login, token, refreshToken, permissions } = useAuthStore();
   const isAdmin = isAuthenticated && (user?.roleName === 'Admin' || user?.role?.name === 'Admin' || user?.role === 'Admin' || user?.roleId === 1);
-  const isStaff = isAuthenticated && !isAdmin;
 
   // Tự động fetch profile lấy Avatar nếu user thiếu (do login payload chưa đủ)
   useEffect(() => {
-    if (isAuthenticated && !user?.avatarUrl && !user?.avatar && !user?.profilePicture) {
+    if (isAuthenticated && !user?.membershipTier) {
       axiosClient.get('/UserProfile/my-profile')
         .then(res => {
           const d = res.data?.data || res.data;
-          if (d && d.avatarUrl) {
-            login({ ...user, avatarUrl: d.avatarUrl, fullName: d.fullName || user.fullName }, token, refreshToken, permissions);
+          if (d) {
+            login({ 
+              ...user, 
+              avatarUrl: d.avatarUrl || user?.avatarUrl, 
+              fullName: d.fullName || user?.fullName,
+              membershipTier: d.membershipTier,
+              membershipDiscount: d.membershipDiscount,
+              loyaltyPoints: d.loyaltyPoints
+            }, token, refreshToken, permissions);
           }
         })
-        .catch(err => console.log('Could not fetch profile for avatar:', err));
+        .catch(err => console.log('Could not fetch profile:', err));
     }
-  }, [isAuthenticated, user?.avatarUrl, token]);
-
-  // Dropdown menu items khi đã đăng nhập
-  const userMenuItems = [
-    { key: 'profile', label: 'Trang cá nhân', icon: <UserOutlined />, onClick: () => nav('/profile') },
-    ...(isAdmin ? [{ key: 'admin', label: 'Quản trị hệ thống', icon: <DashboardOutlined />, onClick: () => nav('/admin') }] : []),
-    { type: 'divider' },
-    { key: 'logout', label: 'Đăng xuất', icon: <LogoutOutlined />, danger: true, onClick: () => { logout(); nav('/'); } },
-  ];
+  }, [isAuthenticated, token]);
 
   const [articles, setArticles] = useState([]);
   const [attractions, setAttractions] = useState([]);
-  const [sel, setSel] = useState(null); // giữ cho bookOpen modal
   const [cur, setCur] = useState(0);
   const [play, setPlay] = useState(true);
-  const [sc, setSc] = useState(false);
   const [dragStartX, setDragStartX] = useState(null);
   const [dragOffset, setDragOffset] = useState(0);
-  const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-
-  useEffect(() => {
-    if (token) {
-      fetchNotifications();
-    }
-  }, [token]);
-
-  const fetchNotifications = async () => {
-    try {
-      const res = await axiosClient.get('/UserProfile/my-notifications');
-      const data = res.data?.data || [];
-      setNotifications(data);
-      setUnreadCount(data.filter(n => !n.isRead).length);
-    } catch (err) {
-      console.error("Lỗi fetch Notifications", err);
-    }
-  };
-
-  const markAllAsRead = async () => {
-    try {
-      await axiosClient.put('/UserProfile/my-notifications/read-all');
-      fetchNotifications();
-    } catch (err) {
-      console.error("Lỗi mark as read", err);
-    }
-  };
 
   const handleDragStart = (e) => {
     setDragStartX(e.type === 'touchstart' ? e.touches[0].clientX : e.clientX);
@@ -103,7 +209,6 @@ export default function HomePage() {
     setPlay(true);
   };
 
-  useEffect(() => { const f = () => setSc(window.scrollY > 50); window.addEventListener('scroll', f); return () => window.removeEventListener('scroll', f); }, []);
   useEffect(() => { let t; if (play) t = setInterval(() => setCur(p => (p + 1) % SLIDES.length), 5000); return () => clearInterval(t); }, [play, cur]);
   useEffect(() => {
     articleApi.search().then(r => setArticles((r.data || []).slice(0, 6))).catch(() => { });
@@ -111,141 +216,25 @@ export default function HomePage() {
   }, []);
   useEffect(() => {
     document.title = 'Asteria Resort - Không gian nghỉ dưỡng đẳng cấp';
-  }, []);
-
-  const AuthBlock = (
-    <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-      {isAuthenticated ? (
-        <ConfigProvider theme={{ algorithm: theme.darkAlgorithm, token: { colorPrimary: G, colorBgElevated: '#1a1a1a', borderRadiusLG: 12 } }}>
-          <Dropdown
-            menu={{ items: userMenuItems }}
-            trigger={['click']}
-            placement="bottomRight"
-          >
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer',
-              padding: '5px 12px 5px 6px', borderRadius: 999,
-              border: '1px solid rgba(255,255,255,0.15)',
-              background: 'rgba(255,255,255,0.05)',
-              transition: 'all 200ms',
-            }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.12)'; e.currentTarget.style.borderColor = G; }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; }}>
-              <Avatar
-                size={26}
-                src={user?.avatarUrl || user?.avatar || user?.profilePicture}
-                icon={!(user?.avatarUrl || user?.avatar || user?.profilePicture) && <UserOutlined />}
-                style={{ background: `linear-gradient(135deg, ${G}, #9a7b52)`, fontSize: 12, flexShrink: 0 }}
-              />
-              <span style={{ color: 'white', fontSize: 12, fontWeight: 500, maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {user?.fullName || user?.username || 'Tài khoản'}
-              </span>
-              <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 8 }}>▼</span>
-            </div>
-          </Dropdown>
-        </ConfigProvider>
-      ) : (
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <a href="/login" style={{ color: 'rgba(255,255,255,0.8)', textDecoration: 'none', fontSize: 11, transition: 'color 200ms', letterSpacing: '0.5px' }} onMouseEnter={e => e.target.style.color = 'white'} onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.8)'}>Đăng nhập</a>
-          <a href="/register" style={{ color: 'white', textDecoration: 'none', fontSize: 11, background: G, padding: '5px 14px', borderRadius: 999, letterSpacing: '0.5px', transition: 'opacity 200ms' }} onMouseEnter={e => e.currentTarget.style.opacity = '0.85'} onMouseLeave={e => e.currentTarget.style.opacity = '1'}>Đăng ký</a>
-        </div>
-      )}
-    </div>
-  );
+    // Handle anchor scroll if exists
+    if (window.location.hash) {
+      const id = window.location.hash.substring(1);
+      const el = document.getElementById(id);
+      if (el) {
+        setTimeout(() => {
+          el.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+      }
+    }
+  }, [window.location.hash]);
 
   return (
     <div style={{ background: '#fafafa', minHeight: '100vh', fontFamily: "'Inter',sans-serif" }}>
-      {/* HEADER */}
-      <header style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50, background: sc ? D : 'linear-gradient(to bottom,rgba(0,0,0,.8),transparent)', transition: 'background 400ms', boxShadow: sc ? '0 2px 20px rgba(0,0,0,.5)' : 'none' }}>
-        <div>
-          {/* Top Row */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: sc ? 0 : 64, opacity: sc ? 0 : 1, overflow: 'hidden', borderBottom: sc ? 'none' : '1px solid rgba(255,255,255,0.1)', padding: '0 clamp(24px,5vw,80px)', transition: 'height 300ms ease, opacity 300ms ease, border-bottom 300ms ease' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }} onClick={() => nav('/')}>
-              <div style={{ width: 32, height: 32, border: '1px solid white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', ...SF, fontSize: 14, color: 'white' }}>A</div>
-              <span style={{ color: 'white', fontSize: 15, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase' }}>Asteria Resort</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 20, fontSize: 11, color: 'rgba(255,255,255,0.7)', letterSpacing: '0.5px' }}>
-              {/* Quick links */}
-              <div style={{ display: 'flex', gap: 20 }}>
-                <a href="#" style={{ color: 'inherit', textDecoration: 'none', transition: 'color 200ms' }} onMouseEnter={e => e.target.style.color = 'white'} onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.7)'}>Yêu cầu đặt chỗ</a>
-                <a href="#" style={{ color: 'inherit', textDecoration: 'none', transition: 'color 200ms' }} onMouseEnter={e => e.target.style.color = 'white'} onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.7)'}>Tìm khách sạn</a>
-                <a href="#" style={{ color: 'inherit', textDecoration: 'none', transition: 'color 200ms' }} onMouseEnter={e => e.target.style.color = 'white'} onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,0.7)'}>Hội Viên Rewards</a>
-              </div>
-              <div style={{ width: 1, height: 14, background: 'rgba(255,255,255,0.15)' }} />
-              {/* Notification */}
-              {token ? (
-                <Popover
-                  content={
-                    <div style={{ width: 320, background: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, overflow: 'hidden', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}>
-                      <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ color: 'white', fontWeight: 600, fontSize: 13 }}>Thông báo</span>
-                        {unreadCount > 0 && (
-                          <span onClick={markAllAsRead} style={{ color: G, fontSize: 11, cursor: 'pointer' }}>Đánh dấu đã đọc</span>
-                        )}
-                      </div>
-                      <div style={{ maxHeight: 300, overflowY: 'auto' }}>
-                        {notifications.length === 0 ? (
-                          <div style={{ padding: 20, textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>Chưa có thông báo nào</div>
-                        ) : (
-                          notifications.map(n => (
-                            <div key={n.id} style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', background: n.isRead ? 'transparent' : 'rgba(184,149,106,0.1)', cursor: 'pointer', transition: 'background 200ms' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'} onMouseLeave={e => e.currentTarget.style.background = n.isRead ? 'transparent' : 'rgba(184,149,106,0.1)'}>
-                              <div style={{ color: n.isRead ? 'rgba(255,255,255,0.8)' : 'white', fontSize: 12, fontWeight: n.isRead ? 400 : 600, marginBottom: 4 }}>{n.title}</div>
-                              <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, lineHeight: 1.4 }}>{n.content}</div>
-                              <div style={{ color: G, fontSize: 10, marginTop: 4 }}>{new Date(n.createdAt).toLocaleDateString('vi-VN')} {new Date(n.createdAt).toLocaleTimeString('vi-VN')}</div>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </div>
-                  }
-                  trigger="click"
-                  placement="bottomRight"
-                  styles={{ content: { padding: 0, background: 'transparent', border: 'none', boxShadow: 'none' } }}
-                >
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', padding: '4px 8px', borderRadius: 4, transition: 'background 200ms' }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                    <Badge count={unreadCount} size="small" offset={[2, 0]} color={G}>
-                      <span style={{ color: G, fontSize: 13 }}>🔔</span>
-                    </Badge>
-                    <span style={{ color: 'rgba(255,255,255,0.75)', marginLeft: 4 }}>Thông báo</span>
-                  </span>
-                </Popover>
-              ) : (
-                <span style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', padding: '4px 8px', borderRadius: 4, transition: 'background 200ms' }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                  onClick={() => nav('/login')}>
-                  <span style={{ color: G, fontSize: 13 }}>🔔</span>
-                  <span style={{ color: 'rgba(255,255,255,0.75)' }}>Thông báo</span>
-                </span>
-              )}
-              <div style={{ width: 1, height: 14, background: 'rgba(255,255,255,0.15)' }} />
-              {/* Auth — ngoài cùng bên phải */}
-              {AuthBlock}
-            </div>
-          </div>
-
-          {/* Bottom Row */}
-          <div style={{ display: 'flex', alignItems: 'center', height: 60, position: 'relative', padding: '0 clamp(40px,8vw,160px)' }}>
-            <div style={{ position: 'absolute', left: 'clamp(40px,8vw,160px)', opacity: sc ? 1 : 0, pointerEvents: sc ? 'auto' : 'none', transition: 'opacity 300ms ease', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }} onClick={() => nav('/')}>
-              <div style={{ width: 24, height: 24, border: '1px solid white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', ...SF, fontSize: 11, color: 'white' }}>A</div>
-            </div>
-            <nav style={{ display: 'flex', gap: 48, width: '100%', justifyContent: 'center', transition: 'justify-content 300ms ease' }}>
-              {[['THƯƠNG HIỆU', '/'], ['ƯU ĐÃI ĐẶC BIỆT', '/#offers'], ['ĂN UỐNG', '/#dining'], ['TRẢI NGHIỆM', '/attractions'], ['THÀNH VIÊN', '/#member'], ['TIN TỨC', '/news']].map(([l, h], idx) => (
-                <a key={l} href={h} style={{ fontSize: 11, fontWeight: 500, letterSpacing: '1.5px', color: idx === 0 ? 'white' : 'rgba(255,255,255,.7)', textDecoration: 'none', height: 60, display: 'flex', alignItems: 'center', borderBottom: idx === 0 ? `2px solid ${G}` : '2px solid transparent', transition: 'color 300ms, border-color 300ms' }}
-                  onMouseEnter={e => { e.target.style.color = 'white'; e.target.style.borderBottomColor = G; }} onMouseLeave={e => { e.target.style.color = idx === 0 ? 'white' : 'rgba(255,255,255,.7)'; e.target.style.borderBottomColor = idx === 0 ? G : 'transparent'; }}>{l}</a>
-              ))}
-            </nav>
-            <div style={{ position: 'absolute', right: 'clamp(40px,8vw,160px)', opacity: sc ? 1 : 0, pointerEvents: sc ? 'auto' : 'none', transition: 'opacity 300ms ease' }}>
-              {AuthBlock}
-            </div>
-          </div>
-        </div>
-      </header>
+      <MainHeader transparent={true} />
 
       {/* HERO */}
       <section
+        id="hero-sec"
         style={{ position: 'relative', height: '100vh', background: '#000', overflow: 'hidden', cursor: dragStartX !== null ? 'grabbing' : 'grab' }}
         onMouseDown={handleDragStart} onMouseMove={handleDragMove} onMouseUp={handleDragEnd} onMouseLeave={handleDragEnd}
         onTouchStart={handleDragStart} onTouchMove={handleDragMove} onTouchEnd={handleDragEnd}
@@ -312,7 +301,7 @@ export default function HomePage() {
       </section>
 
       {/* ATTRACTIONS (Destinations style) */}
-      <section style={{ background: 'white', padding: '80px 24px' }}>
+      <section id="attractions-sec" style={{ background: 'white', padding: '80px 24px' }}>
         <div style={{ maxWidth: 1200, margin: '0 auto' }}>
           {/* Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 40, flexWrap: 'wrap', gap: 24 }}>
@@ -323,7 +312,7 @@ export default function HomePage() {
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button style={{ background: '#18181b', color: 'white', border: 'none', borderRadius: 999, padding: '8px 20px', fontSize: 13, cursor: 'default' }}>Nổi bật</button>
+                <button onClick={() => nav('/attractions')} style={{ background: '#18181b', color: 'white', border: 'none', borderRadius: 999, padding: '8px 20px', fontSize: 13, cursor: 'pointer', transition: 'opacity 200ms' }} onMouseEnter={e => e.target.style.opacity = '0.8'} onMouseLeave={e => e.target.style.opacity = '1'}>Nổi bật</button>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={() => document.getElementById('dest-slider').scrollBy({ left: -350, behavior: 'smooth' })} style={{ width: 40, height: 40, borderRadius: '50%', border: '1px solid #e4e4e7', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#18181b', transition: 'background 200ms' }} onMouseEnter={e => e.target.style.background = '#f4f4f5'} onMouseLeave={e => e.target.style.background = 'white'}>
@@ -359,7 +348,15 @@ export default function HomePage() {
                     }}
                     onClick={() => nav('/attractions')}
                   >
-                    <img src={a.imageUrl || 'https://images.unsplash.com/photo-1597435877854-c2cbfa9cc2c2?w=600'} alt={a.name} style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 700ms ease' }} />
+                    <img 
+                      src={getPlaceholderImage(a)} 
+                      alt={a.name} 
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 700ms ease' }}
+                      onError={(e) => {
+                        e.target.onerror = null; 
+                        e.target.src = 'https://res.cloudinary.com/dfvdvkssv/image/upload/v1778288591/hotel_placeholders/market_placeholder.jpg';
+                      }}
+                    />
                     <div className="overlay-bg" style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 50%)', transition: 'background 400ms ease' }} />
 
                     {/* Default Title (bottom) */}
@@ -390,7 +387,7 @@ export default function HomePage() {
       </section>
 
       {/* NEWS */}
-      <section style={{ background: '#fafafa', padding: '80px 24px' }}>
+      <section id="news-sec" style={{ background: '#fafafa', padding: '80px 24px' }}>
         <div style={{ maxWidth: 1200, margin: '0 auto' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 48, flexWrap: 'wrap', gap: 16 }}>
             <div>
@@ -427,6 +424,11 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* MEMBERSHIP */}
+      <div id="member">
+        <MembershipSection nav={nav} />
+      </div>
 
       {/* FOOTER */}
       <MainFooter />

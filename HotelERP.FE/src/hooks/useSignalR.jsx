@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import * as signalR from '@microsoft/signalr';
-import { notification } from 'antd';
+import { useNavigate } from 'react-router-dom';
+import { Button } from 'antd';
+import { notification } from '../utils/antdGlobal';
 import { useAuthStore } from '../store/authStore';
 
 const API_ROOT = (import.meta.env.VITE_API_BASE_URL || 'https://localhost:7100/api').replace(/\/api\/?$/, '');
@@ -8,6 +10,7 @@ const API_ROOT = (import.meta.env.VITE_API_BASE_URL || 'https://localhost:7100/a
 export const useSignalR = () => {
   const [connection, setConnection] = useState(null);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -35,9 +38,29 @@ export const useSignalR = () => {
         const content = data?.content || data?.Content || data?.message || data?.Message || '';
         const type = (data?.type || data?.Type || 'info').toLowerCase();
         const safeType = ['success', 'info', 'warning', 'error'].includes(type) ? type : 'info';
+        const action = data?.action || data?.Action;
+        const refId = data?.referenceId || data?.ReferenceId;
+
+        if (action === 'REDIRECT_TO_REVIEW' && refId) {
+          notification[safeType]({
+            message: title,
+            description: content,
+            placement: 'topRight',
+            duration: 0,
+            btn: (
+              <Button type="primary" size="small" onClick={() => {
+                notification.destroy();
+                navigate(`/booking/${refId}/review`);
+              }}>
+                Đánh giá ngay
+              </Button>
+            ),
+          });
+          return;
+        }
 
         notification[safeType]({
-          title: title, 
+          message: title, 
           description: content,
           placement: 'topRight',
           duration: 5,

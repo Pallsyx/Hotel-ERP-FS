@@ -301,6 +301,10 @@ public partial class HotelDbContext : DbContext
             entity.Property(e => e.DiscountAmount)
                 .HasColumnType("decimal(18, 2)")
                 .HasColumnName("discount_amount");
+            entity.Property(e => e.MembershipDiscountAmount)
+                .HasColumnType("decimal(18, 2)")
+                .HasColumnName("membership_discount_amount")
+                .HasDefaultValue(0m);
             entity.Property(e => e.FinalAmount)
                 .HasColumnType("decimal(18, 2)")
                 .HasColumnName("final_amount");
@@ -1219,6 +1223,7 @@ public partial class HotelDbContext : DbContext
             entity.Property(e => e.Code)
                 .HasMaxLength(50)
                 .HasColumnName("code");
+            entity.Property(e => e.UserId).HasColumnName("user_id");
             entity.Property(e => e.DiscountType)
                 .HasMaxLength(50)
                 .HasColumnName("discount_type");

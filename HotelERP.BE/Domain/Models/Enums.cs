@@ -19,7 +19,8 @@ namespace HotelERP.BE.Models.Enums
         FinalizeInvoice,
         AddExtraFee,
         CreateDamage,
-        UpdateDamage
+        UpdateDamage,
+        RedirectToReview
     }
 
     public enum NotificationType

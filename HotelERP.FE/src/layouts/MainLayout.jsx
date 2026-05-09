@@ -5,6 +5,7 @@ import {
   AppstoreOutlined, HomeOutlined, DatabaseOutlined, FormatPainterOutlined,
   WarningOutlined, DashboardOutlined, IdcardOutlined, FileTextOutlined,
   GiftOutlined, EditOutlined, MenuFoldOutlined, MenuUnfoldOutlined,
+  CommentOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
@@ -101,6 +102,7 @@ const MainLayout = () => {
     { key: '/admin/vouchers',    icon: <GiftOutlined />,       label: 'Quản lý Voucher',       requiredPermission: 'MANAGE_SERVICES' },
     { key: '/admin/posts',       icon: <EditOutlined />,       label: 'Quản lý Bài viết' },
     { key: '/admin/attractions', icon: <HomeOutlined />,       label: 'Khám phá Điểm đến' },
+    { key: '/admin/reviews',     icon: <CommentOutlined />,    label: 'Quản lý Đánh giá',     requiredPermission: 'MANAGE_BOOKINGS' },
     { key: '/admin/invoices',    icon: <FileTextOutlined />,   label: 'Quản lý hóa đơn',      requiredPermission: 'MANAGE_INVOICES' },
     { key: '/admin/users',       icon: <TeamOutlined />,       label: 'Danh sách Nhân sự',     requiredPermission: 'MANAGE_USERS' },
     { key: '/admin/roles',       icon: <SafetyCertificateOutlined />, label: 'Vai trò & Phân quyền', requiredPermission: 'MANAGE_ROLES' },

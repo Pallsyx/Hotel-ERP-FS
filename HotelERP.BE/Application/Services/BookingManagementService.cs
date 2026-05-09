@@ -237,6 +237,20 @@ public class BookingManagementService : IBookingManagementService
         await _context.SaveChangesAsync();
         msg.Id = dbNotif.Id; // ✅ Cập nhật ID sau khi save DB
         await _notificationService.SendToRoleAsync("Admin", msg);
+ 
+        // ✅ Gửi thông báo cho khách hàng để redirect sang trang đánh giá
+        if ((newStatus == BookingStatus.CheckedOut || newStatus == BookingStatus.Completed) && booking.UserId.HasValue)
+        {
+            var guestMsg = new NotificationMessage
+            {
+                Title = "Cảm ơn quý khách!",
+                Content = "Bạn đã hoàn tất thủ tục trả phòng. Vui lòng dành chút thời gian đánh giá dịch vụ của chúng tôi.",
+                Type = "Success",
+                Action = NotificationAction.RedirectToReview,
+                ReferenceId = booking.Id.ToString()
+            };
+            await _notificationService.SendToUserAsync(booking.UserId.Value.ToString(), guestMsg);
+        }
 
         // ✅ Gửi email "Xác nhận thành công" cho khách hàng
         if (newStatus == BookingStatus.Confirmed && !string.IsNullOrWhiteSpace(booking.GuestEmail))
@@ -399,7 +413,21 @@ public class BookingManagementService : IBookingManagementService
         await _context.SaveChangesAsync();
         detailMsg.Id = dbNotif.Id; // ✅ Cập nhật ID sau khi save DB
         await _notificationService.SendToRoleAsync("Admin", detailMsg);
-
+ 
+        // ✅ Gửi thông báo cho khách hàng (Phòng lẻ)
+        if ((newStatus == BookingStatus.CheckedOut || newStatus == BookingStatus.Completed) && detail.Booking?.UserId != null)
+        {
+            var guestMsg = new NotificationMessage
+            {
+                Title = "Trả phòng thành công!",
+                Content = $"Phòng {detail.Room?.RoomNumber} đã được trả. Quý khách vui lòng đánh giá dịch vụ.",
+                Type = "Success",
+                Action = NotificationAction.RedirectToReview,
+                ReferenceId = detail.Booking.Id.ToString()
+            };
+            await _notificationService.SendToUserAsync(detail.Booking.UserId.Value.ToString(), guestMsg);
+        }
+ 
         return (true, $"Đã cập nhật trạng thái phòng lẻ #{detailId} sang '{newStatus}' thành công.");
     }
 

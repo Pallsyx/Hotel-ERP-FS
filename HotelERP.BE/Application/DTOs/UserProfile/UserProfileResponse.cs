@@ -13,4 +13,7 @@ public class UserProfileResponse
     
     // Chỉ trả về Tên quyền (VD: "Admin", "Customer") thay vì cả bảng Role
     public string? RoleName { get; set; } 
+
+    public string? MembershipTier { get; set; }
+    public decimal MembershipDiscount { get; set; }
 }

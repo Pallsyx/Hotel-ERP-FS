@@ -1,11 +1,11 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { setAntdStatic } from './utils/antdGlobal';
 import { App as AntdApp, ConfigProvider, theme } from 'antd';
 import AdminRoutes from './routes/AdminRoutes.jsx';
 import HomePage from './pages/Home/HomePage';
 import FloatingSidebar from './components/Layout/FloatingSidebar';
 
-// 1. THÊM DÒNG NÀY: Import trang Login của bạn vào đây
 import LoginPage from './pages/Auth/Login';
 import RegisterPage from './pages/Auth/Register';
 import ForgotPasswordPage from './pages/Auth/ForgotPassword';
@@ -16,13 +16,21 @@ import AttractionsPage from './pages/Home/AttractionsPage';
 import SearchResultsPage from './pages/Home/SearchResultsPage';
 import GuestBookingPage from './pages/Booking/GuestBookingPage';
 import CustomerReviewsPage from './pages/Home/CustomerReviewsPage';
+import SubmitReview from './pages/Customer/SubmitReview';
+
+const StaticSetter = () => {
+  const { message, notification, modal } = AntdApp.useApp();
+  useEffect(() => {
+    setAntdStatic(message, notification, modal);
+  }, [message, notification, modal]);
+  return null;
+};
 
 function App() {
   return (
     <BrowserRouter>
       <FloatingSidebar />
       <Routes>
-        {/* NHÁNH CHO KHÁCH HÀNG: Sử dụng Theme Dark Sang Trọng */}
         <Route path="/*" element={
           <ConfigProvider
             theme={{
@@ -35,6 +43,7 @@ function App() {
             }}
           >
             <AntdApp>
+              <StaticSetter />
               <Routes>
                 <Route path="/" element={<HomePage />} />
                 <Route path="/news" element={<NewsPage />} />
@@ -47,23 +56,23 @@ function App() {
                 <Route path="/profile" element={<UserProfile />} />
                 <Route path="/rooms/search-results" element={<SearchResultsPage />} />
                 <Route path="/booking/new" element={<GuestBookingPage />} />
+                <Route path="/booking/:bookingId/review" element={<SubmitReview />} />
               </Routes>
             </AntdApp>
           </ConfigProvider>
         } />
 
-        {/* NHÁNH CHO ADMIN: Trả về Theme Sáng (Light Mode) như cũ */}
         <Route path="/admin/*" element={
           <ConfigProvider
             theme={{
-              algorithm: theme.defaultAlgorithm, // Trả về theme cũ
+              algorithm: theme.defaultAlgorithm,
               token: {
                 borderRadius: 4,
-                // Bạn có thể tùy chỉnh lại màu primary của admin ở đây nếu cần
               },
             }}
           >
             <AntdApp>
+              <StaticSetter />
               <AdminRoutes />
             </AntdApp>
           </ConfigProvider>

@@ -4,6 +4,7 @@ import { GoogleMap, useJsApiLoader, Marker, DirectionsRenderer } from '@react-go
 import { Select, Input, Tag, Spin } from 'antd';
 import { SearchOutlined, EnvironmentOutlined } from '@ant-design/icons';
 import attractionApi from '../../api/attractionApi';
+import MainHeader from '../../components/Layout/MainHeader';
 
 const { Option } = Select;
 
@@ -14,85 +15,47 @@ const containerStyle = { width: '100%', height: '100%', borderRadius: 4 };
 const hotelLocation  = { lat: 10.948386, lng: 106.790938 };
 const mapOptions     = { disableDefaultUI: false, zoomControl: true, streetViewControl: false, mapTypeControl: false };
 
-/* ─── Shared Navbar (same as NewsPage) ─────────────────────── */
-function LotteHeader({ activePage = '' }) {
-  const navigate = useNavigate();
-  const [scrolled, setScrolled] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
-  useEffect(() => {
-    const fn = () => setScrolled(window.scrollY > 50);
-    window.addEventListener('scroll', fn);
-    return () => window.removeEventListener('scroll', fn);
-  }, []);
-  const links = [
-    { label: 'THƯƠNG HIỆU', href: '/' },
-    { label: 'ƯU ĐÃI ĐẶC BIỆT', href: '/#offers' },
-    { label: 'ĂN UỐNG', href: '/#dining' },
-    { label: 'TRẢI NGHIỆM', href: '/attractions' },
-    { label: 'THÀNH VIÊN', href: '/#member' },
-    { label: 'TIN TỨC', href: '/news' },
-  ];
-  return (
-    <header style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50, background: scrolled || mobileOpen ? DARK : 'linear-gradient(to bottom, rgba(0,0,0,0.75), transparent)', transition: 'background 400ms' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px', height: 64 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }} onClick={() => navigate('/')}>
-          <div style={{ width: 32, height: 32, border: '1px solid white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Playfair Display', serif", fontSize: 15, color: 'white' }}>A</div>
-          <span style={{ color: 'white', fontSize: 12, fontWeight: 500, letterSpacing: '0.2em', textTransform: 'uppercase' }}>Asteria Resort</span>
-        </div>
-        <nav style={{ display: 'none', alignItems: 'center' }} className="lg-nav-attr">
-          {links.map(link => (
-            <a key={link.label} href={link.href}
-              style={{ fontSize: 11, fontWeight: 500, letterSpacing: '1.5px', textTransform: 'uppercase', color: activePage === link.label ? GOLD : 'rgba(255,255,255,0.8)', textDecoration: 'none', padding: '0 16px', height: 64, display: 'flex', alignItems: 'center', borderBottom: activePage === link.label ? `2px solid ${GOLD}` : '2px solid transparent', transition: 'color 300ms' }}
-              onMouseEnter={e => { if (activePage !== link.label) e.target.style.color = GOLD; }}
-              onMouseLeave={e => { if (activePage !== link.label) e.target.style.color = 'rgba(255,255,255,0.8)'; }}>
-              {link.label}
-            </a>
-          ))}
-        </nav>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <a href="/" style={{ fontSize: 10, fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'white', background: `linear-gradient(135deg, #c9a97a, #9a7b52)`, padding: '9px 20px', borderRadius: 2, textDecoration: 'none' }}>Đặt Phòng</a>
-          <button onClick={() => setMobileOpen(!mobileOpen)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'white', fontSize: 20 }}>{mobileOpen ? '✕' : '☰'}</button>
-        </div>
-      </div>
-      {mobileOpen && (
-        <div style={{ background: DARK, padding: '12px 32px 20px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-          {links.map(link => <a key={link.label} href={link.href} style={{ display: 'block', color: 'rgba(255,255,255,0.75)', textDecoration: 'none', padding: '10px 0', fontSize: 13, fontWeight: 500, letterSpacing: '1px', textTransform: 'uppercase', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>{link.label}</a>)}
-        </div>
-      )}
-      <style>{`.lg-nav-attr { display: none !important; } @media(min-width: 1024px) { .lg-nav-attr { display: flex !important; } }`}</style>
-    </header>
-  );
-}
-
-function LotteFooter() {
-  return (
-    <footer style={{ background: '#0a0a0a', color: '#71717a', padding: '48px 24px 24px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-      <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexWrap: 'wrap', gap: 40, justifyContent: 'space-between', marginBottom: 40 }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-            <div style={{ width: 30, height: 30, border: '1px solid white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Playfair Display', serif", fontSize: 13, color: 'white' }}>A</div>
-            <span style={{ color: 'white', fontSize: 11, fontWeight: 600, letterSpacing: '0.2em', textTransform: 'uppercase' }}>Asteria Resort</span>
-          </div>
-          <p style={{ fontSize: 12, color: '#71717a', lineHeight: 1.8 }}>Số 10, Huỳnh Văn Nghệ, phường Bửu Long,<br />TP. Biên Hòa, tỉnh Đồng Nai</p>
-          <p style={{ fontSize: 12, color: '#71717a', marginTop: 6 }}>📞 0987 244 924</p>
-        </div>
-        <div>
-          <h4 style={{ color: 'white', fontSize: 10, fontWeight: 700, letterSpacing: '0.25em', textTransform: 'uppercase', marginBottom: 16 }}>Liên Hệ</h4>
-          {['Về chúng tôi', 'Tuyển dụng', 'Điều khoản sử dụng', 'Chính sách bảo mật'].map(t => (
-            <div key={t} style={{ marginBottom: 10 }}><a href="#" style={{ color: '#71717a', fontSize: 12, textDecoration: 'none' }}>{t}</a></div>
-          ))}
-        </div>
-      </div>
-      <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 20, textAlign: 'center', fontSize: 11, color: '#3f3f46' }}>
-        © 2026 ASTERIA RESORT. All rights reserved.
-      </div>
-    </footer>
-  );
-}
+import MainFooter from '../../components/Layout/MainFooter';
 
 /* ═══════════════════════════════════════════════════════════ */
-/*  ATTRACTIONS PAGE                                            */
+/*  HELPERS                                                     */
 /* ═══════════════════════════════════════════════════════════ */
+const CLOUDINARY_BASE = 'https://res.cloudinary.com/dfvdvkssv/image/upload/hotel_placeholders';
+
+const getPlaceholderImage = (item) => {
+  if (item.imageUrl && (item.imageUrl.startsWith('http') || item.imageUrl.startsWith('https'))) return item.imageUrl;
+  
+  const name = (item.name || '').toLowerCase();
+  const type = (item.type || '').toLowerCase();
+
+  if (name.includes('biển') || name.includes('beach') || name.includes('vịnh')) 
+    return `${CLOUDINARY_BASE}/beach_placeholder.jpg`;
+  if (name.includes('chợ') || name.includes('market') || name.includes('trung tâm')) 
+    return `${CLOUDINARY_BASE}/market_placeholder.jpg`;
+  if (name.includes('bảo tàng') || name.includes('museum') || name.includes('triển lãm') || name.includes('di tích')) 
+    return `${CLOUDINARY_BASE}/museum_placeholder.jpg`;
+  if (name.includes('phố') || name.includes('street') || name.includes('quảng trường')) 
+    return `${CLOUDINARY_BASE}/street_placeholder.jpg`;
+  if (name.includes('chùa') || name.includes('pagoda') || name.includes('đền') || name.includes('nhà thờ') || name.includes('tháp')) 
+    return `${CLOUDINARY_BASE}/pagoda_placeholder.jpg`;
+  if (name.includes('vui chơi') || name.includes('park') || name.includes('công viên') || type.includes('giải trí')) 
+    return `${CLOUDINARY_BASE}/park_placeholder.jpg`;
+  if (name.includes('nhà hàng') || name.includes('ăn uống') || name.includes('food') || name.includes('quán')) 
+    return `${CLOUDINARY_BASE}/food_placeholder.jpg`;
+  if (name.includes('thác') || name.includes('nước') || name.includes('suối')) 
+    return `${CLOUDINARY_BASE}/waterfall_placeholder.jpg`;
+  if (name.includes('núi') || name.includes('rừng') || name.includes('đèo')) 
+    return `${CLOUDINARY_BASE}/mountain_placeholder.jpg`;
+  if (name.includes('golf') || name.includes('sân')) 
+    return `${CLOUDINARY_BASE}/golf_placeholder.jpg`;
+  if (name.includes('làng') || name.includes('truyền thống') || name.includes('nghề')) 
+    return `${CLOUDINARY_BASE}/village_placeholder.jpg`;
+  if (name.includes('hoàng hôn') || name.includes('sunset') || name.includes('ngắm')) 
+    return `${CLOUDINARY_BASE}/sunset_placeholder.jpg`;
+  
+  return 'https://res.cloudinary.com/dfvdvkssv/image/upload/v1778288591/hotel_placeholders/market_placeholder.jpg';
+};
+
 export default function AttractionsPage() {
   const navigate = useNavigate();
   const [attractions,        setAttractions]        = useState([]);
@@ -176,14 +139,14 @@ export default function AttractionsPage() {
 
   return (
     <div style={{ background: '#fafafa', minHeight: '100vh', fontFamily: "'Inter', sans-serif" }}>
-      <LotteHeader activePage="TRẢI NGHIỆM" />
+      <MainHeader />
 
       {/* Hero */}
       <div style={{ position: 'relative', height: 360, background: DARK, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <img src="https://images.unsplash.com/photo-1596436889106-be35e843f6a6?q=80&w=2000&auto=format&fit=crop"
           alt="Attractions" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.3 }} />
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(17,17,17,0.85), rgba(17,17,17,0.4))' }} />
-        <div style={{ position: 'relative', zIndex: 10, textAlign: 'center', padding: '0 24px', marginTop: 64 }}>
+        <div style={{ position: 'relative', zIndex: 10, textAlign: 'center', padding: '0 24px', marginTop: 124 }}>
           <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.3em', textTransform: 'uppercase', color: GOLD, marginBottom: 16 }}>ĐIỂM ĐẾN LÂN CẬN</p>
           <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 40, color: 'white', lineHeight: 1.2, marginBottom: 12 }}>Khám Phá Xung Quanh</h1>
           <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 14, maxWidth: 540, margin: '0 auto' }}>
@@ -228,7 +191,17 @@ export default function AttractionsPage() {
               ) : filtered.map(item => (
                 <div key={item.id} onClick={() => handleCardClick(item)}
                   style={{ display: 'flex', gap: 14, padding: 12, borderRadius: 4, cursor: 'pointer', border: `1px solid ${selectedAttraction?.id === item.id ? GOLD : '#f0f0f0'}`, background: selectedAttraction?.id === item.id ? '#fdf8f3' : 'white', transition: 'all 200ms' }}>
-                  <img src={item.imageUrl || 'https://images.unsplash.com/photo-1597435877854-c2cbfa9cc2c2?w=200'} alt={item.name} style={{ width: 88, height: 88, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }} />
+                  <div style={{ width: 88, height: 88, borderRadius: 4, overflow: 'hidden', flexShrink: 0, background: '#f0f0f0' }}>
+                    <img 
+                      src={getPlaceholderImage(item)} 
+                      alt={item.name} 
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      onError={(e) => {
+                        e.target.onerror = null; 
+                        e.target.src = 'https://images.unsplash.com/photo-1596436889106-be35e843f6a6?q=80&w=400';
+                      }}
+                    />
+                  </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
                       <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 15, color: '#18181b', lineHeight: 1.3, margin: 0 }}>{item.name}</h3>
@@ -304,7 +277,7 @@ export default function AttractionsPage() {
         </div>
       </div>
 
-      <LotteFooter />
+      <MainFooter />
     </div>
   );
 }

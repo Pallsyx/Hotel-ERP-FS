@@ -21,6 +21,7 @@ public class UserProfileService : IUserProfileService
     {
         var user = await _context.Users
             .Include(u => u.Role)
+            .Include(u => u.Membership)
             .FirstOrDefaultAsync(u => u.Id == userId && u.Status == true);
 
         if (user == null) throw new Exception("Không tìm thấy thông tin người dùng.");
@@ -38,7 +39,9 @@ public class UserProfileService : IUserProfileService
             Address = user.Address,
             DateOfBirth = user.DateOfBirth,
             LoyaltyPoints = user.LoyaltyPoints,
-            RoleName = user.Role?.Name
+            RoleName = user.Role?.Name,
+            MembershipTier = user.Membership?.TierName,
+            MembershipDiscount = user.Membership?.DiscountPercent ?? 0
         };
     }
 
@@ -131,6 +134,7 @@ public class UserProfileService : IUserProfileService
                     var birthdayVoucher = new Voucher
                     {
                         Code = voucherCode,
+                        UserId = user.Id,
                         DiscountType = "FIXED_AMOUNT",
                         DiscountValue = 500000, 
                         MinBookingValue = 2000000, 

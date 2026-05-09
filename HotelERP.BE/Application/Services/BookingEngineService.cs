@@ -299,7 +299,22 @@ public class BookingEngineService : IBookingEngineService
 
             // Gán lại tổng tiền cuối cho mảng Booking cha
             booking.BookingSubtotal = finalTotalAmount;
-            booking.FinalAmount = finalTotalAmount;
+            
+            // NEW: Membership Discount Logic
+            if (userId > 0)
+            {
+                var user = await _context.Users
+                    .Include(u => u.Membership)
+                    .FirstOrDefaultAsync(u => u.Id == userId);
+                
+                if (user?.Membership != null && user.Membership.DiscountPercent > 0)
+                {
+                    booking.MembershipDiscountAmount = Math.Round(finalTotalAmount * (user.Membership.DiscountPercent / 100m), 2);
+                    booking.Notes += $" (Membership Discount {user.Membership.DiscountPercent}%: -{booking.MembershipDiscountAmount:N0}đ)";
+                }
+            }
+
+            booking.FinalAmount = finalTotalAmount - booking.MembershipDiscountAmount;
             
             await _context.SaveChangesAsync();
 

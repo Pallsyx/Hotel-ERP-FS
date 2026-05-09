@@ -9,6 +9,7 @@ public partial class Voucher
     public int Id { get; set; }
 
     public string Code { get; set; } = null!;
+    public int? UserId { get; set; }
 
     public string DiscountType { get; set; } = null!;
 

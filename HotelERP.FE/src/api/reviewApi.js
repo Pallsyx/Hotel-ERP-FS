@@ -1,52 +1,24 @@
 import axiosClient from './axiosClient';
 
-// Base URL: api/Review
 const reviewApi = {
-  // ── GUEST / PUBLIC ──────────────────────────────
+  getVisible: () => axiosClient.get('/Review/visible'),
+  getAllForAdmin: () => axiosClient.get('/Review/admin-all'),
+  create: (data) => axiosClient.post('/Review', data),
+  
+  // Admin moderation endpoints
+  approve: (id) => axiosClient.put(`/Review/${id}/approve`),
+  hide: (id, reason) => axiosClient.put(`/Review/${id}/hide`, null, {
+    headers: { 'X-Audit-Reason': encodeURIComponent(reason || 'Nội dung không phù hợp') }
+  }),
+  delete: (id) => axiosClient.delete(`/Review/${id}`),
 
-  // GET /api/Review/visible — Lấy đánh giá đã duyệt (hiển thị cho khách)
-  getVisible: () => {
-    return axiosClient.get('/Review/visible');
-  },
-
-  // POST /api/Review — Khách gửi đánh giá mới (chờ duyệt)
-  create: (data) => {
-    // data: { userId?, roomTypeId, rating, comment?, imageUrl?, imagePublicId? }
-    return axiosClient.post('/Review', data);
-  },
-
-  // POST /api/Review/upload-image — Upload ảnh đánh giá lên Cloudinary
-  uploadImage: (formData) => {
+  uploadImage: (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
     return axiosClient.post('/Review/upload-image', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+      headers: { 'Content-Type': 'multipart/form-data' }
     });
-  },
-
-  // ── ADMIN ───────────────────────────────────────
-
-  // GET /api/Review/admin-all — Lấy tất cả đánh giá (kể cả pending/hidden)
-  getAllForAdmin: () => {
-    return axiosClient.get('/Review/admin-all');
-  },
-
-  // PUT /api/Review/{id}/approve — Admin duyệt đánh giá
-  approve: (id) => {
-    return axiosClient.put(`/Review/${id}/approve`);
-  },
-
-  // PUT /api/Review/{id}/hide — Admin ẩn đánh giá (kèm lý do audit)
-  hide: (id, reason = '') => {
-    return axiosClient.put(
-      `/Review/${id}/hide`,
-      {},
-      { headers: { 'X-Audit-Reason': encodeURIComponent(reason) } }
-    );
-  },
-
-  // DELETE /api/Review/{id} — Xóa vĩnh viễn đánh giá
-  delete: (id) => {
-    return axiosClient.delete(`/Review/${id}`);
-  },
+  }
 };
 
 export default reviewApi;

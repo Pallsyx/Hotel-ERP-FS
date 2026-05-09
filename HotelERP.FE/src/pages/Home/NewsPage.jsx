@@ -1,61 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import articleApi from '../../api/articleApi';
+import MainHeader from '../../components/Layout/MainHeader';
+import MainFooter from '../../components/Layout/MainFooter';
 
 const GOLD = '#b8956a';
 const DARK = '#111111';
 const SF = { fontFamily: "'Playfair Display', serif" };
 
-/* ─── Helpers ─────────────────────────────────────────────────── */
 function formatDate(str) {
   if (!str) return '';
   return new Date(str).toLocaleDateString('vi-VN', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 const FALLBACK = 'https://images.unsplash.com/photo-1566073771259-6a8506099945?q=80&w=900&auto=format&fit=crop';
-
-/* ─── Shared Header ───────────────────────────────────────────── */
-export function LotteHeader({ activePage = '' }) {
-  const navigate = useNavigate();
-  const [scrolled, setScrolled] = useState(false);
-
-  useEffect(() => {
-    const fn = () => setScrolled(window.scrollY > 60);
-    window.addEventListener('scroll', fn);
-    return () => window.removeEventListener('scroll', fn);
-  }, []);
-
-  return (
-    <header style={{
-      position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
-      background: scrolled ? DARK : 'linear-gradient(to bottom, rgba(0,0,0,0.75), transparent)',
-      boxShadow: scrolled ? '0 2px 20px rgba(0,0,0,0.4)' : 'none',
-      transition: 'background 400ms, box-shadow 400ms',
-      height: 64, display: 'flex', alignItems: 'center',
-      padding: '0 clamp(20px,5vw,80px)', justifyContent: 'space-between',
-    }}>
-      <div onClick={() => navigate('/')} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-        <div style={{ width: 30, height: 30, border: '1px solid white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', ...SF, fontSize: 14, color: 'white' }}>A</div>
-        <span style={{ color: 'white', fontSize: 12, fontWeight: 600, letterSpacing: '0.2em', textTransform: 'uppercase' }}>Asteria Resort</span>
-      </div>
-      <nav style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-        {[['Trang Chủ', '/'], ['Điểm Đến', '/attractions'], ['Tin Tức', '/news']].map(([label, href]) => (
-          <a key={label} href={href} style={{
-            fontSize: 11, fontWeight: 500, letterSpacing: '1.5px', textTransform: 'uppercase',
-            color: href === '/news' ? GOLD : 'rgba(255,255,255,0.8)', textDecoration: 'none',
-            padding: '4px 14px', borderRadius: 2,
-            borderBottom: href === '/news' ? `2px solid ${GOLD}` : '2px solid transparent',
-          }}>{label}</a>
-        ))}
-        <a href="/" style={{
-          marginLeft: 8, fontSize: 10, fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase',
-          color: 'white', background: `linear-gradient(135deg, ${GOLD}, #9a7b52)`,
-          padding: '9px 18px', borderRadius: 2, textDecoration: 'none',
-        }}>Đặt Phòng</a>
-      </nav>
-    </header>
-  );
-}
 
 /* ─── Featured Card (large hero card) ───────────────────────── */
 export function FeaturedCard({ article, onClick }) {
@@ -141,11 +99,11 @@ function ArticleCard({ article, onClick, variant = 'default' }) {
 /*  NEWS PAGE                                                      */
 /* ═══════════════════════════════════════════════════════════════ */
 export default function NewsPage() {
-  const [articles, setArticles]               = useState([]);
-  const [loading, setLoading]                 = useState(true);
-  const [searchTerm, setSearchTerm]           = useState('');
+  const [articles, setArticles] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
-  const [categories, setCategories]           = useState([]);
+  const [categories, setCategories] = useState([]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -179,7 +137,7 @@ export default function NewsPage() {
 
   return (
     <div style={{ background: '#fafafa', minHeight: '100vh', fontFamily: "'Inter', sans-serif" }}>
-      <LotteHeader />
+      <MainHeader />
 
       {/* ── HERO BANNER ── */}
       <div style={{ position: 'relative', height: 400, background: DARK, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -189,7 +147,7 @@ export default function NewsPage() {
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.25 }}
         />
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(17,17,17,0.95), rgba(17,17,17,0.4))' }} />
-        <div style={{ position: 'relative', zIndex: 10, textAlign: 'center', padding: '0 24px', marginTop: 64 }}>
+        <div style={{ position: 'relative', zIndex: 10, textAlign: 'center', padding: '0 24px', marginTop: 124 }}>
           <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.4em', textTransform: 'uppercase', color: GOLD, marginBottom: 16 }}>CẨM NANG & TIN TỨC</p>
           <h1 style={{ ...SF, fontSize: 'clamp(32px,5vw,56px)', color: 'white', lineHeight: 1.2, margin: '0 0 16px', fontWeight: 400 }}>
             Khám Phá Trải Nghiệm<br />Hoàn Mỹ Tại Asteria
@@ -326,54 +284,7 @@ export default function NewsPage() {
         </div>
       </div>
 
-      {/* ── FOOTER ── */}
-      <footer style={{ background: '#0a0a0a', color: '#71717a', paddingTop: 64, paddingBottom: 32, borderTop: '1px solid rgba(255,255,255,0.06)', fontFamily: "'Inter', sans-serif" }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 48, marginBottom: 48 }}>
-            {/* Brand */}
-            <div style={{ gridColumn: 'span 2' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-                <div style={{ width: 32, height: 32, border: '1px solid white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Playfair Display', serif", fontSize: 14, color: 'white' }}>A</div>
-                <span style={{ color: 'white', fontSize: 11, fontWeight: 600, letterSpacing: '0.2em', textTransform: 'uppercase' }}>Asteria Resort</span>
-              </div>
-              <p style={{ fontSize: 13, lineHeight: 1.8, color: '#71717a', maxWidth: 320, marginBottom: 20 }}>
-                Số 10, Huỳnh Văn Nghệ, phường Bửu Long, TP. Biên Hòa, tỉnh Đồng Nai
-              </p>
-              <p style={{ fontSize: 13, color: '#71717a' }}>📞 0987 244 924</p>
-            </div>
-
-            {/* Links */}
-            <div>
-              <h4 style={{ color: 'white', fontSize: 10, fontWeight: 700, letterSpacing: '0.25em', textTransform: 'uppercase', marginBottom: 20 }}>Liên Kết Nhanh</h4>
-              {[
-                { label: 'Trang Chủ', href: '/' },
-                { label: 'Giới Thiệu', href: '#' },
-                { label: 'Phòng Nghỉ', href: '#' },
-                { label: 'Tin Tức', href: '/news' },
-                { label: 'Ý kiến khách hàng', href: '/reviews' },
-                { label: 'Liên Hệ', href: '#' }
-              ].map(item => (
-                <div key={item.label} style={{ marginBottom: 12 }}>
-                  <a href={item.href} style={{ color: '#71717a', fontSize: 13, textDecoration: 'none', transition: 'color 200ms' }}
-                    onMouseEnter={e => e.target.style.color = GOLD}
-                    onMouseLeave={e => e.target.style.color = '#71717a'}>
-                    {item.label}
-                  </a>
-                </div>
-              ))}
-            </div>
-
-            {/* Newsletter */}
-            <div>
-              <h4 style={{ color: 'white', fontSize: 10, fontWeight: 700, letterSpacing: '0.25em', textTransform: 'uppercase', marginBottom: 20 }}>Đăng Ký Bản Tin</h4>
-              <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.2)', paddingBottom: 8 }}>
-                <input type="email" placeholder="Email của bạn" style={{ background: 'transparent', border: 'none', outline: 'none', flex: 1, fontSize: 13, color: 'white' }} />
-                <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: GOLD, fontSize: 16 }}>→</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <MainFooter />
 
       <style>{`
         @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.5 } }

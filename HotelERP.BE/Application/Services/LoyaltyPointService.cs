@@ -272,6 +272,7 @@ public class LoyaltyPointService : ILoyaltyPointService
             var voucher = new Voucher
             {
                 Code = voucherCode,
+                UserId = userId,
                 DiscountType = "FIXED_AMOUNT",
                 DiscountValue = discountValue,
                 MinBookingValue = discountValue * 5, // Yêu cầu đơn hàng gấp 5 lần giá trị voucher

@@ -27,7 +27,7 @@ public class ReviewController(HotelDbContext context, ICloudinaryService cloudin
         var reviews = await context.Reviews
             .Include(r => r.User)
             .Include(r => r.RoomType)
-            .Where(r => r.IsApproved == true && r.Status == "APPROVED")
+            .Where(r => r.IsApproved == true && (r.Status == "APPROVED" || r.Status == "VISIBLE"))
             .OrderByDescending(r => r.CreatedAt)
             .Select(r => new {
                 r.Id,
@@ -54,7 +54,28 @@ public class ReviewController(HotelDbContext context, ICloudinaryService cloudin
     public async Task<IActionResult> GetAllForAdmin()
     {
         // Admin cần thấy mọi thứ để duyệt/ẩn
-        var reviews = await context.Reviews.IgnoreQueryFilters().OrderByDescending(r => r.CreatedAt).ToListAsync();
+        var reviews = await context.Reviews
+            .IgnoreQueryFilters()
+            .Include(r => r.User)
+            .Include(r => r.RoomType)
+            .OrderByDescending(r => r.CreatedAt)
+            .Select(r => new {
+                r.Id,
+                r.UserId,
+                r.RoomTypeId,
+                r.Rating,
+                r.Comment,
+                r.ImageUrl,
+                r.CreatedAt,
+                r.LikeCount,
+                r.Highlight,
+                r.ServiceQuality,
+                r.IsApproved,
+                r.Status,
+                User = r.User != null ? new { r.User.FullName } : null,
+                RoomType = r.RoomType != null ? new { r.RoomType.Name } : null
+            })
+            .ToListAsync();
         return Ok(reviews);
     }
 

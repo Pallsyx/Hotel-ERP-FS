@@ -37,6 +37,10 @@ const userProfileApi = {
   
   syncPoints: () => {
     return axiosClient.post('/UserProfile/sync-points');
+  },
+  
+  getMyVouchers: () => {
+    return axiosClient.get('/UserProfile/my-vouchers');
   }
 };
 

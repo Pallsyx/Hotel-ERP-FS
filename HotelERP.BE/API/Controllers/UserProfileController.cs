@@ -16,27 +16,34 @@ public class UserProfileController : ControllerBase
     private readonly IUserProfileService _userProfileService;
     private readonly IPhotoService _photoService;
     private readonly ILoyaltyPointService _loyaltyPointService;
+    private readonly HotelERP.BE.Services.Vouchers.IVoucherService _voucherService;
     private readonly HotelERP.BE.Infrastructure.Data.HotelDbContext _context;
-
+ 
     public UserProfileController(
         IUserProfileService userProfileService, 
         IPhotoService photoService, 
         ILoyaltyPointService loyaltyPointService,
+        HotelERP.BE.Services.Vouchers.IVoucherService voucherService,
         HotelERP.BE.Infrastructure.Data.HotelDbContext context)
     {
         _userProfileService = userProfileService;
         _photoService = photoService;
         _loyaltyPointService = loyaltyPointService;
+        _voucherService = voucherService;
         _context = context;
     }
 
     // Hàm hỗ trợ lấy UserId từ Token đang đăng nhập
     private int GetCurrentUserId()
     {
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value 
+                          ?? User.FindFirst("sub")?.Value; // Fallback to "sub"
+        
+        Console.WriteLine($"[DEBUG] GetCurrentUserId: userIdClaim = '{userIdClaim}'");
+
         if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
         {
-            throw new UnauthorizedAccessException("Token không hợp lệ.");
+            throw new Exception($"Token không hợp lệ hoặc thiếu UserId. Claim value: '{userIdClaim}'");
         }
         return userId;
     }
@@ -152,6 +159,21 @@ public class UserProfileController : ControllerBase
                 .ToListAsync();
 
             return Ok(new { success = true, data = bookings });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+    }
+
+    [HttpGet("my-vouchers")]
+    public async Task<IActionResult> GetMyVouchers()
+    {
+        try
+        {
+            int userId = GetCurrentUserId();
+            var result = await _voucherService.GetMyVouchersAsync(userId);
+            return StatusCode(result.StatusCode, result);
         }
         catch (Exception ex)
         {

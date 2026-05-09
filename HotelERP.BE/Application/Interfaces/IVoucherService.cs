@@ -6,6 +6,7 @@ namespace HotelERP.BE.Services.Vouchers;
 public interface IVoucherService
 {
     Task<ApiResult<List<VoucherResponseDto>>> GetAllAsync(string? status, string? search, CancellationToken cancellationToken = default);
+    Task<ApiResult<List<VoucherResponseDto>>> GetMyVouchersAsync(int userId, CancellationToken cancellationToken = default);
 
     Task<ApiResult<VoucherResponseDto>> GetByIdAsync(int id, CancellationToken cancellationToken = default);
 

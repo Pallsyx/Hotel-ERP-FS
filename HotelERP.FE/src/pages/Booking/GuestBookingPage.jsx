@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Form, Input, Button, message, Divider, Space, Tag } from 'antd';
 import { ArrowLeftOutlined, CheckCircleOutlined, InfoCircleOutlined, TagOutlined, CloseCircleOutlined } from '@ant-design/icons';
+import { useAuthStore } from '../../store/authStore';
 import bookingApi from '../../api/bookingApi';
 
 const GOLD = '#b8956a';
@@ -87,6 +88,8 @@ export default function GuestBookingPage() {
     );
   }
 
+  const { user, isAuthenticated } = useAuthStore();
+
   const {
     roomTypeId, roomName, basePrice,
     checkIn, checkOut, adults, children, rooms, nights,
@@ -100,7 +103,12 @@ export default function GuestBookingPage() {
   }] : []);
 
   const subtotal = resolvedCart.reduce((s, c) => s + (c.basePrice ?? 0) * (nights ?? 1), 0);
-  const totalPrice = subtotal - discountAmount;
+  
+  // NEW: Membership Discount
+  const memDiscountPercent = user?.membershipDiscount ?? 0;
+  const memDiscountAmount = Math.round(subtotal * (memDiscountPercent / 100));
+  
+  const totalPrice = subtotal - memDiscountAmount - discountAmount;
 
   const handleApplyVoucher = async () => {
     if (!voucherCode.trim()) {
@@ -237,7 +245,17 @@ export default function GuestBookingPage() {
               Thông tin liên hệ
             </h2>
             
-            <Form form={form} layout="vertical" onFinish={onFinish} requiredMark="optional">
+            <Form 
+              form={form} 
+              layout="vertical" 
+              onFinish={onFinish} 
+              requiredMark="optional"
+              initialValues={{
+                fullName: user?.fullName || '',
+                phone: user?.phone || '',
+                email: user?.email || ''
+              }}
+            >
               <Form.Item 
                 name="fullName" 
                 label={<span style={{ fontWeight: 600, color: 'rgba(255,255,255,0.85)', fontSize: '14px' }}>Họ và tên khách lưu trú</span>}
@@ -356,9 +374,15 @@ export default function GuestBookingPage() {
                   <span>Giá tạm tính ({rooms} phòng × {nights} đêm)</span>
                   <span style={{fontWeight: 500, color: 'white'}}>{formatVND(subtotal)}</span>
                 </div>
+                {memDiscountAmount > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: GOLD, fontSize: 14, marginBottom: 12 }}>
+                    <span>Ưu đãi hội viên ({user.membershipTier})</span>
+                    <span style={{fontWeight: 600}}>- {formatVND(memDiscountAmount)}</span>
+                  </div>
+                )}
                 {discountAmount > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: '#4ade80', fontSize: 14, marginBottom: 12 }}>
-                    <span>Ưu đãi áp dụng</span>
+                    <span>Voucher giảm giá</span>
                     <span style={{fontWeight: 600}}>- {formatVND(discountAmount)}</span>
                   </div>
                 )}

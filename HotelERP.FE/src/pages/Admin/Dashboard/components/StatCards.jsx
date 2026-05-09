@@ -32,7 +32,7 @@ const StatCards = ({
           <Title level={5}>Tình hình Lễ tân (Hôm nay)</Title>
           <Row gutter={[16, 16]}>
             <Col xs={24} sm={8}>
-              <Card hoverable bordered={false} style={{ background: '#e6f7ff' }}>
+              <Card hoverable variant="borderless" style={{ background: '#e6f7ff' }}>
                 <Statistic
                   title="Khách sắp đến (Arrivals)"
                   value={receptionStats.arrivals}
@@ -41,7 +41,7 @@ const StatCards = ({
               </Card>
             </Col>
             <Col xs={24} sm={8}>
-              <Card hoverable bordered={false} style={{ background: '#f6ffed' }}>
+              <Card hoverable variant="borderless" style={{ background: '#f6ffed' }}>
                 <Statistic
                   title="Khách đang lưu trú (In-House)"
                   value={receptionStats.inHouse}
@@ -50,7 +50,7 @@ const StatCards = ({
               </Card>
             </Col>
             <Col xs={24} sm={8}>
-              <Card hoverable bordered={false} style={{ background: '#fff1f0' }}>
+              <Card hoverable variant="borderless" style={{ background: '#fff1f0' }}>
                 <Statistic
                   title="Khách sắp đi (Departures)"
                   value={receptionStats.departures}
@@ -68,7 +68,7 @@ const StatCards = ({
           <Title level={5}>Tình trạng Buồng phòng</Title>
           <Row gutter={[16, 16]}>
             <Col xs={24} sm={6}>
-              <Card hoverable bordered={false} style={{ background: '#f9f0ff' }}>
+              <Card hoverable variant="borderless" style={{ background: '#f9f0ff' }}>
                 <Statistic
                   title="Phòng trống (Sẵn sàng)"
                   value={housekeepingStats.available}
@@ -77,7 +77,7 @@ const StatCards = ({
               </Card>
             </Col>
             <Col xs={24} sm={6}>
-              <Card hoverable bordered={false} style={{ background: '#fff2e8' }}>
+              <Card hoverable variant="borderless" style={{ background: '#fff2e8' }}>
                 <Statistic
                   title="Chưa dọn (Dirty)"
                   value={housekeepingStats.dirty}
@@ -86,7 +86,7 @@ const StatCards = ({
               </Card>
             </Col>
             <Col xs={24} sm={6}>
-              <Card hoverable bordered={false} style={{ background: '#fffbe6' }}>
+              <Card hoverable variant="borderless" style={{ background: '#fffbe6' }}>
                 <Statistic
                   title="Đang bảo trì"
                   value={housekeepingStats.maintenance}
@@ -95,7 +95,7 @@ const StatCards = ({
               </Card>
             </Col>
             <Col xs={24} sm={6}>
-              <Card hoverable bordered={false} style={{ background: '#e6f7ff' }}>
+              <Card hoverable variant="borderless" style={{ background: '#e6f7ff' }}>
                 <Statistic
                   title="Có khách (Occupied)"
                   value={housekeepingStats.occupied}
@@ -113,7 +113,7 @@ const StatCards = ({
           <Title level={5}>Tài chính & Hiệu suất</Title>
           <Row gutter={[16, 16]}>
             <Col xs={24} sm={12}>
-              <Card hoverable bordered={false}>
+              <Card hoverable variant="borderless">
                 <Statistic
                   title="Doanh thu dự kiến (VND)"
                   value={invoiceStats.totalRevenue}
@@ -124,12 +124,12 @@ const StatCards = ({
               </Card>
             </Col>
             <Col xs={24} sm={12}>
-              <Card hoverable bordered={false}>
+              <Card hoverable variant="borderless">
                 <Statistic
                   title="Doanh thu hôm nay (VND)"
                   value={invoiceStats.todayRevenue}
                   precision={0}
-                  valueStyle={{ color: '#52c41a' }}
+                  styles={{ content: { color: '#52c41a' } }}
                   prefix={<FileTextOutlined style={{ color: '#52c41a' }} />}
                   suffix="đ"
                 />

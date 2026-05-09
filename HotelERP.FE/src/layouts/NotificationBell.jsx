@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Badge, Popover, Typography, Button, Space, Avatar, message, Spin, Empty } from 'antd';
+import { Badge, Popover, Typography, Button, Space, Avatar, Spin, Empty } from 'antd';
+import { message } from '../utils/antdGlobal';
 import { BellOutlined, InfoCircleOutlined, CheckCircleOutlined, WarningOutlined, CloseCircleOutlined, CheckOutlined } from '@ant-design/icons';
 import notificationApi from '../api/notificationApi'; 
-import { useSignalR } from '../hooks/useSignalR'; // 👉 Import hook SignalR của bạn vào đây
+import { useSignalR } from '../hooks/useSignalR.jsx'; // 👉 Import hook SignalR của bạn vào đây
 
 const { Text } = Typography;
 
