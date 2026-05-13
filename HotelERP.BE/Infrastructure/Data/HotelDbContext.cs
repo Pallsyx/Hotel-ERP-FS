@@ -82,6 +82,8 @@ public partial class HotelDbContext : DbContext
     public virtual DbSet<Voucher> Vouchers { get; set; }
     public virtual DbSet<Notification> Notifications { get; set; }
     public virtual DbSet<UserPermission> UserPermissions { get; set; }
+    
+    public virtual DbSet<RoleDashboardPeriodState> RoleDashboardPeriodStates { get; set; }
 
     // 3. (BỎ) ĐÃ BỎ GHI ĐÈ SAVECHANGES VÌ SỬ DỤNG STORED PROCEDURE CHO LOG GOM NHÓM JSON.
     // public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) ...
@@ -1305,6 +1307,14 @@ public partial class HotelDbContext : DbContext
 });
         modelBuilder.Entity<Room>().HasQueryFilter(r => r.DeletedAt == null);
         modelBuilder.Entity<RoomType>().HasQueryFilter(rt => rt.DeletedAt == null);
+
+        modelBuilder.Entity<RoleDashboardPeriodState>(entity =>
+        {
+            entity.ToTable("Role_Dashboard_Period_States");
+            entity.HasKey(e => e.Id);
+            entity.HasOne(d => d.Role).WithMany().HasForeignKey(d => d.RoleId).OnDelete(DeleteBehavior.ClientSetNull).HasConstraintName("FK_RoleDashboardPeriod_Roles");
+            entity.HasOne(d => d.UpdatedByUser).WithMany().HasForeignKey(d => d.UpdatedBy).HasConstraintName("FK_RoleDashboardPeriod_UpdatedBy");
+        });
 
         OnModelCreatingPartial(modelBuilder);
     }
