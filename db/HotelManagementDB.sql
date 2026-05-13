@@ -29,7 +29,7 @@ CREATE TABLE [dbo].[Roles](
 	[name] [nvarchar](100) NOT NULL,
 	[description] [nvarchar](max) NULL,
 	[status] [nvarchar](20) NOT NULL DEFAULT 'ACTIVE',
-	[created_at] [datetime] NOT NULL DEFAULT GETDATE(),
+	[created_at] [datetime] NULL DEFAULT GETDATE(),
 	[updated_at] [datetime] NULL
 );
 
@@ -38,7 +38,7 @@ CREATE TABLE [dbo].[Permissions](
 	[name] [nvarchar](100) NOT NULL,
 	[description] [nvarchar](500) NULL,
 	[group_name] [nvarchar](100) NULL,
-	[created_at] [datetime] NOT NULL DEFAULT GETDATE()
+	[created_at] [datetime] NULL DEFAULT GETDATE()
 );
 
 CREATE TABLE [dbo].[Role_Permissions](
@@ -55,7 +55,7 @@ CREATE TABLE [dbo].[Memberships](
 	[discount_percent] [decimal](5, 2) NULL DEFAULT 0.00,
 	[benefits] [nvarchar](1000) NULL,
 	[status] [nvarchar](20) NOT NULL DEFAULT 'ACTIVE',
-	[created_at] [datetime] NOT NULL DEFAULT GETDATE(),
+	[created_at] [datetime] NULL DEFAULT GETDATE(),
 	[updated_at] [datetime] NULL
 );
 
@@ -73,9 +73,11 @@ CREATE TABLE [dbo].[Users](
 	[loyalty_points] [int] NOT NULL DEFAULT 0,
 	[address] [nvarchar](500) NULL,
 	[date_of_birth] [date] NULL,
+	[last_birthday_coupon_year] [int] NULL,
 	[created_at] [datetime] NULL DEFAULT GETDATE(),
 	[updated_at] [datetime] NULL,
-	[last_login_at] [datetime] NULL
+	[last_login_at] [datetime] NULL,
+	[identity_document_public_id] [nvarchar](max) NULL
 );
 
 -- BẢNG MỚI THEO CODE CỦA BẠN
@@ -131,7 +133,7 @@ CREATE TABLE [dbo].[Room_Types](
 	[is_active] [bit] NULL DEFAULT 1,
 	[ImageUrl] [nvarchar](max) NULL,
 	[CloudinaryPublicId] [nvarchar](255) NULL,
-	[created_at] [datetime] NOT NULL DEFAULT GETDATE(),
+	[created_at] [datetime] NULL DEFAULT GETDATE(),
 	[updated_at] [datetime] NULL,
 	[DeletedAt] [datetime] NULL
 );
@@ -150,7 +152,7 @@ CREATE TABLE [dbo].[Room_Images](
 	[is_primary] [bit] NULL DEFAULT 0,
 	[is_active] [bit] NULL DEFAULT 1,
 	[status] [nvarchar](20) NOT NULL DEFAULT 'ACTIVE',
-	[created_at] [datetime] NOT NULL DEFAULT GETDATE()
+	[created_at] [datetime] NULL DEFAULT GETDATE()
 );
 
 CREATE TABLE [dbo].[Rooms](
@@ -163,7 +165,7 @@ CREATE TABLE [dbo].[Rooms](
 	[extension_number] [varchar](20) NULL,
 	[notes] [nvarchar](max) NULL,
 	[is_active] [bit] NULL DEFAULT 1,
-	[created_at] [datetime] NOT NULL DEFAULT GETDATE(),
+	[created_at] [datetime] NULL DEFAULT GETDATE(),
 	[updated_at] [datetime] NULL,
     [DeletedAt] [datetime] NULL
 );
@@ -197,7 +199,11 @@ CREATE TABLE [dbo].[Room_Inventory](
 	[quantity] [int] NULL DEFAULT 1,
 	[price_if_lost] [decimal](18, 2) NULL DEFAULT 0,
 	[note] [nvarchar](255) NULL,
-	[is_active] [bit] NULL DEFAULT 1
+	[is_active] [bit] NULL DEFAULT 1,
+	[item_name] [nvarchar](255) NOT NULL DEFAULT '',
+	[status] [nvarchar](20) NOT NULL DEFAULT 'Active',
+	[unit] [nvarchar](50) NULL,
+	[updated_at] [datetime] NULL
 );
 
 
@@ -212,7 +218,12 @@ CREATE TABLE [dbo].[Vouchers](
 	[min_booking_value] [decimal](18, 2) NULL DEFAULT 0,
 	[valid_from] [datetime] NULL,
 	[valid_to] [datetime] NULL,
-	[usage_limit] [int] NULL
+	[usage_limit] [int] NULL,
+	[user_id] [int] NULL,
+	[status] [nvarchar](50) NULL,
+	[used_count] [int] NULL,
+	[created_at] [datetime] NULL DEFAULT GETDATE(),
+	[updated_at] [datetime] NULL
 );
 
 CREATE TABLE [dbo].[Bookings](
@@ -233,8 +244,9 @@ CREATE TABLE [dbo].[Bookings](
 	[notes] [nvarchar](1000) NULL,
 	[deposit_amount] [decimal](18, 2) NOT NULL DEFAULT 0,
 	[is_points_awarded] [bit] DEFAULT 0,
-	[created_at] [datetime] NOT NULL DEFAULT GETDATE(),
-	[updated_at] [datetime] NULL
+	[created_at] [datetime] NULL DEFAULT GETDATE(),
+	[updated_at] [datetime] NULL,
+	[membership_discount_amount] [decimal](18, 2) NULL DEFAULT 0
 );
 
 CREATE TABLE [dbo].[Booking_Details](
@@ -253,9 +265,10 @@ CREATE TABLE [dbo].[Booking_Details](
 	[line_total] [decimal](18, 2) NOT NULL DEFAULT 0,
 	[status] [nvarchar](50) NOT NULL DEFAULT 'Booked',
 	[identity_document_url] [nvarchar](max) NULL,
+	[identity_document_public_id] [nvarchar](255) NULL,
 	[actual_check_in_at] [datetime] NULL,
 	[actual_check_out_at] [datetime] NULL,
-	[created_at] [datetime] NOT NULL DEFAULT GETDATE(),
+	[created_at] [datetime] NULL DEFAULT GETDATE(),
 	[updated_at] [datetime] NULL
 );
 
@@ -336,18 +349,21 @@ CREATE TABLE [dbo].[Reviews](
 	[room_type_id] [int] NULL,
 	[rating] [int] NULL CHECK (rating >= 1 AND rating <= 5),
 	[comment] [nvarchar](max) NULL,
-	[ImageUrl] [nvarchar](max) NULL, 
-    [ImagePublicId] [nvarchar](255) NULL, 
-    [IsApproved] [bit] DEFAULT 1,
-    [Status] [varchar](50) DEFAULT 'VISIBLE',
-	[created_at] [datetime] NULL DEFAULT GETDATE()
+	[image_url] [nvarchar](max) NULL, 
+    [image_public_id] [nvarchar](255) NULL, 
+    [is_approved] [bit] DEFAULT 1,
+    [status] [varchar](50) DEFAULT 'VISIBLE',
+	[created_at] [datetime] NULL DEFAULT GETDATE(),
+	[like_count] [int] NOT NULL DEFAULT 0,
+	[highlight] [nvarchar](255) NULL,
+	[service_quality] [nvarchar](255) NULL
 );
 
 CREATE TABLE [dbo].[Article_Categories](
 	[id] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
 	[name] [nvarchar](255) NOT NULL,
 	[status] [nvarchar](20) NOT NULL DEFAULT 'ACTIVE',
-	[created_at] [datetime] NOT NULL DEFAULT GETDATE(),
+	[created_at] [datetime] NULL DEFAULT GETDATE(),
 	[updated_at] [datetime] NULL,
 	[is_active] [bit] NULL DEFAULT 1
 );
@@ -362,14 +378,14 @@ CREATE TABLE [dbo].[Articles](
 	[content] [nvarchar](max) NULL,
 	[thumbnail_url] [nvarchar](max) NULL,
 	[thumbnail_public_id] [nvarchar](255) NULL,
-	[tags] [nvarchar](500) NULL,
-	[meta_title] [nvarchar](255) NULL,
-	[meta_description] [nvarchar](500) NULL,
+	[tags] [nvarchar](max) NULL,
+	[meta_title] [nvarchar](500) NULL,
+	[meta_description] [nvarchar](1000) NULL,
 	[status] [nvarchar](50) NOT NULL DEFAULT 'Draft',
 	[is_published] [bit] NULL DEFAULT 0,
 	[published_at] [datetime] NULL DEFAULT GETDATE(),
 	[is_active] [bit] NULL DEFAULT 1,
-	[created_at] [datetime] NOT NULL DEFAULT GETDATE(),
+	[created_at] [datetime] NULL DEFAULT GETDATE(),
 	[updated_at] [datetime] NULL
 );
 
@@ -382,11 +398,13 @@ CREATE TABLE [dbo].[Attractions](
 	[latitude] [decimal](10, 8) NULL,
 	[longitude] [decimal](11, 8) NULL,
 	[address] [nvarchar](500) NULL,
-	[ImageUrl] [nvarchar](max) NULL, 
-    [ImagePublicId] [nvarchar](255) NULL, 
-    [CreatedAt] [datetime] NULL, 
-    [Status] [varchar](50) DEFAULT 'ACTIVE',
-	[is_active] [bit] NULL DEFAULT 1
+	[image_url] [nvarchar](max) NULL, 
+    [image_public_id] [nvarchar](255) NULL, 
+    [created_at] [datetime] NULL DEFAULT GETDATE(), 
+    [status] [varchar](50) NULL DEFAULT 'ACTIVE',
+	[is_active] [bit] NULL DEFAULT 1,
+	[type] [nvarchar](max) NULL,
+	[updated_at] [datetime] NULL
 );
 
 CREATE TABLE [dbo].[Audit_Logs](
@@ -1470,10 +1488,11 @@ UPDATE Roles SET updated_at = GETDATE() WHERE updated_at IS NULL;
 -- 2. Đặt "Chế độ tự động" (Default Constraint) cho tương lai
 -- Từ nay về sau, nếu C# hoặc ai đó thêm User/Role mới mà quên nhập ngày tháng, 
 -- SQL sẽ tự động lấy giờ hệ thống điền vào, tuyệt đối không bao giờ bị NULL nữa.
-ALTER TABLE Users ADD CONSTRAINT DF_Users_CreatedAt DEFAULT GETDATE() FOR created_at;
+-- (Đã có sẵn trong CREATE TABLE nên ta bỏ qua lệnh ADD CONSTRAINT cho created_at)
+-- ALTER TABLE Users ADD CONSTRAINT DF_Users_CreatedAt DEFAULT GETDATE() FOR created_at;
 ALTER TABLE Users ADD CONSTRAINT DF_Users_UpdatedAt DEFAULT GETDATE() FOR updated_at;
 
-ALTER TABLE Roles ADD CONSTRAINT DF_Roles_CreatedAt DEFAULT GETDATE() FOR created_at;
+-- ALTER TABLE Roles ADD CONSTRAINT DF_Roles_CreatedAt DEFAULT GETDATE() FOR created_at;
 ALTER TABLE Roles ADD CONSTRAINT DF_Roles_UpdatedAt DEFAULT GETDATE() FOR updated_at;
 
 -- ========================================================================
@@ -2399,7 +2418,8 @@ INSERT [dbo].[Rooms] ([room_type_id], [room_number], [floor], [status], [cleanin
 (9, N'510', 5, N'Available', N'Clean', N'8510');
 GO
 
-ALTER TABLE [dbo].[Bookings] ADD [DepositAmount] DECIMAL(18,2) NOT NULL DEFAULT 0;
+-- Đã có cột deposit_amount ở CREATE TABLE Bookings nên lệnh này gây lỗi Duplicate Column
+-- ALTER TABLE [dbo].[Bookings] ADD [DepositAmount] DECIMAL(18,2) NOT NULL DEFAULT 0;
 GO
 
 -- =============================================
@@ -2496,6 +2516,9 @@ GO
 -- ========================================================================
 -- TRIGGER: Tự động xóa log cũ khi log_date bị chỉnh sửa trực tiếp trong DB
 -- ========================================================================
+USE [HotelManagementDB];
+GO
+
 IF OBJECT_ID('TR_AuditLogs_AutoPurgeOnUpdate', 'TR') IS NOT NULL
     DROP TRIGGER TR_AuditLogs_AutoPurgeOnUpdate;
 GO
@@ -2581,16 +2604,6 @@ GO
 PRINT 'Đã thêm cột còn thiếu vào Articles và Article_Categories';
 GO
 
--- =============================================
--- 10. THÊM CỘT THIẾU CHO BẢNG Reviews (Đánh giá trang chủ)
--- =============================================
--- Thêm 3 cột mới vào bảng Reviews
-ALTER TABLE Reviews ADD 
-    like_count INT NOT NULL DEFAULT 0, 
-    highlight NVARCHAR(255) NULL, 
-    service_quality NVARCHAR(255) NULL;
-GO
-
 -- ==========================================
 -- 11. LỊCH SỬ ĐIỂM THƯỞNG (LOYALTY) - BỔ SUNG MỚI
 -- ==========================================
@@ -2632,4 +2645,305 @@ BEGIN
     ALTER TABLE dbo.Bookings ADD membership_discount_amount DECIMAL(18, 2) NULL DEFAULT 0;
     PRINT N'Đã thêm cột membership_discount_amount vào bảng Bookings thành công!';
 END
+GO
+
+-- ========================================================================
+-- 8. THÊM BẢNG DASHBOARD THEO KỲ VÀ SEED DỮ LIỆU
+-- ========================================================================
+USE [HotelManagementDB]
+GO
+
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+IF OBJECT_ID(N'[dbo].[Role_Dashboard_Period_States]', N'U') IS NOT NULL
+BEGIN
+    PRINT N'Bảng [dbo].[Role_Dashboard_Period_States] đã tồn tại. Không tạo lại.';
+END
+ELSE
+BEGIN
+    CREATE TABLE [dbo].[Role_Dashboard_Period_States]
+    (
+        [id] [int] IDENTITY(1,1) NOT NULL,
+
+        [role_id] [int] NOT NULL,
+        [role_name] [nvarchar](100) NOT NULL,
+
+        [dashboard_code] [varchar](100) NOT NULL,
+        [dashboard_title] [nvarchar](255) NOT NULL,
+
+        [period_type] [varchar](20) NOT NULL,
+        [period_key] [varchar](30) NOT NULL,
+
+        [period_start] [datetime2](7) NOT NULL,
+        [period_end] [datetime2](7) NOT NULL,
+
+        [dashboard_json] [nvarchar](max) NOT NULL,
+        [comparison_json] [nvarchar](max) NULL,
+
+        [status] [varchar](20) NOT NULL
+            CONSTRAINT [DF_RoleDashboardPeriod_Status] DEFAULT ('OPEN'),
+
+        [is_current] [bit] NOT NULL
+            CONSTRAINT [DF_RoleDashboardPeriod_IsCurrent] DEFAULT ((0)),
+
+        [last_event_type] [varchar](100) NULL,
+        [last_event_source] [varchar](100) NULL,
+        [last_event_ref_id] [int] NULL,
+
+        [version] [int] NOT NULL
+            CONSTRAINT [DF_RoleDashboardPeriod_Version] DEFAULT ((1)),
+
+        [created_at] [datetime2](7) NOT NULL
+            CONSTRAINT [DF_RoleDashboardPeriod_CreatedAt] DEFAULT (SYSUTCDATETIME()),
+
+        [updated_at] [datetime2](7) NOT NULL
+            CONSTRAINT [DF_RoleDashboardPeriod_UpdatedAt] DEFAULT (SYSUTCDATETIME()),
+
+        [closed_at] [datetime2](7) NULL,
+
+        [updated_by] [int] NULL,
+
+        CONSTRAINT [PK_Role_Dashboard_Period_States]
+            PRIMARY KEY CLUSTERED ([id] ASC),
+
+        CONSTRAINT [FK_RoleDashboardPeriod_Roles]
+            FOREIGN KEY ([role_id])
+            REFERENCES [dbo].[Roles]([id]),
+
+        CONSTRAINT [FK_RoleDashboardPeriod_UpdatedBy]
+            FOREIGN KEY ([updated_by])
+            REFERENCES [dbo].[Users]([id]),
+
+        CONSTRAINT [CK_RoleDashboardPeriod_PeriodType]
+            CHECK ([period_type] IN ('DAILY', 'WEEKLY', 'MONTHLY', 'QUARTERLY', 'YEARLY')),
+
+        CONSTRAINT [CK_RoleDashboardPeriod_Status]
+            CHECK ([status] IN ('OPEN', 'CLOSED', 'REBUILT', 'CORRECTED')),
+
+        CONSTRAINT [CK_RoleDashboardPeriod_DashboardJson_IsJson]
+            CHECK (ISJSON([dashboard_json]) = 1),
+
+        CONSTRAINT [CK_RoleDashboardPeriod_ComparisonJson_IsJson]
+            CHECK ([comparison_json] IS NULL OR ISJSON([comparison_json]) = 1)
+    );
+
+    PRINT N'Đã tạo bảng [dbo].[Role_Dashboard_Period_States].';
+END
+GO
+
+-- Script tạo Index - Chạy sau khi tạo bảng thành công:
+USE [HotelManagementDB]
+GO
+
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = N'UX_RoleDashboardPeriod_Role_Dashboard_Period'
+      AND object_id = OBJECT_ID(N'[dbo].[Role_Dashboard_Period_States]')
+)
+BEGIN
+    CREATE UNIQUE INDEX [UX_RoleDashboardPeriod_Role_Dashboard_Period]
+    ON [dbo].[Role_Dashboard_Period_States]
+    (
+        [role_id],
+        [dashboard_code],
+        [period_type],
+        [period_key]
+    );
+END
+GO
+
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = N'IX_RoleDashboardPeriod_Query'
+      AND object_id = OBJECT_ID(N'[dbo].[Role_Dashboard_Period_States]')
+)
+BEGIN
+    CREATE INDEX [IX_RoleDashboardPeriod_Query]
+    ON [dbo].[Role_Dashboard_Period_States]
+    (
+        [dashboard_code],
+        [role_name],
+        [period_type],
+        [period_start],
+        [period_end]
+    );
+END
+GO
+
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = N'IX_RoleDashboardPeriod_Current'
+      AND object_id = OBJECT_ID(N'[dbo].[Role_Dashboard_Period_States]')
+)
+BEGIN
+    CREATE INDEX [IX_RoleDashboardPeriod_Current]
+    ON [dbo].[Role_Dashboard_Period_States]
+    (
+        [role_id],
+        [dashboard_code],
+        [period_type],
+        [is_current]
+    )
+    WHERE [is_current] = 1;
+END
+GO
+
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = N'IX_RoleDashboardPeriod_UpdatedAt'
+      AND object_id = OBJECT_ID(N'[dbo].[Role_Dashboard_Period_States]')
+)
+BEGIN
+    CREATE INDEX [IX_RoleDashboardPeriod_UpdatedAt]
+    ON [dbo].[Role_Dashboard_Period_States]
+    (
+        [updated_at] DESC
+    );
+END
+GO
+
+-- Script seed dữ liệu dashboard mẫu theo Roles
+USE [HotelManagementDB]
+GO
+
+DECLARE @PeriodType VARCHAR(20) = 'MONTHLY';
+DECLARE @PeriodKey VARCHAR(30) = FORMAT(GETDATE(), 'yyyy-MM');
+DECLARE @PeriodStart DATETIME2(7) = DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1);
+DECLARE @PeriodEnd DATETIME2(7) = DATEADD(SECOND, -1, DATEADD(MONTH, 1, @PeriodStart));
+
+INSERT INTO [dbo].[Role_Dashboard_Period_States]
+(
+    [role_id],
+    [role_name],
+    [dashboard_code],
+    [dashboard_title],
+    [period_type],
+    [period_key],
+    [period_start],
+    [period_end],
+    [dashboard_json],
+    [comparison_json],
+    [status],
+    [is_current]
+)
+SELECT
+    r.[id] AS [role_id],
+    r.[name] AS [role_name],
+
+    CASE r.[name]
+        WHEN N'Admin' THEN 'ADMIN_DASHBOARD'
+        WHEN N'Manager' THEN 'MANAGER_DASHBOARD'
+        WHEN N'Receptionist' THEN 'RECEPTION_DASHBOARD'
+        WHEN N'Accountant' THEN 'ACCOUNTANT_DASHBOARD'
+        WHEN N'Housekeeping' THEN 'HOUSEKEEPING_DASHBOARD'
+        WHEN N'Security' THEN 'SECURITY_DASHBOARD'
+        WHEN N'Chef' THEN 'CHEF_DASHBOARD'
+        WHEN N'Waiter' THEN 'WAITER_DASHBOARD'
+        WHEN N'IT Support' THEN 'IT_SUPPORT_DASHBOARD'
+        WHEN N'Guest' THEN 'GUEST_DASHBOARD'
+        ELSE UPPER(REPLACE(CONVERT(VARCHAR(100), r.[name]), ' ', '_')) + '_DASHBOARD'
+    END AS [dashboard_code],
+
+    r.[name] + N' Dashboard' AS [dashboard_title],
+
+    @PeriodType AS [period_type],
+    @PeriodKey AS [period_key],
+    @PeriodStart AS [period_start],
+    @PeriodEnd AS [period_end],
+
+    N'{
+        "meta": {
+            "schemaVersion": 1,
+            "dashboardCode": "",
+            "roleName": "",
+            "periodType": "MONTHLY",
+            "periodKey": "",
+            "status": "OPEN"
+        },
+        "summary": {},
+        "widgets": {},
+        "breakdown": {},
+        "alerts": [],
+        "events": []
+    }' AS [dashboard_json],
+
+    N'{
+        "base": {
+            "comparisonType": "PREVIOUS_PERIOD"
+        },
+        "metrics": {}
+    }' AS [comparison_json],
+
+    'OPEN' AS [status],
+    1 AS [is_current]
+FROM [dbo].[Roles] r
+WHERE NOT EXISTS
+(
+    SELECT 1
+    FROM [dbo].[Role_Dashboard_Period_States] d
+    WHERE d.[role_id] = r.[id]
+      AND d.[period_type] = @PeriodType
+      AND d.[period_key] = @PeriodKey
+      AND d.[dashboard_code] =
+        CASE r.[name]
+            WHEN N'Admin' THEN 'ADMIN_DASHBOARD'
+            WHEN N'Manager' THEN 'MANAGER_DASHBOARD'
+            WHEN N'Receptionist' THEN 'RECEPTION_DASHBOARD'
+            WHEN N'Accountant' THEN 'ACCOUNTANT_DASHBOARD'
+            WHEN N'Housekeeping' THEN 'HOUSEKEEPING_DASHBOARD'
+            WHEN N'Security' THEN 'SECURITY_DASHBOARD'
+            WHEN N'Chef' THEN 'CHEF_DASHBOARD'
+            WHEN N'Waiter' THEN 'WAITER_DASHBOARD'
+            WHEN N'IT Support' THEN 'IT_SUPPORT_DASHBOARD'
+            WHEN N'Guest' THEN 'GUEST_DASHBOARD'
+            ELSE UPPER(REPLACE(CONVERT(VARCHAR(100), r.[name]), ' ', '_')) + '_DASHBOARD'
+        END
+);
+GO
+
+
+
+
+-- ========================================================================
+-- 9. KHẮC PHỤC LỖI NULL CỦA ENTITY FRAMEWORK (ĐỔI CỘT THÀNH NOT NULL)
+-- ========================================================================
+USE [HotelManagementDB];
+GO
+
+-- Attractions
+UPDATE dbo.Attractions SET created_at = GETDATE() WHERE created_at IS NULL;
+ALTER TABLE dbo.Attractions ALTER COLUMN created_at DATETIME NOT NULL;
+
+UPDATE dbo.Attractions SET latitude = 0 WHERE latitude IS NULL;
+ALTER TABLE dbo.Attractions ALTER COLUMN latitude DECIMAL(10,8) NOT NULL;
+
+UPDATE dbo.Attractions SET longitude = 0 WHERE longitude IS NULL;
+ALTER TABLE dbo.Attractions ALTER COLUMN longitude DECIMAL(11,8) NOT NULL;
+
+UPDATE dbo.Attractions SET status = 'ACTIVE' WHERE status IS NULL;
+ALTER TABLE dbo.Attractions ALTER COLUMN status VARCHAR(50) NOT NULL;
+
+-- Users
+UPDATE dbo.Users SET created_at = GETDATE() WHERE created_at IS NULL;
+ALTER TABLE dbo.Users ALTER COLUMN created_at DATETIME NOT NULL;
+
+-- Loss_And_Damages
+UPDATE dbo.Loss_And_Damages SET created_at = GETDATE() WHERE created_at IS NULL;
+ALTER TABLE dbo.Loss_And_Damages ALTER COLUMN created_at DATETIME NOT NULL;
+
+-- Reviews
+UPDATE dbo.Reviews SET created_at = GETDATE() WHERE created_at IS NULL;
+ALTER TABLE dbo.Reviews ALTER COLUMN created_at DATETIME NOT NULL;
+
+-- Notifications
+UPDATE dbo.Notifications SET created_at = GETDATE() WHERE created_at IS NULL;
+ALTER TABLE dbo.Notifications ALTER COLUMN created_at DATETIME NOT NULL;
 GO
