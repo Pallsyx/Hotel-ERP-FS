@@ -4,6 +4,7 @@ import { message } from 'antd';
 
 import RoomManagement from '../pages/Admin/RoomManagement';
 import Dashboard from '../pages/Admin/Dashboard/Dashboard';
+import PeriodDashboard from '../pages/Admin/PeriodDashboard/PeriodDashboard';
 import RoomTypeManagement from '../pages/RoomTypes/RoomTypeManagement';
 import RoomInventory from '../pages/RoomInventory/RoomInventory';
 import HousekeepingMobile from '../pages/Housekeeping/HousekeepingMobile';
@@ -72,6 +73,7 @@ const AdminRoutes = () => {
       <Route path='/' element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
         <Route index element={<Navigate to='dashboard' replace />} />
         <Route path='dashboard' element={<Dashboard />} />
+        <Route path='period-dashboard' element={<PeriodDashboard />} />
 
         <Route path='users' element={<UserManagement />} />
         <Route path='roles' element={<RoleManagement />} />

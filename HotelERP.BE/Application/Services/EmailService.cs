@@ -26,8 +26,8 @@ public class EmailService : IEmailService
         email.Body = builder.ToMessageBody();
 
         using var smtp = new SmtpClient();
-        await smtp.ConnectAsync(_config["SmtpSettings:Server"], int.Parse(_config["SmtpSettings:Port"]!), SecureSocketOptions.StartTls);
-        await smtp.AuthenticateAsync(_config["SmtpSettings:SenderEmail"], _config["SmtpSettings:Password"]);
+        await smtp.ConnectAsync(_config["SmtpSettings:Server"]!, int.Parse(_config["SmtpSettings:Port"]!), SecureSocketOptions.StartTls);
+        await smtp.AuthenticateAsync(_config["SmtpSettings:SenderEmail"]!, _config["SmtpSettings:Password"]!);
         await smtp.SendAsync(email);
         await smtp.DisconnectAsync(true);
     }

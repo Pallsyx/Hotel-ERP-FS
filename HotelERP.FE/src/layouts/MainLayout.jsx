@@ -89,6 +89,7 @@ const MainLayout = () => {
   /* ── Menu definition ── */
   const rawMenuItems = [
     { key: '/admin/dashboard', icon: <DashboardOutlined />, label: 'Dashboard', requiredPermission: 'VIEW_DASHBOARD' },
+    { key: '/admin/period-dashboard', icon: <AppstoreOutlined />, label: 'Báo cáo Định kỳ', requiredPermission: 'VIEW_DASHBOARD' },
 
     {
       key: 'grp_frontdesk',

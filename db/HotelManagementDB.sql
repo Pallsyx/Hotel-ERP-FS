@@ -1307,7 +1307,8 @@ SET IDENTITY_INSERT [dbo].[Roles] ON
 INSERT [dbo].[Roles] ([id], [name], [description]) VALUES 
 (1, N'Admin', N'Quản trị viên'), (2, N'Manager', N'Quản lý khách sạn'), (3, N'Receptionist', N'Lễ tân'), 
 (4, N'Accountant', N'Kế toán'), (5, N'Housekeeping', N'Buồng phòng'), (6, N'Security', N'Bảo vệ'), 
-(7, N'Chef', N'Đầu bếp'), (8, N'Waiter', N'Nhân viên phục vụ'), (9, N'IT Support', N'Kỹ thuật viên'), (10, N'Guest', N'Khách hàng')
+(7, N'Chef', N'Đầu bếp'), (8, N'Waiter', N'Nhân viên phục vụ'), (9, N'IT Support', N'Kỹ thuật viên'), (10, N'Guest', N'Khách hàng'),
+(11, N'WarehouseStaff', N'Nhân viên thủ kho')
 SET IDENTITY_INSERT [dbo].[Roles] OFF
 GO
 
@@ -1342,10 +1343,11 @@ IF NOT EXISTS (SELECT 1 FROM [dbo].[Role_Permissions] WHERE role_id = 1)
 BEGIN
     INSERT [dbo].[Role_Permissions] ([role_id], [permission_id]) VALUES 
     (1,1), (1,2), (1,3), (1,4), (1,5), (1,6), (1,7), (1,8), (1,9), (1,10), (1,11), (1,12), (1,13), (1,14), (1,15), (1,16), (1,17), -- Admin
-    (2,1), (2,4), (2,5), (2,6), (2,7), (2,8), (2,10), -- Manager
-    (3,1), (3,4), (3,5), (3,6), (3,7), -- Receptionist
-    (4,1), (4,6), (4,8), -- Accountant
-    (5,4), (5,10); -- Housekeeping
+    (2,1), (2,4), (2,5), (2,6), (2,7), (2,8), (2,10), (2,12), -- Manager
+    (3,1), (3,4), (3,5), (3,6), (3,7), (3,12), -- Receptionist
+    (4,1), (4,6), (4,8), (4,12), -- Accountant
+    (5,4), (5,10), (5,12), -- Housekeeping
+    (11,1), (11,10), (11,12); -- WarehouseStaff
 END
 GO
 
@@ -2947,3 +2949,4 @@ ALTER TABLE dbo.Reviews ALTER COLUMN created_at DATETIME NOT NULL;
 UPDATE dbo.Notifications SET created_at = GETDATE() WHERE created_at IS NULL;
 ALTER TABLE dbo.Notifications ALTER COLUMN created_at DATETIME NOT NULL;
 GO
+
