@@ -32,6 +32,11 @@ axiosClient.interceptors.response.use(
     const originalRequest = error.config;
     const status = error.response?.status;
 
+    // Nếu request lỗi là login, không thực hiện refresh token
+    if (originalRequest.url.includes('/Auth/login')) {
+      return Promise.reject(error);
+    }
+
     if (status !== 401 || !originalRequest || originalRequest._retry) {
       return Promise.reject(error);
     }
