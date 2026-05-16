@@ -107,6 +107,8 @@ const PeriodDashboard = () => {
             <Option value="Receptionist">Lễ tân</Option>
             <Option value="Housekeeping">Buồng phòng</Option>
             <Option value="WarehouseStaff">Thủ kho</Option>
+            <Option value="Marketing">Marketing</Option>
+            <Option value="MarketingStaff">NV Marketing</Option>
           </Select>
           <Select value={periodType} onChange={setPeriodType} style={{ width: 120 }}>
             <Option value="DAILY">Hôm nay</Option>

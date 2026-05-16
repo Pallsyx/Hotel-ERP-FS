@@ -88,8 +88,8 @@ const MainLayout = () => {
 
   /* ── Menu definition ── */
   const rawMenuItems = [
-    { key: '/admin/dashboard', icon: <DashboardOutlined />, label: 'Dashboard', requiredPermission: 'VIEW_DASHBOARD' },
-    { key: '/admin/period-dashboard', icon: <AppstoreOutlined />, label: 'Báo cáo Định kỳ', requiredPermission: 'VIEW_DASHBOARD' },
+    { key: '/admin/dashboard', icon: <DashboardOutlined />, label: 'Dashboard' },
+    { key: '/admin/period-dashboard', icon: <AppstoreOutlined />, label: 'Báo cáo Định kỳ' },
 
     {
       key: 'grp_frontdesk',
@@ -132,8 +132,8 @@ const MainLayout = () => {
       type: 'group',
       children: [
         { key: '/admin/vouchers', icon: <GiftOutlined />, label: 'Quản lý Voucher', requiredPermission: 'MANAGE_SERVICES' },
-        { key: '/admin/posts', icon: <EditOutlined />, label: 'Quản lý Bài viết' },
-        { key: '/admin/attractions', icon: <HomeOutlined />, label: 'Khám phá Điểm đến' },
+        { key: '/admin/posts', icon: <EditOutlined />, label: 'Quản lý Bài viết', requiredPermission: 'MANAGE_CONTENT' },
+        { key: '/admin/attractions', icon: <HomeOutlined />, label: 'Khám phá Điểm đến', requiredPermission: 'MANAGE_CONTENT' },
       ],
     },
 
@@ -162,6 +162,7 @@ const MainLayout = () => {
         }
         return item;
       })
+      .filter(item => !item.children || item.children.length > 0)
       .map(({ requiredPermission, ...rest }) => rest);
 
   const menuItems = filterMenuItems(rawMenuItems);

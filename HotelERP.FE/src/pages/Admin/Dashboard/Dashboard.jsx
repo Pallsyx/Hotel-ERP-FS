@@ -65,6 +65,20 @@ const ROLE_CONFIG = {
     description: 'Xem dữ liệu tài chính và hóa đơn.',
     modules: ['finance', 'vouchers', 'revenueChart'],
   },
+  WarehouseStaff: {
+    label: 'Thủ kho',
+    icon: <WarningOutlined />,
+    color: '#eb2f96',
+    description: 'Quản lý kho vật tư và ghi nhận đền bù.',
+    modules: ['damages'],
+  },
+  Marketing: {
+    label: 'Marketing',
+    icon: <StarOutlined />,
+    color: '#722ed1',
+    description: 'Quản lý voucher và tương tác đánh giá.',
+    modules: ['vouchers', 'reviews'],
+  },
 };
 
 const Dashboard = () => {
@@ -80,7 +94,13 @@ const Dashboard = () => {
 
   // Xác định role và config hiển thị
   const roleName = user?.roleName || 'Guest';
-  const roleConfig = ROLE_CONFIG[roleName] || null;
+  const roleConfig = ROLE_CONFIG[roleName] || {
+    label: roleName,
+    icon: <DashboardOutlined />,
+    color: '#8c8c8c',
+    description: 'Người dùng nội bộ',
+    modules: ['reception', 'housekeeping', 'finance', 'vouchers', 'roomChart', 'revenueChart', 'damages', 'reviews']
+  };
   const allowedModules = roleConfig?.modules || [];
 
   // Helper: kiểm tra module có được hiện không
