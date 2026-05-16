@@ -5,11 +5,12 @@ using HotelERP.BE.Infrastructure.Data;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using HotelERP.BE.Events;
-using HotelERP.BE.Models; // Nhớ add thêm namespace này
-
+using HotelERP.BE.Models; 
 using HotelERP.BE.Helpers.AuditLogs;
 using Microsoft.AspNetCore.Http;
 using System.Security.Claims;
+using Microsoft.AspNetCore.SignalR;
+using HotelERP.BE.Hubs;
 
 namespace HotelERP.BE.Application.Services;
 
@@ -18,12 +19,14 @@ public class UserManagementService : IUserManagementService
     private readonly HotelDbContext _context;
     private readonly IMediator _mediator;
     private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly IHubContext<NotificationHub> _hubContext;
 
-    public UserManagementService(HotelDbContext context, IMediator mediator, IHttpContextAccessor httpContextAccessor) 
+    public UserManagementService(HotelDbContext context, IMediator mediator, IHttpContextAccessor httpContextAccessor, IHubContext<NotificationHub> hubContext) 
     {
         _context = context;
         _mediator = mediator;
         _httpContextAccessor = httpContextAccessor;
+        _hubContext = hubContext;
     }
 
     private (int UserId, string RoleName) ResolveUser()
@@ -269,6 +272,8 @@ public async Task<List<PermissionTree>> GetGroupedPermissionsAsync()
 // 2. Hàm Cập nhật Quyền cho Role
 public async Task<bool> UpdateRolePermissionsAsync(int roleId, RolePermissionsRequest request)
 {
+    if (request.PermissionCodes == null) request.PermissionCodes = new List<string>();
+
     // Tìm Role trong DB
     var role = await _context.Roles
         .Include(r => r.RolePermissions)
@@ -283,21 +288,31 @@ public async Task<bool> UpdateRolePermissionsAsync(int roleId, RolePermissionsRe
     role.Description = request.Description ?? role.Description;
     // role.Status = request.Status; // (Mở comment nếu bảng Roles của bạn có cột Status)
 
-    // XÓA TOÀN BỘ quyền cũ của Role này trong bảng Role_Permissions
-    _context.RolePermissions.RemoveRange(role.RolePermissions);
+    var currentPermissionIds = role.RolePermissions.Select(rp => rp.PermissionId).ToList();
 
     // Lấy ID của các quyền mới dựa trên PermissionCodes (Name) gửi lên
     var newPermissions = await _context.Permissions
         .Where(p => request.PermissionCodes.Contains(p.Name))
         .ToListAsync();
+    var newPermissionIds = newPermissions.Select(p => p.Id).ToList();
 
-    // THÊM CÁC quyền mới vào
-    foreach (var permission in newPermissions)
+    // XÓA các quyền cũ không còn được chọn
+    var permissionsToRemove = role.RolePermissions
+        .Where(rp => !newPermissionIds.Contains(rp.PermissionId))
+        .ToList();
+    _context.RolePermissions.RemoveRange(permissionsToRemove);
+
+    // THÊM CÁC quyền mới vào (bỏ qua những quyền đã có sẵn)
+    var permissionIdsToAdd = newPermissionIds
+        .Where(id => !currentPermissionIds.Contains(id))
+        .ToList();
+
+    foreach (var permissionId in permissionIdsToAdd)
     {
         _context.RolePermissions.Add(new RolePermission 
         { 
             RoleId = roleId, 
-            PermissionId = permission.Id 
+            PermissionId = permissionId 
         });
     }
 
@@ -313,6 +328,9 @@ public async Task<bool> UpdateRolePermissionsAsync(int roleId, RolePermissionsRe
         contextParams: new { targetRoleId = role.Id },
         changes: new { newData = new { role.Description, GrantedPermissions = request.PermissionCodes } }
     );
+
+    // Kích hoạt SignalR yêu cầu tất cả client cập nhật quyền ngầm
+    await _hubContext.Clients.All.SendAsync("PermissionsUpdated");
 
     return true;
     }
@@ -364,6 +382,8 @@ public async Task<List<string>> GetUserEffectivePermissionsAsync(int userId)
 // HÀM 2: Thuật toán so sánh và lưu ngoại lệ
 public async Task<bool> UpdateUserSpecificPermissionsAsync(int userId, List<string> selectedPermissionCodes)
 {
+    if (selectedPermissionCodes == null) selectedPermissionCodes = new List<string>();
+
     var user = await _context.Users
         .Include(u => u.Role).ThenInclude(r => r!.RolePermissions)
         .FirstOrDefaultAsync(u => u.Id == userId);
@@ -380,21 +400,43 @@ public async Task<bool> UpdateUserSpecificPermissionsAsync(int userId, List<stri
 
     // Xóa toàn bộ ngoại lệ cũ của user này để tính toán lại từ đầu
     var existingOverrides = await _context.UserPermissions.Where(up => up.UserId == userId).ToListAsync();
-    _context.UserPermissions.RemoveRange(existingOverrides);
 
     // THUẬT TOÁN LỌC NGOẠI LỆ: So sánh [Quyền mong muốn] với [Quyền gốc của Role]
     var allPermissionIds = await _context.Permissions.Select(p => p.Id).ToListAsync();
+    
+    var newOverrides = new List<UserPermission>();
     foreach (var pId in allPermissionIds)
     {
         bool shouldHave = selectedPermissionIds.Contains(pId);
         bool roleHas = rolePermissionIds.Contains(pId);
 
         if (shouldHave && !roleHas) // Role không có, nhưng User cần có -> CẤP THÊM
-            _context.UserPermissions.Add(new UserPermission { UserId = userId, PermissionId = pId, IsGranted = true });
+            newOverrides.Add(new UserPermission { UserId = userId, PermissionId = pId, IsGranted = true });
         
         else if (!shouldHave && roleHas) // Role có, nhưng User không được phép có -> TƯỚC ĐI
-            _context.UserPermissions.Add(new UserPermission { UserId = userId, PermissionId = pId, IsGranted = false });
+            newOverrides.Add(new UserPermission { UserId = userId, PermissionId = pId, IsGranted = false });
     }
+
+    // Cập nhật lại list ngoại lệ: Xóa những cái không còn, thêm những cái mới, cập nhật cái cũ
+    foreach (var existing in existingOverrides.ToList())
+    {
+        var match = newOverrides.FirstOrDefault(n => n.PermissionId == existing.PermissionId);
+        if (match == null)
+        {
+            _context.UserPermissions.Remove(existing); // Không còn là ngoại lệ nữa
+        }
+        else
+        {
+            if (existing.IsGranted != match.IsGranted)
+            {
+                existing.IsGranted = match.IsGranted; // Cập nhật lại trạng thái
+            }
+            newOverrides.Remove(match); // Đã xử lý, loại ra khỏi list cần thêm
+        }
+    }
+
+    // Các phần tử còn lại trong newOverrides là những ngoại lệ mới chưa từng có
+    _context.UserPermissions.AddRange(newOverrides);
 
     await _context.SaveChangesAsync();
 
@@ -408,6 +450,9 @@ public async Task<bool> UpdateUserSpecificPermissionsAsync(int userId, List<stri
         contextParams: new { targetUserId = user.Id },
         changes: new { newData = new { GrantedOverridePermissions = selectedPermissionCodes } }
     );
+
+    // Kích hoạt SignalR yêu cầu tất cả client cập nhật quyền ngầm
+    await _hubContext.Clients.All.SendAsync("PermissionsUpdated");
 
     return true;
 }

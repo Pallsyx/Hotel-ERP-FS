@@ -156,8 +156,16 @@ public class RoomService : IRoomService
     {
         var room = await _context!.Rooms.FindAsync(roomId);
         if (room == null) return false;
-        var oldStatus = room.Status;
-        room.Status = request.NewStatus.ToUpper();
+        
+        var oldStatus = room.Status.ToUpper();
+        var newStatus = request.NewStatus.ToUpper();
+
+        if (oldStatus == "OCCUPIED" && newStatus != "OCCUPIED")
+        {
+            throw new InvalidOperationException("Phòng đang có khách lưu trú (Occupied). Vui lòng thực hiện quy trình Trả phòng (Check-out) thay vì đổi trạng thái thủ công!");
+        }
+
+        room.Status = newStatus;
         await _context!.SaveChangesAsync();
 
         // Ghi Audit Log
