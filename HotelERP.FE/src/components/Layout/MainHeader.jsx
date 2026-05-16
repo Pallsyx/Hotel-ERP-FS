@@ -8,9 +8,12 @@ import axiosClient from '../../api/axiosClient';
 const G = '#b8956a', D = '#111111';
 const SF = { fontFamily: "'Playfair Display',serif" };
 
+import { useSignalR } from '../../hooks/useSignalR.jsx';
+
 export default function MainHeader({ transparent = true }) {
   const navigate = useNavigate();
   const { user, isAuthenticated, logout, login, token, refreshToken, permissions } = useAuthStore();
+  const { connection } = useSignalR();
   const [scrolled, setScrolled] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -63,6 +66,20 @@ export default function MainHeader({ transparent = true }) {
       fetchNotifications();
     }
   }, [token]);
+
+  useEffect(() => {
+    if (connection) {
+      connection.on("ReceiveNotification", (newNotif) => {
+        setNotifications(prev => [newNotif, ...prev]);
+        setUnreadCount(prev => prev + 1);
+      });
+    }
+    return () => {
+      if (connection) {
+        connection.off("ReceiveNotification");
+      }
+    };
+  }, [connection]);
 
   const fetchNotifications = async () => {
     try {
