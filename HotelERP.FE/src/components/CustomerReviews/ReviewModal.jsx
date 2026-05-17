@@ -1,19 +1,18 @@
 import React, { useState, useEffect } from 'react';
+import reviewApi from '../../api/reviewApi';
+import userProfileApi from '../../api/userProfileApi';
+import { useAuthStore } from '../../store/authStore';
 
 // --- Inline SVGs ---
 const Star = ({ filled, onClick }) => (
   <svg 
     onClick={onClick}
     style={{ 
-      width: 32, 
-      height: 32, 
-      cursor: 'pointer', 
-      transition: 'color 0.2s',
+      width: 32, height: 32, cursor: 'pointer', transition: 'color 0.2s',
       color: filled ? '#b8956a' : '#d9d9d9',
       fill: filled ? '#b8956a' : 'none',
       stroke: filled ? '#b8956a' : '#d9d9d9',
-      strokeWidth: 2,
-      marginRight: 8
+      strokeWidth: 2, marginRight: 8
     }}
     xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"
   >
@@ -28,52 +27,54 @@ const ImageIcon = () => (
 );
 
 export default function ReviewModal({ isOpen, onClose }) {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const { user } = useAuthStore();
   const [bookings, setBookings] = useState([]);
   
-  const [formData, setFormData] = useState({
-    bookingId: '',
-    rating: 5,
-    comment: ''
-  });
-  
+  const [formData, setFormData] = useState({ bookingId: '', roomTypeId: 0, rating: 5, comment: '' });
   const [imagePreview, setImagePreview] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
-
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
-      // Giả lập trạng thái đã đăng nhập
-      const userLoggedIn = true; 
-      setIsLoggedIn(userLoggedIn);
-
-      if (userLoggedIn) {
-        fetchEligibleBookings();
-      }
-      
-      // Khóa scroll body khi mở modal
+      fetchEligibleBookings();
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'unset';
     }
-    
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
+    return () => { document.body.style.overflow = 'unset'; };
   }, [isOpen]);
 
   const fetchEligibleBookings = async () => {
     try {
-      // Giả lập dữ liệu trả về từ API
-      setBookings([
-        { id: 1, code: 'VN-8A99B', roomName: 'Phòng Suite Hướng Biển', checkOutDate: '14/05/2026' }
-      ]);
-      // Tự động chọn phòng đầu tiên
-      setFormData(prev => ({...prev, bookingId: 1}));
+      const res = await userProfileApi.getMyBookings();
+      const allBookings = res.data?.data || res.data || [];
+      // Chỉ lấy booking đã check-out (có thể đánh giá)
+      const eligible = allBookings.filter(b =>
+        b.status === 'CheckedOut' || b.status === 'Completed' || b.checkOutStatus === 'CheckedOut'
+      );
+      setBookings(eligible);
+      if (eligible.length > 0) {
+        const first = eligible[0];
+        setFormData(prev => ({
+          ...prev,
+          bookingId: first.id,
+          roomTypeId: first.details?.[0]?.roomTypeId || first.roomTypeId || 0
+        }));
+      }
     } catch (error) {
       console.error('Failed to fetch bookings', error);
     }
+  };
+
+  const handleBookingChange = (e) => {
+    const selectedId = parseInt(e.target.value);
+    const selected = bookings.find(b => b.id === selectedId);
+    setFormData(prev => ({
+      ...prev,
+      bookingId: selectedId,
+      roomTypeId: selected?.details?.[0]?.roomTypeId || selected?.roomTypeId || 0
+    }));
   };
 
   const handleImageChange = (e) => {
@@ -81,9 +82,7 @@ export default function ReviewModal({ isOpen, onClose }) {
     if (file) {
       setSelectedFile(file);
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result);
-      };
+      reader.onloadend = () => setImagePreview(reader.result);
       reader.readAsDataURL(file);
     }
   };
@@ -91,18 +90,37 @@ export default function ReviewModal({ isOpen, onClose }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.bookingId) {
-      alert('Vui lòng chọn một phòng đã trả để đánh giá!');
+      alert('Vui lòng chọn một đơn đặt phòng để đánh giá!');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      // Giả lập API delay
-      await new Promise(r => setTimeout(r, 1000));
+      let imageUrl = null;
+      let imagePublicId = null;
+
+      // Upload ảnh lên Cloudinary nếu có
+      if (selectedFile) {
+        const uploadRes = await reviewApi.uploadImage(selectedFile);
+        imageUrl = uploadRes.data?.imageUrl || uploadRes.data?.ImageUrl;
+        imagePublicId = uploadRes.data?.publicId || uploadRes.data?.PublicId;
+      }
+
+      // Gọi API tạo review thực sự
+      await reviewApi.create({
+        userId: user?.id || null,
+        roomTypeId: formData.roomTypeId || 1,
+        rating: formData.rating,
+        comment: formData.comment,
+        imageUrl: imageUrl,
+        imagePublicId: imagePublicId
+      });
+
       alert('Cảm ơn bạn, đánh giá của bạn đã được ghi nhận và đang chờ Lễ tân xét duyệt để hiển thị.');
       onClose();
     } catch (error) {
-      alert('Có lỗi xảy ra, vui lòng thử lại!');
+      console.error('Submit review failed:', error);
+      alert('Có lỗi xảy ra khi gửi đánh giá. Vui lòng thử lại!');
     } finally {
       setIsSubmitting(false);
     }
@@ -164,28 +182,22 @@ export default function ReviewModal({ isOpen, onClose }) {
               <select 
                 required
                 value={formData.bookingId}
-                onChange={(e) => setFormData({...formData, bookingId: e.target.value})}
+                onChange={handleBookingChange}
                 style={{
-                  width: '100%',
-                  padding: '12px 16px',
-                  border: '1px solid #d9d9d9',
-                  borderRadius: 6,
-                  fontSize: 14,
-                  color: '#262626',
-                  outline: 'none',
-                  backgroundColor: '#fff',
-                  cursor: 'pointer',
-                  appearance: 'none', // Ẩn mũi tên mặc định để custom
+                  width: '100%', padding: '12px 16px', border: '1px solid #d9d9d9',
+                  borderRadius: 6, fontSize: 14, color: '#262626', outline: 'none',
+                  backgroundColor: '#fff', cursor: 'pointer', appearance: 'none',
                   backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%238c8c8c%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")',
-                  backgroundRepeat: 'no-repeat',
-                  backgroundPosition: 'right 16px top 50%',
-                  backgroundSize: '10px auto'
+                  backgroundRepeat: 'no-repeat', backgroundPosition: 'right 16px top 50%', backgroundSize: '10px auto'
                 }}
               >
-                <option value="">-- Chọn chuyến đi gần nhất --</option>
+                <option value="">-- Chọn đơn đặt phòng đã check-out --</option>
+                {bookings.length === 0 && (
+                  <option disabled value="">Bạn chưa có đơn nào đã check-out</option>
+                )}
                 {bookings.map(b => (
                   <option key={b.id} value={b.id}>
-                    Mã {b.code} - {b.roomName} (Check-out: {b.checkOutDate})
+                    #{b.bookingCode || b.id} — {b.details?.[0]?.roomTypeName || b.roomTypeName || 'Phòng'} (Check-out: {b.checkOutDate ? new Date(b.checkOutDate).toLocaleDateString('vi-VN') : '—'})
                   </option>
                 ))}
               </select>

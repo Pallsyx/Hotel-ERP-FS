@@ -248,6 +248,9 @@ public partial class HotelDbContext : DbContext
             entity.Property(e => e.Name)
                 .HasMaxLength(255)
                 .HasColumnName("name");
+            entity.Property(e => e.Type)
+                .HasMaxLength(100)
+                .HasColumnName("type");
             entity.Property(e => e.Status)
                 .HasMaxLength(20)
                 .HasDefaultValue("ACTIVE", "DF_Attractions_Status")
