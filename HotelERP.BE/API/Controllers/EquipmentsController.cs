@@ -117,9 +117,17 @@ public class EquipmentsController(HotelDbContext context) : ControllerBase
     }
 
     [HttpGet("export-excel")]
-    public async Task<IActionResult> ExportExcel()
+    public async Task<IActionResult> ExportExcel([FromQuery] string? search, [FromQuery] string? category)
     {
-        var equipments = await context.Equipments.Where(e => e.IsActive).OrderBy(e => e.ItemCode).ToListAsync();
+        var query = context.Equipments.Where(e => e.IsActive);
+
+        if (!string.IsNullOrEmpty(search))
+            query = query.Where(e => e.Name.Contains(search) || e.ItemCode.Contains(search));
+
+        if (!string.IsNullOrEmpty(category))
+            query = query.Where(e => e.Category == category);
+
+        var equipments = await query.OrderBy(e => e.ItemCode).ToListAsync();
         
         using var workbook = new ClosedXML.Excel.XLWorkbook();
         var worksheet = workbook.Worksheets.Add("VatTu");
@@ -174,79 +182,116 @@ public class EquipmentsController(HotelDbContext context) : ControllerBase
             await file.CopyToAsync(stream);
             using var workbook = new ClosedXML.Excel.XLWorkbook(stream);
             var worksheet = workbook.Worksheet(1);
-            var rows = worksheet.RowsUsed().Skip(1); // Skip header
+
+            // Đọc header row để xác định vị trí cột (không phụ thuộc thứ tự)
+            var headerRow = worksheet.Row(1);
+            var headers = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var cell in headerRow.CellsUsed())
+            {
+                var headerName = cell.Value.ToString().Trim();
+                if (!string.IsNullOrEmpty(headerName))
+                    headers[headerName] = cell.Address.ColumnNumber;
+            }
+
+            // Tìm cột theo nhiều tên có thể có
+            int FindCol(params string[] names)
+            {
+                foreach (var name in names)
+                    if (headers.TryGetValue(name, out int col)) return col;
+                return -1;
+            }
+
+            int colItemCode     = FindCol("Mã Vật Tư", "Mã vật tư", "ItemCode", "Mã");
+            int colName         = FindCol("Tên Vật Tư", "Tên vật tư", "Name", "Tên");
+            int colCategory     = FindCol("Danh Mục", "Danh mục", "Category", "Danh muc");
+            int colUnit         = FindCol("Đơn Vị Tính", "Đơn vị tính", "Unit", "ĐVT", "Đơn vị");
+            int colTotalQty     = FindCol("Tổng Số Lượng", "Tổng số lượng", "TotalQuantity", "Số Lượng", "Tổng SL");
+            int colBasePrice    = FindCol("Giá Nhập", "Giá nhập", "BasePrice", "Giá");
+            int colDefaultPrice = FindCol("Giá Bồi Thường", "Giá bồi thường", "DefaultPriceIfLost", "Giá đền bù", "Giá Đền Bù");
+            int colSupplier     = FindCol("Nhà Cung Cấp", "Nhà cung cấp", "Supplier", "NCC");
+
+            // Nếu không có cột Tên và không có cột Mã → file không hợp lệ
+            if (colName < 0 && colItemCode < 0)
+                return BadRequest(new { success = false, message = "File Excel phải có ít nhất cột 'Tên Vật Tư' hoặc 'Mã Vật Tư'!" });
+
+            string GetVal(ClosedXML.Excel.IXLRow row, int col)
+                => col > 0 ? row.Cell(col).Value.ToString().Trim() : "";
+
+            var rows = worksheet.RowsUsed().Skip(1); // Bỏ qua header
 
             foreach (var row in rows)
             {
-                if (row == null) continue;
-
-                var itemCode = row.Cell(1)?.Value.ToString()?.Trim() ?? "";
-                var name = row.Cell(2)?.Value.ToString()?.Trim() ?? "";
+                var itemCode = GetVal(row, colItemCode);
+                var name     = GetVal(row, colName);
 
                 if (string.IsNullOrEmpty(itemCode) && string.IsNullOrEmpty(name)) continue;
 
-                var category = row.Cell(3)?.Value.ToString()?.Trim() ?? "";
-                var unit = row.Cell(4)?.Value.ToString()?.Trim() ?? "";
-                var totalQuantityStr = row.Cell(5)?.Value.ToString()?.Trim();
-                var basePriceStr = row.Cell(6)?.Value.ToString()?.Trim();
-                var defaultPriceStr = row.Cell(7)?.Value.ToString()?.Trim();
-                var supplier = row.Cell(8)?.Value.ToString()?.Trim();
+                // Bỏ qua nếu tên là số thuần túy (ví dụ: "1", "2" từ cột tổng số lượng bị lẫn vào)
+                if (string.IsNullOrEmpty(itemCode) && decimal.TryParse(name, out _)) continue;
+
+                // Bỏ qua các dòng tổng hợp/tiêu đề phụ trong Excel (như "Tổng Số Lượng", "Tổng Cộng"...)
+                var lowerName = name.ToLower();
+                if (lowerName.Contains("tổng") || lowerName.Contains("total") || lowerName.Contains("cộng")) continue;
+
+
+                var category         = GetVal(row, colCategory);
+                var unit             = GetVal(row, colUnit);
+                var totalQuantityStr = GetVal(row, colTotalQty);
+                var basePriceStr     = GetVal(row, colBasePrice);
+                var defaultPriceStr  = GetVal(row, colDefaultPrice);
+                var supplier         = GetVal(row, colSupplier);
 
                 HotelERP.BE.Domain.Models.Equipment? existing = null;
                 if (!string.IsNullOrEmpty(itemCode))
-                {
                     existing = await context.Equipments.FirstOrDefaultAsync(e => e.ItemCode == itemCode);
-                }
-                
+
                 if (existing == null && !string.IsNullOrEmpty(name))
-                {
                     existing = await context.Equipments.FirstOrDefaultAsync(e => e.Name == name);
-                }
 
                 if (existing != null)
                 {
-                    if (!string.IsNullOrEmpty(name)) existing.Name = name;
+                    // Chỉ cập nhật các trường có trong file (không ghi đè category nếu không có cột Danh Mục)
+                    if (!string.IsNullOrEmpty(name))     existing.Name = name;
                     if (!string.IsNullOrEmpty(category)) existing.Category = category;
-                    if (!string.IsNullOrEmpty(unit)) existing.Unit = unit;
+                    if (!string.IsNullOrEmpty(unit))     existing.Unit = unit;
                     if (!string.IsNullOrEmpty(supplier)) existing.Supplier = supplier;
 
-                    if (!string.IsNullOrEmpty(totalQuantityStr) && int.TryParse(totalQuantityStr, out int tq)) 
+                    if (!string.IsNullOrEmpty(totalQuantityStr) && int.TryParse(totalQuantityStr, out int tq))
                         existing.TotalQuantity += tq;
-                    
-                    if (!string.IsNullOrEmpty(basePriceStr) && decimal.TryParse(basePriceStr, out decimal bp)) 
+
+                    if (!string.IsNullOrEmpty(basePriceStr) && decimal.TryParse(basePriceStr, out decimal bp))
                         existing.BasePrice = bp;
-                    
-                    if (!string.IsNullOrEmpty(defaultPriceStr) && decimal.TryParse(defaultPriceStr, out decimal dp)) 
+
+                    if (!string.IsNullOrEmpty(defaultPriceStr) && decimal.TryParse(defaultPriceStr, out decimal dp))
                         existing.DefaultPriceIfLost = dp;
 
-                    existing.IsActive = true;
+                    existing.IsActive  = true;
                     existing.UpdatedAt = DateTime.UtcNow;
                 }
                 else
                 {
-                    var newCode = !string.IsNullOrEmpty(itemCode) ? itemCode : $"VT-{Guid.NewGuid().ToString().Substring(0, 6).ToUpper()}";
-                    var newName = !string.IsNullOrEmpty(name) ? name : newCode;
+                    var newCode     = !string.IsNullOrEmpty(itemCode) ? itemCode : $"VT-{Guid.NewGuid().ToString()[..6].ToUpper()}";
+                    var newName     = !string.IsNullOrEmpty(name) ? name : newCode;
                     var newCategory = !string.IsNullOrEmpty(category) ? category : "Khác";
-                    var newUnit = !string.IsNullOrEmpty(unit) ? unit : "Cái";
-                    
+                    var newUnit     = !string.IsNullOrEmpty(unit) ? unit : "Cái";
+
                     int.TryParse(totalQuantityStr ?? "0", out int totalQuantity);
                     decimal.TryParse(basePriceStr ?? "0", out decimal basePrice);
                     decimal.TryParse(defaultPriceStr ?? "0", out decimal defaultPrice);
 
-                    var eq = new HotelERP.BE.Domain.Models.Equipment
+                    context.Equipments.Add(new HotelERP.BE.Domain.Models.Equipment
                     {
-                        ItemCode = newCode,
-                        Name = newName,
-                        Category = newCategory,
-                        Unit = newUnit,
-                        TotalQuantity = totalQuantity,
-                        BasePrice = basePrice,
+                        ItemCode           = newCode,
+                        Name               = newName,
+                        Category           = newCategory,
+                        Unit               = newUnit,
+                        TotalQuantity      = totalQuantity,
+                        BasePrice          = basePrice,
                         DefaultPriceIfLost = defaultPrice,
-                        Supplier = supplier,
-                        IsActive = true,
-                        CreatedAt = DateTime.UtcNow
-                    };
-                    context.Equipments.Add(eq);
+                        Supplier           = supplier,
+                        IsActive           = true,
+                        CreatedAt          = DateTime.UtcNow
+                    });
                 }
                 successCount++;
             }
