@@ -1,56 +1,94 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using HotelERP.BE.Application.Interfaces;
 using HotelERP.BE.Application.DTOs;
 using HotelERP.BE.Infrastructure.Data;
 using HotelERP.BE.Domain.Models;
+using HotelERP.BE.Utils;
 
 namespace HotelERP.BE.Application.Services;
 
-public class AmenityService(HotelDbContext context) : IAmenityService
+public class AmenityService(HotelDbContext context, ICloudinaryService cloudinaryService) : IAmenityService
 {
     public async Task<IEnumerable<AmenityResponseDto>> GetAllAmenitiesAsync()
     {
-        // Chỉ lấy các tiện nghi chưa bị xóa mềm
         return await context.Amenities
+            .AsNoTracking()
             .Where(a => a.DeletedAt == null)
-            .Select(a => new AmenityResponseDto(a.Id, a.Name, a.IconUrl))
+            .OrderBy(a => a.Id)
+            .Select(a => new AmenityResponseDto(
+                a.Id,
+                a.Name,
+                a.IconUrl
+            ))
             .ToListAsync();
     }
 
     public async Task<AmenityResponseDto?> GetAmenityByIdAsync(int id)
     {
-        var amenity = await context.Amenities
-            .FirstOrDefaultAsync(a => a.Id == id && a.DeletedAt == null);
-            
-        if (amenity == null) return null;
-        return new AmenityResponseDto(amenity.Id, amenity.Name, amenity.IconUrl);
+        return await context.Amenities
+            .AsNoTracking()
+            .Where(a => a.Id == id && a.DeletedAt == null)
+            .Select(a => new AmenityResponseDto(
+                a.Id,
+                a.Name,
+                a.IconUrl
+            ))
+            .FirstOrDefaultAsync();
     }
 
     public async Task<int> CreateAmenityAsync(CreateAmenityRequest request)
     {
-        var amenity = new Amenity 
-        { 
-            Name = request.Name, 
-            IconUrl = request.Icon, // Map Icon từ request vào IconUrl của Model
-            Status = "ACTIVE",      // Gán giá trị mặc định cho trường Status
+        var iconUrl = await UploadAmenityImageAsync(request.IconFile);
+
+        var amenity = new Amenity
+        {
+            Name = request.Name.Trim(),
+            IconUrl = iconUrl,
+            Status = "ACTIVE",
             CreatedAt = DateTime.UtcNow
         };
-        
+
         context.Amenities.Add(amenity);
         await context.SaveChangesAsync();
+
         return amenity.Id;
     }
 
     public async Task<bool> UpdateAmenityAsync(int id, UpdateAmenityRequest request)
     {
-        var amenity = await context.Amenities
-            .FirstOrDefaultAsync(a => a.Id == id && a.DeletedAt == null);
-            
-        if (amenity == null) return false;
+        var currentAmenity = await context.Amenities
+            .AsNoTracking()
+            .Where(a => a.Id == id && a.DeletedAt == null)
+            .Select(a => new
+            {
+                a.Id,
+                a.IconUrl
+            })
+            .FirstOrDefaultAsync();
 
-        amenity.Name = request.Name;
-        amenity.IconUrl = request.Icon;
-        amenity.UpdatedAt = DateTime.UtcNow;
+        if (currentAmenity == null) return false;
+
+        var nextIconUrl = currentAmenity.IconUrl;
+
+        if (request.IconFile != null && request.IconFile.Length > 0)
+        {
+            nextIconUrl = await UploadAmenityImageAsync(request.IconFile);
+        }
+
+        var amenity = new Amenity
+        {
+            Id = id,
+            Name = request.Name.Trim(),
+            IconUrl = nextIconUrl,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        context.Amenities.Attach(amenity);
+
+        context.Entry(amenity).Property(a => a.Name).IsModified = true;
+        context.Entry(amenity).Property(a => a.IconUrl).IsModified = true;
+        context.Entry(amenity).Property(a => a.UpdatedAt).IsModified = true;
 
         await context.SaveChangesAsync();
         return true;
@@ -58,12 +96,39 @@ public class AmenityService(HotelDbContext context) : IAmenityService
 
     public async Task<bool> DeleteAmenityAsync(int id)
     {
-        var amenity = await context.Amenities.FindAsync(id);
-        if (amenity == null) return false;
+        var exists = await context.Amenities
+            .AsNoTracking()
+            .AnyAsync(a => a.Id == id && a.DeletedAt == null);
 
-        // Soft Delete: Chỉ cập nhật ngày xóa, không xóa khỏi DB
-        amenity.DeletedAt = DateTime.UtcNow; 
+        if (!exists) return false;
+
+        var amenity = new Amenity
+        {
+            Id = id,
+            DeletedAt = DateTime.UtcNow
+        };
+
+        context.Amenities.Attach(amenity);
+        context.Entry(amenity).Property(a => a.DeletedAt).IsModified = true;
+
         await context.SaveChangesAsync();
         return true;
+    }
+
+    private async Task<string?> UploadAmenityImageAsync(IFormFile? iconFile)
+    {
+        if (iconFile == null || iconFile.Length == 0)
+        {
+            return null;
+        }
+
+        var uploadResult = await cloudinaryService.UploadImageAsync(iconFile, "amenities");
+
+        if (string.IsNullOrWhiteSpace(uploadResult.Url))
+        {
+            throw new Exception("Upload ảnh tiện ích lên Cloudinary thất bại.");
+        }
+
+        return uploadResult.Url;
     }
 }
