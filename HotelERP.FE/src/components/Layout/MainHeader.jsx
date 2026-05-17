@@ -8,12 +8,16 @@ import axiosClient from '../../api/axiosClient';
 const G = '#b8956a', D = '#111111';
 const SF = { fontFamily: "'Playfair Display',serif" };
 
+import { useSignalR } from '../../hooks/useSignalR.jsx';
+
 export default function MainHeader({ transparent = true }) {
   const navigate = useNavigate();
   const { user, isAuthenticated, logout, login, token, refreshToken, permissions } = useAuthStore();
+  const { connection } = useSignalR();
   const [scrolled, setScrolled] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [profile, setProfile] = useState(null);
   const [activeSection, setActiveSection] = useState('');
 
   const isAdmin = isAuthenticated && (user?.roleName === 'Admin' || user?.role?.name === 'Admin' || user?.role === 'Admin' || user?.roleId === 1);
@@ -61,8 +65,23 @@ export default function MainHeader({ transparent = true }) {
   useEffect(() => {
     if (token) {
       fetchNotifications();
+      fetchProfile();
     }
   }, [token]);
+
+  useEffect(() => {
+    if (connection) {
+      connection.on("ReceiveNotification", (newNotif) => {
+        setNotifications(prev => [newNotif, ...prev]);
+        setUnreadCount(prev => prev + 1);
+      });
+    }
+    return () => {
+      if (connection) {
+        connection.off("ReceiveNotification");
+      }
+    };
+  }, [connection]);
 
   const fetchNotifications = async () => {
     try {
@@ -72,6 +91,17 @@ export default function MainHeader({ transparent = true }) {
       setUnreadCount(data.filter(n => !n.isRead).length);
     } catch (err) {
       console.error("Lỗi fetch Notifications", err);
+    }
+  };
+
+  const fetchProfile = async () => {
+    try {
+      const res = await axiosClient.get('/UserProfile/my-profile');
+      const data = res.data?.data || res.data;
+      setProfile(data);
+      login({ ...user, ...data }, token, refreshToken, permissions);
+    } catch (err) {
+      console.error("Lỗi fetch Profile", err);
     }
   };
 
@@ -90,10 +120,10 @@ export default function MainHeader({ transparent = true }) {
       label: (
         <div style={{ padding: '4px 0' }}>
           <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', marginBottom: 2 }}>Hạng thành viên</div>
-          <div style={{ color: G, fontWeight: 700, fontSize: 13 }}>{user?.membershipTier || 'Khách Mới'}</div>
-          {user?.loyaltyPoints !== undefined && (
+          <div style={{ color: G, fontWeight: 700, fontSize: 13 }}>{profile?.membershipTier || user?.membershipTier || 'Khách Mới'}</div>
+          {(profile?.loyaltyPoints !== undefined || user?.loyaltyPoints !== undefined) && (
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 4 }}>
-              {user.loyaltyPoints.toLocaleString()} điểm tích lũy
+              {(profile?.loyaltyPoints ?? user?.loyaltyPoints).toLocaleString()} điểm tích lũy
             </div>
           )}
         </div>
@@ -133,11 +163,11 @@ export default function MainHeader({ transparent = true }) {
               />
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <span style={{ color: 'white', fontSize: 12, fontWeight: 600, maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.2 }}>
-                  {user?.fullName || user?.username || 'Tài khoản'}
+                  {profile?.fullName || user?.fullName || user?.username || 'Tài khoản'}
                 </span>
-                {user?.membershipTier && (
+                {(profile?.membershipTier || user?.membershipTier) && (
                   <span style={{ color: G, fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                    {user.membershipTier}
+                    {profile?.membershipTier || user?.membershipTier}
                   </span>
                 )}
               </div>

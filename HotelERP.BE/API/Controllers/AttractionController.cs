@@ -60,25 +60,32 @@ public class AttractionController(HotelDbContext context, HotelERP.BE.Applicatio
             imagePublicId = uploadResult.PublicId;
         }
 
-        Attraction newAttraction = new()
+        try
         {
-            Name = dto.Name,
-            Type = dto.Type,
-            Description = dto.Description,
-            Latitude = dto.Latitude,         // Lưu tọa độ GPS
-            Longitude = dto.Longitude,       // Lưu tọa độ GPS
-            DistanceKm = dto.DistanceKm,
-            ImageUrl = imageUrl,
-            ImagePublicId = imagePublicId,
-            MapEmbedLink = dto.MapEmbedLink,
-            CreatedAt = DateTime.UtcNow,
-            Status = "ACTIVE"
-        };
+            Attraction newAttraction = new()
+            {
+                Name = dto.Name,
+                Type = dto.Type,
+                Description = dto.Description,
+                Latitude = dto.Latitude,
+                Longitude = dto.Longitude,
+                DistanceKm = dto.DistanceKm,
+                ImageUrl = imageUrl,
+                ImagePublicId = imagePublicId,
+                MapEmbedLink = dto.MapEmbedLink,
+                CreatedAt = DateTime.UtcNow,
+                Status = "ACTIVE"
+            };
 
-        context.Attractions.Add(newAttraction);
-        await context.SaveChangesAsync();
+            context.Attractions.Add(newAttraction);
+            await context.SaveChangesAsync();
 
-        return CreatedAtAction(nameof(GetById), new { id = newAttraction.Id }, newAttraction);
+            return CreatedAtAction(nameof(GetById), new { id = newAttraction.Id }, newAttraction);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Lỗi khi tạo địa điểm: " + (ex.InnerException?.Message ?? ex.Message) });
+        }
     }
 
     // Cập nhật địa điểm

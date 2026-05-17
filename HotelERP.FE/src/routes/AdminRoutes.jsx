@@ -39,7 +39,7 @@ const Placeholder = ({ title }) => (
 );
 
 // Danh sách các role được phép vào khu vực Admin
-const ADMIN_ALLOWED_ROLES = ['Admin', 'Manager', 'Receptionist', 'Housekeeping', 'Accountant'];
+const ADMIN_ALLOWED_ROLES = ['Admin', 'Manager', 'Receptionist', 'Housekeeping', 'Accountant', 'WarehouseStaff', 'Marketing', 'MarketingStaff'];
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, user } = useAuthStore((state) => state);

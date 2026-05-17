@@ -358,6 +358,31 @@ public class BookingEngineService : IBookingEngineService
             await _notificationService.SendToRoleAsync("Manager", newBookingMsg);
             await _notificationService.SendToRoleAsync("Receptionist", newBookingMsg);
 
+            // Gửi thông báo cho User (Guest) đã đặt phòng
+            if (userId > 0)
+            {
+                var userMsg = new NotificationMessage
+                {
+                    Title = "Đặt phòng thành công",
+                    Content = $"Yêu cầu đặt phòng #{booking.BookingCode} của bạn đã được ghi nhận. Tổng: {finalTotalAmount:N0}đ.",
+                    Type = "Success",
+                    Action = NotificationAction.CreateBooking
+                };
+                var userDbNotif = new Notification
+                {
+                    UserId = userId,
+                    Title = userMsg.Title,
+                    Content = userMsg.Content,
+                    Type = userMsg.Type,
+                    IsRead = false,
+                    CreatedAt = DateTime.UtcNow
+                };
+                _context.Notifications.Add(userDbNotif);
+                await _context.SaveChangesAsync();
+                userMsg.Id = userDbNotif.Id;
+                await _notificationService.SendToUserAsync(userId.ToString(), userMsg);
+            }
+
             // ✅ Gửi email "Ghi nhận yêu cầu" cho khách hàng
             if (!string.IsNullOrWhiteSpace(booking.GuestEmail))
             {

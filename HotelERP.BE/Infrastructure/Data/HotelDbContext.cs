@@ -260,7 +260,7 @@ public partial class HotelDbContext : DbContext
         modelBuilder.Entity<AuditLog>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("PK_Audit_Logs");
-            entity.ToTable("Audit_Logs");
+            entity.ToTable("Audit_Logs", tb => tb.HasTrigger("TR_AuditLogs_AutoPurgeOnUpdate"));
             entity.HasIndex(e => new { e.UserId, e.RoleName, e.LogDate }, "UIX_Audit_Daily").IsUnique();
 
             entity.Property(e => e.Id).HasColumnName("id");
