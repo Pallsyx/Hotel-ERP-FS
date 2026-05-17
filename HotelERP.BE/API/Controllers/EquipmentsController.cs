@@ -238,8 +238,8 @@ public class EquipmentsController(HotelDbContext context) : ControllerBase
                     var newUnit = !string.IsNullOrEmpty(unit) ? unit : "Cái";
                     
                     int.TryParse(totalQuantityStr ?? "0", out int totalQuantity);
-                    decimal.TryParse(basePriceStr    ?? "0", System.Globalization.NumberStyles.Any, culture, out decimal basePrice);
-                    decimal.TryParse(defaultPriceStr ?? "0", System.Globalization.NumberStyles.Any, culture, out decimal defaultPrice);
+                    decimal.TryParse(basePriceStr    ?? "0", out decimal basePrice);
+                    decimal.TryParse(defaultPriceStr ?? "0", out decimal defaultPrice);
 
                     context.Equipments.Add(new HotelERP.BE.Domain.Models.Equipment
                     {
