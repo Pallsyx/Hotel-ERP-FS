@@ -160,7 +160,7 @@ export default function NewsPage() {
       </div>
 
       {/* ── STICKY FILTER BAR ── */}
-      <div style={{ background: 'white', borderBottom: '1px solid #e5e7eb', position: 'sticky', top: 64, zIndex: 30, boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
+      <div style={{ background: 'white', borderBottom: '1px solid #e5e7eb', position: 'sticky', top: 64, zIndex: 50, boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
         <div style={{ maxWidth: 1280, margin: '0 auto', padding: '14px 24px', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'space-between' }}>
           {/* Category pills */}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -182,7 +182,7 @@ export default function NewsPage() {
               placeholder="Tìm kiếm bài viết..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              style={{ padding: '8px 16px', fontSize: 13, border: 'none', outline: 'none', width: 240, background: '#fafafa' }}
+              style={{ padding: '8px 16px', fontSize: 13, border: 'none', outline: 'none', width: 240, background: '#fafafa', color: '#111', caretColor: '#111' }}
             />
             <button type="submit" style={{ padding: '8px 16px', background: DARK, color: 'white', border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, letterSpacing: '1px' }}>
               TÌM

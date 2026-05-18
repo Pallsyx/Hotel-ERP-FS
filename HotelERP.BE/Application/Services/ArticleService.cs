@@ -227,13 +227,7 @@ public class ArticleService
             .Include(a => a.Category) 
             .AsQueryable();
 
-        // Lọc theo từ khóa (Tìm trong Tiêu đề hoặc Tóm tắt)
-        if (!string.IsNullOrWhiteSpace(keyword))
-        {
-            query = query.Where(a => a.Title.Contains(keyword) || (a.Summary != null && a.Summary.Contains(keyword)));
-        }
-
-        // TÌM THEO TÊN CHUYÊN MỤC (Thay vì ID)
+        // Lọc theo tên chuyên mục (DB level - không cần normalize)
         if (!string.IsNullOrWhiteSpace(categoryName)) 
         {
             query = query.Where(a => a.Category != null && a.Category.Name == categoryName);
@@ -245,6 +239,7 @@ public class ArticleService
             query = query.Where(a => a.Status == status);
         }
 
+        // Load kết quả sau khi lọc category/status
         var articles = await query
             .OrderByDescending(a => a.PublishedAt)
             .Select(a => new ArticleResponseDto
@@ -263,8 +258,41 @@ public class ArticleService
             })
             .ToListAsync();
 
+        // ✅ FIX BUG-06: Filter keyword in-memory sau khi load, dùng RemoveDiacritics
+        // Lý do: EF Core translate .Contains() thành SQL LIKE '%keyword%' (case-sensitive với dấu),
+        // nên 'lang chai' sẽ không match 'Làng Chài' trong DB.
+        // Giải pháp: normalize cả keyword lẫn title/summary về không dấu trước khi so sánh.
+        if (!string.IsNullOrWhiteSpace(keyword))
+        {
+            var normalizedKeyword = RemoveDiacritics(keyword.ToLower().Trim());
+            articles = articles.Where(a =>
+                RemoveDiacritics(a.Title?.ToLower() ?? "").Contains(normalizedKeyword) ||
+                RemoveDiacritics(a.Summary?.ToLower() ?? "").Contains(normalizedKeyword)
+            ).ToList();
+        }
+
         return articles;
     }
+
+    /// <summary>
+    /// Chuyển chuỗi tiếng Việt có dấu về không dấu để tìm kiếm accent-insensitive.
+    /// Ví dụ: "Làng Chài Cổ" → "lang chai co"
+    /// </summary>
+    private static string RemoveDiacritics(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return text;
+        var normalized = text.Normalize(System.Text.NormalizationForm.FormD);
+        var sb = new System.Text.StringBuilder();
+        foreach (var c in normalized)
+        {
+            var cat = System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c);
+            if (cat != System.Globalization.UnicodeCategory.NonSpacingMark)
+                sb.Append(c);
+        }
+        return sb.ToString().Normalize(System.Text.NormalizationForm.FormC);
+    }
+
+
 
     // ==========================================
     // UPLOAD THUMBNAIL ĐỘC LẬP (HÀM MỚI THÊM)

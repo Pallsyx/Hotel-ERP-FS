@@ -106,20 +106,25 @@ export default function AttractionsPage() {
   };
 
   const calculateRoute = async (dest) => {
+    // ✅ Guard: không gọi Google Maps nếu đang dùng fallback (iframe) hoặc chưa load xong
     if (!dest?.latitude || !dest?.longitude) return;
-    // eslint-disable-next-line no-undef
-    const svc = new google.maps.DirectionsService();
+    if (useMapFallback || !isLoaded) return;
     try {
+      // eslint-disable-next-line no-undef
+      const svc = new google.maps.DirectionsService();
+      // eslint-disable-next-line no-undef
       const results = await svc.route({
         origin: hotelLocation,
-        destination: { lat: dest.latitude, lng: dest.longitude },
+        destination: { lat: Number(dest.latitude), lng: Number(dest.longitude) },
         // eslint-disable-next-line no-undef
         travelMode: google.maps.TravelMode[travelMode],
       });
-      setDirectionsResponse(results);
-      setDistance(results.routes[0].legs[0].distance.text);
-      setDuration(results.routes[0].legs[0].duration.text);
-    } catch (err) { console.error(err); }
+      if (results?.routes?.[0]?.legs?.[0]) {
+        setDirectionsResponse(results);
+        setDistance(results.routes[0].legs[0].distance.text);
+        setDuration(results.routes[0].legs[0].duration.text);
+      }
+    } catch (err) { console.error('[calculateRoute]', err); }
   };
 
   const handleCardClick = (item) => {
@@ -136,6 +141,15 @@ export default function AttractionsPage() {
     const matchCat  = selectedCategory === 'All' || i.type === selectedCategory;
     return matchName && matchCat;
   });
+
+  // ✅ Reset trạng thái chọn khi category thay đổi để tránh state bị lỗi
+  const handleCategoryChange = (cat) => {
+    setSelectedCategory(cat);
+    setSelectedAttraction(null);
+    setDirectionsResponse(null);
+    setDistance('');
+    setDuration('');
+  };
 
   return (
     <div style={{ background: '#fafafa', minHeight: '100vh', fontFamily: "'Inter', sans-serif" }}>
@@ -175,7 +189,7 @@ export default function AttractionsPage() {
             {/* Category filter */}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 20 }}>
               {categories.map(cat => (
-                <button key={cat} onClick={() => setSelectedCategory(cat)}
+                <button key={cat} onClick={() => handleCategoryChange(cat)}
                   style={{ padding: '5px 14px', borderRadius: 999, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: '1px solid', background: selectedCategory === cat ? DARK : 'transparent', color: selectedCategory === cat ? 'white' : '#71717a', borderColor: selectedCategory === cat ? DARK : '#e5e7eb', transition: 'all 200ms' }}>
                   {cat === 'All' ? 'Tất cả' : cat}
                 </button>
