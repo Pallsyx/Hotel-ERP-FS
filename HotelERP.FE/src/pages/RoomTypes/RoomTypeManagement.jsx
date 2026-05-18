@@ -11,6 +11,7 @@ import {
   InputNumber,
   Modal,
   Popconfirm,
+  Radio,
   Row,
   Select,
   Space,
@@ -68,9 +69,9 @@ const getRoomImageItems = (record) => {
 
 const getFeaturedRoomImages = (record) => {
   const images = getRoomImageItems(record);
-  const featuredImages = images.filter((item) => item.isPrimary);
+  const featuredImage = images.find((item) => item.isPrimary);
 
-  if (featuredImages.length > 0) return featuredImages;
+  if (featuredImage) return [featuredImage];
   return images.length > 0 ? [images[0]] : [];
 };
 
@@ -191,9 +192,8 @@ const RoomTypeManagement = () => {
 
   const openEditRoomTypeModal = (record) => {
     const currentImages = getRoomImageItems(record).filter((item) => item.id !== 'legacy');
-    const currentFeaturedChoices = currentImages
-      .filter((item) => item.isPrimary)
-      .map((item) => `existing-${item.id}`);
+    const currentFeaturedImage = currentImages.find((item) => item.isPrimary);
+    const currentFeaturedChoices = currentFeaturedImage ? [`existing-${currentFeaturedImage.id}`] : [];
 
     setEditingRoomType(record);
     setImageFileList([]);
@@ -237,10 +237,13 @@ const RoomTypeManagement = () => {
   };
 
   const togglePrimaryImageChoice = (choice, checked) => {
-    setPrimaryImageChoices((prev) => {
-      if (checked) return [...new Set([...prev, choice])];
-      return prev.filter((item) => item !== choice);
-    });
+    setPrimaryImageChoices(checked ? [choice] : []);
+  };
+
+  const getFallbackPrimaryChoice = (nextExistingImages = existingRoomImages, nextNewImages = imageFileList) => {
+    if (nextExistingImages.length > 0) return `existing-${nextExistingImages[0].id}`;
+    if (nextNewImages.length > 0) return `new-${nextNewImages[0].uid}`;
+    return null;
   };
 
   const handleRoomImagesChange = ({ fileList }) => {
@@ -251,25 +254,45 @@ const RoomTypeManagement = () => {
     setImageFileList(nextList);
 
     setPrimaryImageChoices((prev) => {
-      const nextChoices = prev.filter((choice) => {
-        if (!choice.startsWith('new-')) return true;
-        const uid = choice.replace('new-', '');
-        return nextList.some((file) => file.uid === uid);
-      });
+      const currentChoice = prev[0];
+      const currentChoiceStillExists = currentChoice
+        ? currentChoice.startsWith('existing-')
+          ? existingRoomImages.some((image) => `existing-${image.id}` === currentChoice)
+          : nextList.some((file) => `new-${file.uid}` === currentChoice)
+        : false;
 
-      if (nextChoices.length === 0 && existingRoomImages.length === 0 && nextList.length > 0) {
-        return [`new-${nextList[0].uid}`];
-      }
+      if (currentChoiceStillExists) return [currentChoice];
 
-      return nextChoices;
+      const fallbackChoice = getFallbackPrimaryChoice(existingRoomImages, nextList);
+      return fallbackChoice ? [fallbackChoice] : [];
     });
   };
 
   const handleRemoveExistingRoomImage = (image) => {
     const nextImages = existingRoomImages.filter((item) => item.id !== image.id);
+    const removedChoice = `existing-${image.id}`;
+
     setExistingRoomImages(nextImages);
     setDeletedRoomImageIds((prev) => [...new Set([...prev, image.id])]);
-    setPrimaryImageChoices((prev) => prev.filter((choice) => choice !== `existing-${image.id}`));
+
+    setPrimaryImageChoices((prev) => {
+      if (prev[0] !== removedChoice) return prev;
+      const fallbackChoice = getFallbackPrimaryChoice(nextImages, imageFileList);
+      return fallbackChoice ? [fallbackChoice] : [];
+    });
+  };
+
+  const handleRemoveNewRoomImage = (file) => {
+    const nextFiles = imageFileList.filter((item) => item.uid !== file.uid);
+    const removedChoice = `new-${file.uid}`;
+
+    setImageFileList(nextFiles);
+
+    setPrimaryImageChoices((prev) => {
+      if (prev[0] !== removedChoice) return prev;
+      const fallbackChoice = getFallbackPrimaryChoice(existingRoomImages, nextFiles);
+      return fallbackChoice ? [fallbackChoice] : [];
+    });
   };
 
   const handleSubmitRoomType = async (values) => {
@@ -441,7 +464,7 @@ const RoomTypeManagement = () => {
       title: 'Ảnh nổi bật',
       dataIndex: 'imageUrl',
       key: 'imageUrl',
-      width: 230,
+      width: 135,
       render: renderRoomImageCell,
     },
     {
@@ -495,8 +518,13 @@ const RoomTypeManagement = () => {
       title: 'Mô tả',
       dataIndex: 'description',
       key: 'description',
-      ellipsis: true,
-      render: (value) => value || <span className="room-type-muted">Chưa có mô tả</span>,
+      width: 420,
+      render: (value) =>
+        value ? (
+          <div className="room-type-description-cell">{value}</div>
+        ) : (
+          <span className="room-type-muted">Chưa có mô tả</span>
+        ),
     },
     {
       title: 'Hành động',
@@ -612,7 +640,7 @@ const RoomTypeManagement = () => {
         columns={roomTypeColumns}
         dataSource={filteredRoomTypes}
         bordered
-        scroll={{ x: 1350 }}
+        scroll={{ x: 1550 }}
         pagination={{
           pageSize: 5,
           showSizeChanger: true,
@@ -802,82 +830,92 @@ const RoomTypeManagement = () => {
             />
           </Form.Item>
 
-          <div className="room-type-section-label">Ảnh loại phòng</div>
-          <Upload
-            beforeUpload={() => false}
-            multiple
-            accept="image/*"
-            fileList={imageFileList}
-            onChange={handleRoomImagesChange}
-            listType="picture-card"
-          >
-            <div>
-              <UploadOutlined />
-              <div style={{ marginTop: 8 }}>Thêm ảnh</div>
+          <div className="room-type-gallery-panel">
+            <div className="room-type-section-label">Ảnh loại phòng &amp; ảnh nổi bật</div>
+            <div className="room-type-help-text">
+            
             </div>
-          </Upload>
 
-          {(existingRoomImages.length > 0 || imageFileList.length > 0) && (
-            <div className="room-type-gallery-panel">
-              <div className="room-type-section-label">Chọn ảnh nổi bật</div>
-              <div className="room-type-help-text">
-                Có thể tick nhiều ảnh. Những ảnh này sẽ được đánh dấu nổi bật và hiển thị ở bảng.
+            <div className="room-type-gallery-grid">
+              <div className="room-type-gallery-upload-card">
+                <Upload
+                  beforeUpload={() => false}
+                  multiple
+                  accept="image/*"
+                  fileList={imageFileList}
+                  onChange={handleRoomImagesChange}
+                  listType="picture-card"
+                  showUploadList={false}
+                >
+                  <div>
+                    <UploadOutlined />
+                    <div style={{ marginTop: 8 }}>Thêm ảnh</div>
+                  </div>
+                </Upload>
               </div>
 
-              <div className="room-type-gallery-grid">
-                {existingRoomImages.map((image) => {
-                  const choice = `existing-${image.id}`;
-                  return (
-                    <div className="room-type-gallery-item" key={choice}>
-                      <Image
-                        src={resolveImageSrc(image.imageUrl)}
-                        alt="Ảnh loại phòng"
-                        className="room-type-gallery-image"
-                      />
-                      <div className="room-type-gallery-actions">
-                        <Checkbox
-                          checked={primaryImageChoices.includes(choice)}
-                          onChange={(event) => togglePrimaryImageChoice(choice, event.target.checked)}
-                        >
-                          Ảnh nổi bật
-                        </Checkbox>
+              {existingRoomImages.map((image) => {
+                const choice = `existing-${image.id}`;
+                return (
+                  <div className="room-type-gallery-item" key={choice}>
+                    <Image
+                      src={resolveImageSrc(image.imageUrl)}
+                      alt="Ảnh loại phòng"
+                      className="room-type-gallery-image"
+                    />
+                    <div className="room-type-gallery-actions">
+                      <Radio
+                        checked={primaryImageChoices.includes(choice)}
+                        onChange={(event) => togglePrimaryImageChoice(choice, event.target.checked)}
+                      >
+                        Ảnh nổi bật
+                      </Radio>
+                      <Button
+                        danger
+                        size="small"
+                        icon={<DeleteOutlined />}
+                        onClick={() => handleRemoveExistingRoomImage(image)}
+                      >
+                        Xóa
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {imageFileList.map((file) => {
+                const choice = `new-${file.uid}`;
+                return (
+                  <div className="room-type-gallery-item" key={choice}>
+                    <Image
+                      src={buildPreviewUrl(file)}
+                      alt={file.name}
+                      className="room-type-gallery-image"
+                    />
+                    <div className="room-type-gallery-actions">
+                      <Radio
+                        checked={primaryImageChoices.includes(choice)}
+                        onChange={(event) => togglePrimaryImageChoice(choice, event.target.checked)}
+                      >
+                        Ảnh nổi bật
+                      </Radio>
+                      <Space size={6} wrap>
+                        <Tag color="blue">Ảnh mới</Tag>
                         <Button
                           danger
                           size="small"
                           icon={<DeleteOutlined />}
-                          onClick={() => handleRemoveExistingRoomImage(image)}
+                          onClick={() => handleRemoveNewRoomImage(file)}
                         >
                           Xóa
                         </Button>
-                      </div>
+                      </Space>
                     </div>
-                  );
-                })}
-
-                {imageFileList.map((file) => {
-                  const choice = `new-${file.uid}`;
-                  return (
-                    <div className="room-type-gallery-item" key={choice}>
-                      <Image
-                        src={buildPreviewUrl(file)}
-                        alt={file.name}
-                        className="room-type-gallery-image"
-                      />
-                      <div className="room-type-gallery-actions">
-                        <Checkbox
-                          checked={primaryImageChoices.includes(choice)}
-                          onChange={(event) => togglePrimaryImageChoice(choice, event.target.checked)}
-                        >
-                          Ảnh nổi bật
-                        </Checkbox>
-                        <Tag color="blue">Ảnh mới</Tag>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                  </div>
+                );
+              })}
             </div>
-          )}
+          </div>
 
           {editingRoomType?.imageUrl && existingRoomImages.length === 0 && imageFileList.length === 0 && (
             <div className="room-type-current-image">

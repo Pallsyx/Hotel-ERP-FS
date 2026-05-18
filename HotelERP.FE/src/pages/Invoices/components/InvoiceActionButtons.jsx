@@ -1,4 +1,21 @@
 import React, { useEffect, useMemo, useState } from 'react';
+
+
+const normalizeStayDays = (value, hasCharge = false) => {
+  const n = Number(value || 0);
+
+  if (n >= 1) return Math.floor(n);
+
+  // Nếu chưa đủ 1 ngày nhưng đã phát sinh tiền phòng / đã nhận phòng trả luôn trong ngày
+  if (hasCharge) return 1;
+
+  return 0;
+};
+
+const formatStayDays = (value, hasCharge = false) => {
+  return `${normalizeStayDays(value, hasCharge)} ngày`;
+};
+
 import { Button, Space, Tag, message } from 'antd';
 import { PrinterOutlined, ThunderboltOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import invoiceApi from '../../../api/invoiceApi';
@@ -12,6 +29,19 @@ const getValue = (obj, ...keys) => {
   return undefined;
 };
 
+const resolveStayNightsForPrint = (item) => {
+  const directValue = Number(
+    getValue(item, 'actualStayNights', 'ActualStayNights', 'stayNights', 'StayNights') || 0
+  );
+
+  if (directValue > 0) return directValue;
+
+  const roomCharge = Number(getValue(item, 'roomCharge', 'RoomCharge', 'totalRoomAmount', 'TotalRoomAmount') || 0);
+
+  return roomCharge > 0 ? 1 : 0;
+};
+
+
 const buildPrintableHtml = (payload) => {
   const bookingId = getValue(payload, 'bookingId', 'BookingId') || '';
   const bookingCode = getValue(payload, 'bookingCode', 'BookingCode') || '';
@@ -24,6 +54,10 @@ const buildPrintableHtml = (payload) => {
   const depositAmount = getValue(payload, 'depositAmount', 'DepositAmount') || 0;
   const finalTotal = getValue(payload, 'finalTotal', 'FinalTotal') || 0;
   const invoiceStatus = getValue(payload, 'invoiceStatus', 'InvoiceStatus') || '';
+  const totalStayNightsFromPayload = getValue(payload, 'totalStayNights', 'TotalStayNights') || 0;
+  const totalStayNightsFromLines = (getValue(payload, 'lines', 'Lines') || [])
+    .reduce((sum, line) => sum + resolveStayNightsForPrint(line), 0);
+  const totalStayNights = totalStayNightsFromPayload || totalStayNightsFromLines;
   const totalRoomAmount = getValue(payload, 'totalRoomAmount', 'TotalRoomAmount') || 0;
   const totalServiceAmount = getValue(payload, 'totalServiceAmount', 'TotalServiceAmount') || 0;
   const totalDamageAmount = getValue(payload, 'totalDamageAmount', 'TotalDamageAmount') || 0;
@@ -33,6 +67,7 @@ const buildPrintableHtml = (payload) => {
   const roomNumbers = getValue(payload, 'roomNumbers', 'RoomNumbers') || [];
   const bookingDetailIds = getValue(payload, 'bookingDetailIds', 'BookingDetailIds') || [];
   const notes = getValue(payload, 'notes', 'Notes') || '';
+  const lines = getValue(payload, 'lines', 'Lines', 'invoiceLines', 'InvoiceLines') || [];
 
   const money = (val) =>
     new Intl.NumberFormat('vi-VN', {
@@ -54,6 +89,7 @@ const buildPrintableHtml = (payload) => {
           th { background: #f3f4f6; }
           .final { font-size: 20px; font-weight: bold; color: #dc2626; margin-top: 12px; }
           .note { margin-top: 18px; white-space: pre-wrap; }
+          .muted { color: #6b7280; font-size: 13px; }
         </style>
       </head>
       <body>
@@ -66,8 +102,37 @@ const buildPrintableHtml = (payload) => {
           <div><b>Mã hóa đơn:</b> ${invoiceCode}</div>
           <div><b>Trạng thái:</b> ${invoiceStatus}</div>
           <div><b>Phòng:</b> ${(roomNumbers || []).join(', ') || 'Không có'}</div>
+          <div><b>Số ngày/đêm đã ở:</b> ${normalizeStayDays(totalStayNights, Number(totalRoomAmount || 0) > 0)} ngày</div>
           <div><b>BookingDetailIds:</b> ${(bookingDetailIds || []).join(', ') || 'Không có'}</div>
         </div>
+
+        ${Array.isArray(lines) && lines.length ? `
+        <h3>Chi tiết phòng</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Phòng</th>
+              <th>Số ngày/đêm đã ở</th>
+              <th>Tiền phòng</th>
+              <th>Dịch vụ</th>
+              <th>Phụ phí</th>
+              <th>Thành tiền</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${lines.map((line) => `
+              <tr>
+                <td>${getValue(line, 'roomNumber', 'RoomNumber') || '-'}</td>
+                <td>${resolveStayNightsForPrint(line)} ngày</td>
+                <td>${money(getValue(line, 'roomCharge', 'RoomCharge') || 0)}</td>
+                <td>${money(getValue(line, 'serviceCharge', 'ServiceCharge') || 0)}</td>
+                <td>${money(getValue(line, 'extraFeeAmount', 'ExtraFeeAmount') || 0)}</td>
+                <td>${money(getValue(line, 'lineTotal', 'LineTotal') || 0)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        ` : ''}
 
         <table>
           <thead>
@@ -77,6 +142,7 @@ const buildPrintableHtml = (payload) => {
             </tr>
           </thead>
           <tbody>
+            <tr><td>Số ngày/đêm đã ở</td><td>${formatStayDays(totalStayNights, Number(totalRoomAmount || 0) > 0)}</td></tr>
             <tr><td>Tiền phòng</td><td>${money(totalRoomAmount)}</td></tr>
             <tr><td>Tiền dịch vụ</td><td>${money(totalServiceAmount)}</td></tr>
             <tr><td>Tiền đền bù</td><td>${money(totalDamageAmount)}</td></tr>
@@ -122,6 +188,7 @@ const InvoiceActionButtons = ({
   invoiceStatus,
   onChanged,
   onInvoiceCreated,
+  extraFeeTargets = [],
 }) => {
   const [quickActionOpen, setQuickActionOpen] = useState(false);
   const [finalizeOpen, setFinalizeOpen] = useState(false);
@@ -276,14 +343,15 @@ const InvoiceActionButtons = ({
       </Space>
 
       <QuickActionModal
-        open={quickActionOpen}
-        invoiceId={activeInvoiceId}
-        onCancel={() => setQuickActionOpen(false)}
-        onSuccess={async () => {
-          setQuickActionOpen(false);
-          await onChanged?.();
-        }}
-      />
+  open={quickActionOpen}
+  invoiceId={activeInvoiceId}
+  extraFeeTargets={extraFeeTargets}
+  onCancel={() => setQuickActionOpen(false)}
+  onSuccess={async (payload) => {
+    setQuickActionOpen(false);
+    await onChanged?.(payload);
+  }}
+/>
 
       <FinalizeInvoiceModal
         open={finalizeOpen}

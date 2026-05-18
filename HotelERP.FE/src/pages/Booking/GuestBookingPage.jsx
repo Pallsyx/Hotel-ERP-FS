@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Form, Input, Button, message, Divider, Space, Tag } from 'antd';
+import { Form, Input, Button, message, Divider, Space, Tag, Alert } from 'antd';
 import { ArrowLeftOutlined, CheckCircleOutlined, InfoCircleOutlined, TagOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import { useAuthStore } from '../../store/authStore';
 import bookingApi from '../../api/bookingApi';
@@ -77,6 +77,10 @@ export default function GuestBookingPage() {
   const [validatingVoucher, setValidatingVoucher] = useState(false);
   const [appliedVoucher, setAppliedVoucher] = useState(null);
   const [discountAmount, setDiscountAmount] = useState(0);
+  const [birthdayVouchers, setBirthdayVouchers] = useState([]);
+  const [loadingBirthdayVouchers, setLoadingBirthdayVouchers] = useState(false);
+
+  const { user, isAuthenticated } = useAuthStore();
 
   // Fallback if no state
   if (!state) {
@@ -88,7 +92,6 @@ export default function GuestBookingPage() {
     );
   }
 
-  const { user, isAuthenticated } = useAuthStore();
 
   const {
     roomTypeId, roomName, basePrice,
@@ -110,6 +113,74 @@ export default function GuestBookingPage() {
   
   const totalPrice = subtotal - memDiscountAmount - discountAmount;
 
+  const calculateVoucherDiscount = (voucher) => {
+    if (!voucher) return 0;
+
+    const discountType = String(voucher.discountType || voucher.DiscountType || '').toUpperCase();
+    const discountValue = Number(voucher.discountValue ?? voucher.DiscountValue ?? 0);
+
+    let discount = discountType === 'PERCENT'
+      ? subtotal * (discountValue / 100)
+      : discountValue;
+
+    if (discount > subtotal) discount = subtotal;
+    if (discount < 0) discount = 0;
+
+    return Math.round(discount);
+  };
+
+  const applyVoucherObject = (voucher, showMessage = true) => {
+    const code = voucher?.code || voucher?.Code;
+    if (!code) return;
+
+    const normalizedVoucher = {
+      ...voucher,
+      code,
+      discountType: voucher.discountType || voucher.DiscountType,
+      discountValue: voucher.discountValue ?? voucher.DiscountValue,
+    };
+
+    setAppliedVoucher(normalizedVoucher);
+    setVoucherCode(code);
+    setDiscountAmount(calculateVoucherDiscount(normalizedVoucher));
+
+    if (showMessage) {
+      message.success(`Đã áp dụng voucher ${code}.`);
+    }
+  };
+
+  useEffect(() => {
+    if (!isAuthenticated || subtotal <= 0) {
+      setBirthdayVouchers([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadBirthdayVouchers = async () => {
+      try {
+        setLoadingBirthdayVouchers(true);
+        const res = await bookingApi.getMyBirthdayVouchers(subtotal);
+        const payload = res?.data?.data || res?.data || res || [];
+
+        if (!cancelled) {
+          setBirthdayVouchers(Array.isArray(payload) ? payload : []);
+        }
+      } catch (error) {
+        console.error('Load birthday vouchers error:', error);
+        if (!cancelled) setBirthdayVouchers([]);
+      } finally {
+        if (!cancelled) setLoadingBirthdayVouchers(false);
+      }
+    };
+
+    loadBirthdayVouchers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, subtotal]);
+
   const handleApplyVoucher = async () => {
     if (!voucherCode.trim()) {
       message.warning('Vui lòng nhập mã voucher');
@@ -121,17 +192,7 @@ export default function GuestBookingPage() {
       const resData = res?.data ?? res;
       if (resData?.success) {
         const voucher = resData.data;
-        setAppliedVoucher(voucher);
-        
-        let discount = 0;
-        if (voucher.discountType === 'PERCENT') {
-          discount = subtotal * (voucher.discountValue / 100);
-        } else {
-          discount = voucher.discountValue;
-        }
-        
-        if (discount > subtotal) discount = subtotal;
-        setDiscountAmount(discount);
+        applyVoucherObject(voucher, false);
         message.success('Áp dụng mã giảm giá thành công!');
       } else {
         // Dịch lỗi từ Backend sang tiếng Việt
@@ -341,22 +402,73 @@ export default function GuestBookingPage() {
                   <TagOutlined style={{color: GOLD}} /> Mã giảm giá (Voucher)
                 </p>
                 {!appliedVoucher ? (
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <Input 
-                      placeholder="Nhập mã ưu đãi..." 
-                      value={voucherCode}
-                      onChange={e => setVoucherCode(e.target.value)}
-                      style={{ ...premiumInputStyle, height: 44, padding: '0 16px' }}
-                      className="premium-input"
-                    />
-                    <Button 
-                      onClick={handleApplyVoucher} 
-                      loading={validatingVoucher}
-                      style={{ height: 44, borderColor: GOLD, color: GOLD, background: 'transparent', fontWeight: 600 }}
-                    >
-                      ÁP DỤNG
-                    </Button>
-                  </div>
+                  <>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <Input 
+                        placeholder="Nhập mã ưu đãi..." 
+                        value={voucherCode}
+                        onChange={e => setVoucherCode(e.target.value.toUpperCase())}
+                        style={{ ...premiumInputStyle, height: 44, padding: '0 16px' }}
+                        className="premium-input"
+                      />
+                      <Button 
+                        onClick={handleApplyVoucher} 
+                        loading={validatingVoucher}
+                        style={{ height: 44, borderColor: GOLD, color: GOLD, background: 'transparent', fontWeight: 600 }}
+                      >
+                        ÁP DỤNG
+                      </Button>
+                    </div>
+
+                    {birthdayVouchers.length > 0 && (
+                      <div style={{ marginTop: 12 }}>
+                        <Alert
+                          type="success"
+                          showIcon
+                          style={{
+                            background: 'rgba(22, 163, 74, 0.1)',
+                            border: '1px solid rgba(22, 163, 74, 0.25)',
+                            color: '#4ade80',
+                          }}
+                          message="Bạn đang có voucher sinh nhật. Có muốn sử dụng không?"
+                          description={
+                            <Space direction="vertical" size={8} style={{ width: '100%', marginTop: 6 }}>
+                              {birthdayVouchers.map((voucher) => {
+                                const code = voucher.code || voucher.Code;
+                                const displayText = voucher.displayText || voucher.DisplayText || `Giảm ${formatVND(voucher.discountValue || voucher.DiscountValue || 0)}`;
+
+                                return (
+                                  <div
+                                    key={code}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'space-between',
+                                      gap: 10,
+                                      flexWrap: 'wrap',
+                                    }}
+                                  >
+                                    <div>
+                                      <Tag color="green" style={{ fontWeight: 700 }}>{code}</Tag>
+                                      <span style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13 }}>{displayText}</span>
+                                    </div>
+                                    <Button
+                                      size="small"
+                                      loading={loadingBirthdayVouchers}
+                                      onClick={() => applyVoucherObject(voucher)}
+                                      style={{ borderColor: GOLD, color: GOLD, background: 'transparent', fontWeight: 600 }}
+                                    >
+                                      Dùng voucher này
+                                    </Button>
+                                  </div>
+                                );
+                              })}
+                            </Space>
+                          }
+                        />
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <div style={{ background: 'rgba(22, 163, 74, 0.1)', border: '1px solid rgba(22, 163, 74, 0.2)', padding: '10px 14px', borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>

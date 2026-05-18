@@ -72,19 +72,24 @@ const Departures = () => {
     message.success('Đã copy mã booking');
   };
 
-  const handleCheckOut = async (record) => {
-    try {
-      const res = await bookingManagementApi.updateDetailStatus(record.detailId, 'CheckedOut');
-      if (res.data?.success) {
-        message.success(`✅ Đã Check-out phòng ${record.roomNumber} thành công! Vui lòng lập hóa đơn thanh toán.`);
-        // Refresh danh sách sau khi check-out
-        fetchDepartures(selectedDate);
-      }
-    } catch (err) {
-      const msg = err.response?.data?.message ?? 'Check-out thất bại. Vui lòng thử lại.';
-      message.error(msg);
+ const handleCheckOut = async (record) => {
+  try {
+    const res = await bookingManagementApi.updateDetailStatus(record.detailId, 'CheckedOut');
+
+    if (res.data?.success) {
+      message.success(
+        `✅ Đã Check-out phòng ${record.roomNumber} thành công! Đang chuyển sang hóa đơn của booking #${record.bookingId}.`
+      );
+
+      // Sau khi trả phòng, chuyển thẳng qua Quản lý hóa đơn
+      // và chỉ hiển thị đúng booking vừa checkout.
+      navigate(`/admin/invoices?bookingId=${record.bookingId}&open=1`);
     }
-  };
+  } catch (err) {
+    const msg = err.response?.data?.message ?? 'Check-out thất bại. Vui lòng thử lại.';
+    message.error(msg);
+  }
+};
 
   // Lọc client-side theo từ khóa tìm kiếm
   const filteredData = data.filter((row) => {
@@ -193,7 +198,7 @@ const Departures = () => {
             <Button
               icon={<EyeOutlined />}
               size="small"
-              onClick={() => navigate('/admin/invoices')}
+              onClick={() => navigate(`/admin/invoices?bookingId=${record.bookingId}&open=1`)}
             />
           </Tooltip>
           <Popconfirm

@@ -1,4 +1,21 @@
 import React, { useEffect, useRef, useState } from 'react';
+
+
+const normalizeStayDays = (value, hasCharge = false) => {
+  const n = Number(value || 0);
+
+  if (n >= 1) return Math.floor(n);
+
+  // Nếu chưa đủ 1 ngày nhưng đã phát sinh tiền phòng / đã nhận phòng trả luôn trong ngày
+  if (hasCharge) return 1;
+
+  return 0;
+};
+
+const formatStayDays = (value, hasCharge = false) => {
+  return `${normalizeStayDays(value, hasCharge)} ngày`;
+};
+
 import {
   Modal,
   Form,
@@ -254,6 +271,7 @@ const FinalizeInvoiceModal = ({ open, invoiceId, onCancel, onSuccess }) => {
   const invoiceStatus = getValue(invoiceDetail, 'invoiceStatus', 'InvoiceStatus') || 'DRAFT';
   const paymentStatus = getValue(invoiceDetail, 'paymentStatus', 'PaymentStatus') || 'UNPAID';
   const roomNumbers = getValue(invoiceDetail, 'roomNumbers', 'RoomNumbers') || [];
+  const totalStayNights = getValue(invoiceDetail, 'totalStayNights', 'TotalStayNights') || 0;
 
   const totalRoomAmount = getValue(invoiceDetail, 'totalRoomAmount', 'TotalRoomAmount') || 0;
   const totalServiceAmount = getValue(invoiceDetail, 'totalServiceAmount', 'TotalServiceAmount') || 0;
@@ -315,6 +333,10 @@ const FinalizeInvoiceModal = ({ open, invoiceId, onCancel, onSuccess }) => {
                 {roomNumbers.length ? roomNumbers.join(', ') : 'Không có'}
               </Descriptions.Item>
 
+              <Descriptions.Item label="Số ngày/đêm đã ở">
+                <Text strong>{formatStayDays(totalStayNights, Number(totalRoomAmount || 0) > 0)}</Text>
+              </Descriptions.Item>
+
               <Descriptions.Item label="Trạng thái hóa đơn">
                 <Tag color={String(invoiceStatus).toUpperCase() === 'PAID' ? 'green' : 'orange'}>
                   {String(invoiceStatus).toUpperCase()}
@@ -330,6 +352,10 @@ const FinalizeInvoiceModal = ({ open, invoiceId, onCancel, onSuccess }) => {
 
             <Card title="Chi tiết hóa đơn" size="small" style={{ marginBottom: 20 }}>
               <Row gutter={[16, 16]}>
+
+                <Col span={12}><Text>Số ngày/đêm đã ở</Text></Col>
+                <Col span={12} style={{ textAlign: 'right' }}><Text strong>{formatStayDays(totalStayNights, Number(totalRoomAmount || 0) > 0)}</Text></Col>
+
                 <Col span={12}><Text>Tiền phòng</Text></Col>
                 <Col span={12} style={{ textAlign: 'right' }}><Text strong>{money(totalRoomAmount)}</Text></Col>
 

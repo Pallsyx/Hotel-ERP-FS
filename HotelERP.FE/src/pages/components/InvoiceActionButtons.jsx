@@ -24,6 +24,7 @@ const buildPrintableHtml = (payload) => {
   const depositAmount = getValue(payload, 'depositAmount', 'DepositAmount') || 0;
   const finalTotal = getValue(payload, 'finalTotal', 'FinalTotal') || 0;
   const invoiceStatus = getValue(payload, 'invoiceStatus', 'InvoiceStatus') || '';
+  const totalStayNights = getValue(payload, 'totalStayNights', 'TotalStayNights') || 0;
   const totalRoomAmount = getValue(payload, 'totalRoomAmount', 'TotalRoomAmount') || 0;
   const totalServiceAmount = getValue(payload, 'totalServiceAmount', 'TotalServiceAmount') || 0;
   const totalDamageAmount = getValue(payload, 'totalDamageAmount', 'TotalDamageAmount') || 0;
@@ -66,6 +67,7 @@ const buildPrintableHtml = (payload) => {
           <div><b>Mã hóa đơn:</b> ${invoiceCode}</div>
           <div><b>Trạng thái:</b> ${invoiceStatus}</div>
           <div><b>Phòng:</b> ${(roomNumbers || []).join(', ') || 'Không có'}</div>
+          <div><b>Số ngày/đêm đã ở:</b> ${totalStayNights} ngày</div>
           <div><b>BookingDetailIds:</b> ${(bookingDetailIds || []).join(', ') || 'Không có'}</div>
         </div>
 
@@ -77,6 +79,7 @@ const buildPrintableHtml = (payload) => {
             </tr>
           </thead>
           <tbody>
+            <tr><td>Số ngày/đêm đã ở</td><td>${totalStayNights} ngày</td></tr>
             <tr><td>Tiền phòng</td><td>${money(totalRoomAmount)}</td></tr>
             <tr><td>Tiền dịch vụ</td><td>${money(totalServiceAmount)}</td></tr>
             <tr><td>Tiền đền bù</td><td>${money(totalDamageAmount)}</td></tr>
