@@ -3099,3 +3099,27 @@ GO
 
 PRINT N'✅ Seed data Thumbnails Articles hoàn tất!';
 GO
+
+-- ============================================================
+-- 10. THÊM CỘT GALLERY ẢNH CHO BẢNG Attractions
+--     Lưu danh sách ảnh gallery dạng JSON array string
+-- ============================================================
+USE [HotelManagementDB];
+GO
+
+IF COL_LENGTH('dbo.Attractions', 'GalleryImages') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Attractions] ADD [GalleryImages] NVARCHAR(MAX) NULL;
+    PRINT N'✅ Đã thêm cột GalleryImages vào bảng Attractions.';
+END
+ELSE
+    PRINT N'ℹ️  Cột GalleryImages đã tồn tại.';
+
+IF COL_LENGTH('dbo.Attractions', 'GalleryPublicIds') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Attractions] ADD [GalleryPublicIds] NVARCHAR(MAX) NULL;
+    PRINT N'✅ Đã thêm cột GalleryPublicIds vào bảng Attractions.';
+END
+ELSE
+    PRINT N'ℹ️  Cột GalleryPublicIds đã tồn tại.';
+GO

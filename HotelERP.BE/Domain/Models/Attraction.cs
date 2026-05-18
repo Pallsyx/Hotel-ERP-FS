@@ -31,4 +31,10 @@ public partial class Attraction
     // 2 trường tọa độ GPS thêm vào cho Nhiệm vụ 4
     public decimal Latitude { get; set; }
     public decimal Longitude { get; set; }
+
+    // Danh sách ảnh gallery (lưu dạng JSON array: ["url1","url2",...])
+    public string? GalleryImages { get; set; }
+
+    // Danh sách publicId tương ứng để xóa trên Cloudinary
+    public string? GalleryPublicIds { get; set; }
 }

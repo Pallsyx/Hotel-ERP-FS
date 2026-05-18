@@ -423,44 +423,89 @@ export default function LossAndDamages() {
   return (
     <div className="p-6 overflow-y-auto w-full max-w-screen-2xl mx-auto font-sans min-h-screen">
       {/* KHU VỰC THỐNG KÊ */}
-      <Row gutter={[24, 24]} className="mb-6">
-        <Col xs={24} lg={8}>
-          <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 h-full flex flex-col justify-center">
-            <Text className="text-gray-500 text-sm block mb-2 font-medium">Tổng sự cố (Trang này)</Text>
-            <div className="flex items-center text-yellow-600 text-2xl font-bold">
-              <WarningOutlined className="mr-3" />
-              {totalIncidents}
-            </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-5">
+
+        {/* Card 1: Tổng sự cố */}
+        <div
+          style={{ background: 'linear-gradient(135deg, #fff7e6 0%, #ffe7ba 100%)', borderLeft: '3px solid #fa8c16' }}
+          className="relative rounded-xl px-4 py-3 shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden"
+        >
+          <div style={{ position: 'absolute', right: -8, top: -8, fontSize: 60, opacity: 0.07, color: '#fa8c16', lineHeight: 1 }}>
+            <WarningOutlined />
           </div>
-        </Col>
-        <Col xs={24} lg={8}>
-          <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 h-full flex flex-col justify-center">
-            <Text className="text-gray-500 text-sm block mb-2 font-medium">Tổng tiền đền bù</Text>
-            <div className="flex items-center text-red-500 text-2xl font-bold">
-              <DollarOutlined className="mr-3" />
-              {totalAmount.toLocaleString('vi-VN')} đ
+          <div className="flex items-center gap-2 mb-2">
+            <div style={{ background: '#fa8c16', borderRadius: 8, width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <WarningOutlined style={{ color: '#fff', fontSize: 14 }} />
             </div>
+            <span style={{ fontSize: 11, color: '#8c6d3f', fontWeight: 500, letterSpacing: '0.03em', textTransform: 'uppercase' }}>Tổng sự cố</span>
           </div>
-        </Col>
-        <Col xs={24} lg={8}>
-          <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center h-full">
-            <div>
-              <Text className="text-gray-500 text-sm block mb-2 font-medium">Số lượng thất thoát</Text>
-              <div className="flex items-center text-blue-600 text-2xl font-bold">
-                <InboxOutlined className="mr-3" />
-                {totalQuantity} <span className="text-base font-normal text-gray-500 ml-2 mt-1">món</span>
-              </div>
-            </div>
-            <div className="text-right border-l pl-5 border-gray-200 flex flex-col justify-center">
-              <Text className="text-gray-500 text-sm block mb-2 font-medium">Lần cuối cập nhật</Text>
-              <div className="flex items-center justify-end text-gray-700 text-xl font-semibold">
-                <ClockCircleOutlined className="mr-2 text-gray-400 text-lg" />
-                {lastUpdated}
-              </div>
-            </div>
+          <div style={{ fontSize: 28, fontWeight: 600, color: '#d46b08', lineHeight: 1 }}>{totalIncidents}</div>
+          <div style={{ fontSize: 11, color: '#ad8032', marginTop: 4, opacity: 0.8 }}>Bản ghi trong hệ thống</div>
+        </div>
+
+        {/* Card 2: Tổng tiền đền bù */}
+        <div
+          style={{ background: 'linear-gradient(135deg, #fff1f0 0%, #ffccc7 100%)', borderLeft: '3px solid #ff4d4f' }}
+          className="relative rounded-xl px-4 py-3 shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden"
+        >
+          <div style={{ position: 'absolute', right: -8, top: -8, fontSize: 60, opacity: 0.07, color: '#ff4d4f', lineHeight: 1 }}>
+            <DollarOutlined />
           </div>
-        </Col>
-      </Row>
+          <div className="flex items-center gap-2 mb-2">
+            <div style={{ background: '#ff4d4f', borderRadius: 8, width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <DollarOutlined style={{ color: '#fff', fontSize: 14 }} />
+            </div>
+            <span style={{ fontSize: 11, color: '#a8071a', fontWeight: 500, letterSpacing: '0.03em', textTransform: 'uppercase' }}>Tổng tiền đền bù</span>
+          </div>
+          <div style={{ fontSize: 22, fontWeight: 600, color: '#cf1322', lineHeight: 1.1, wordBreak: 'break-all' }}>
+            {totalAmount.toLocaleString('vi-VN')}
+            <span style={{ fontSize: 13, fontWeight: 400, marginLeft: 3, opacity: 0.8 }}>đ</span>
+          </div>
+          <div style={{ fontSize: 11, color: '#a8071a', marginTop: 4, opacity: 0.7 }}>Tổng giá trị thiệt hại</div>
+        </div>
+
+        {/* Card 3: Số lượng thất thoát */}
+        <div
+          style={{ background: 'linear-gradient(135deg, #e6f4ff 0%, #bae0ff 100%)', borderLeft: '3px solid #1677ff' }}
+          className="relative rounded-xl px-4 py-3 shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden"
+        >
+          <div style={{ position: 'absolute', right: -8, top: -8, fontSize: 60, opacity: 0.07, color: '#1677ff', lineHeight: 1 }}>
+            <InboxOutlined />
+          </div>
+          <div className="flex items-center gap-2 mb-2">
+            <div style={{ background: '#1677ff', borderRadius: 8, width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <InboxOutlined style={{ color: '#fff', fontSize: 14 }} />
+            </div>
+            <span style={{ fontSize: 11, color: '#003eb3', fontWeight: 500, letterSpacing: '0.03em', textTransform: 'uppercase' }}>Số lượng thất thoát</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+            <span style={{ fontSize: 28, fontWeight: 600, color: '#0958d9', lineHeight: 1 }}>{totalQuantity}</span>
+            <span style={{ fontSize: 13, color: '#4096ff', fontWeight: 400 }}>món</span>
+          </div>
+          <div style={{ fontSize: 11, color: '#003eb3', marginTop: 4, opacity: 0.7 }}>Tổng vật tư hỏng / mất</div>
+        </div>
+
+        {/* Card 4: Lần cuối cập nhật */}
+        <div
+          style={{ background: 'linear-gradient(135deg, #f0fff4 0%, #d9f7be 100%)', borderLeft: '3px solid #52c41a' }}
+          className="relative rounded-xl px-4 py-3 shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden"
+        >
+          <div style={{ position: 'absolute', right: -8, top: -8, fontSize: 60, opacity: 0.07, color: '#52c41a', lineHeight: 1 }}>
+            <ClockCircleOutlined />
+          </div>
+          <div className="flex items-center gap-2 mb-2">
+            <div style={{ background: '#52c41a', borderRadius: 8, width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <ClockCircleOutlined style={{ color: '#fff', fontSize: 14 }} />
+            </div>
+            <span style={{ fontSize: 11, color: '#237804', fontWeight: 500, letterSpacing: '0.03em', textTransform: 'uppercase' }}>Lần cuối cập nhật</span>
+          </div>
+          <div style={{ fontSize: 24, fontWeight: 600, color: '#389e0d', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
+            {lastUpdated}
+          </div>
+          <div style={{ fontSize: 11, color: '#237804', marginTop: 4, opacity: 0.7 }}>Dữ liệu thời gian thực</div>
+        </div>
+
+      </div>
 
       <Row gutter={[24, 24]}>
         {/* BẢNG DỮ LIỆU */}

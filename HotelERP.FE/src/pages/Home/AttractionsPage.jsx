@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { GoogleMap, useJsApiLoader, Marker, DirectionsRenderer } from '@react-google-maps/api';
 import { Select, Input, Tag, Spin } from 'antd';
@@ -68,6 +68,8 @@ export default function AttractionsPage() {
   const [duration,           setDuration]           = useState('');
   const [travelMode,         setTravelMode]         = useState('DRIVING');
   const [authError,          setAuthError]          = useState(false);
+  // Default dùng OSM, chỉ switch sang Google Maps khi nó thực sự load thành công
+  const [mapsReady,          setMapsReady]          = useState(false);
 
   const hasApiKey = !!import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
@@ -87,8 +89,18 @@ export default function AttractionsPage() {
     return () => { window.gm_authFailure = prev; };
   }, []);
 
-  // Dùng iframe fallback nếu không có key hoặc key bị lỗi
-  const useMapFallback = authError || !!loadError || !hasApiKey;
+  // Ghi nhận trạng thái isLoaded lúc MOUNT (navigate case: isLoaded đã true từ trước)
+  const alreadyLoadedAtMount = useRef(isLoaded);
+
+  // Chỉ tin Google Maps nếu nó load TRONG lần visit này (không phải từ cache), và không có lỗi auth
+  useEffect(() => {
+    if (isLoaded && !alreadyLoadedAtMount.current && window.google?.maps && !authError) {
+      setMapsReady(true);
+    }
+  }, [isLoaded, authError]);
+
+  // Dùng OSM fallback trừ khi Google Maps đã xác nhận ready
+  const useMapFallback = !mapsReady || authError || !!loadError;
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -205,17 +217,46 @@ export default function AttractionsPage() {
               ) : filtered.map(item => (
                 <div key={item.id} onClick={() => handleCardClick(item)}
                   style={{ display: 'flex', gap: 14, padding: 12, borderRadius: 4, cursor: 'pointer', border: `1px solid ${selectedAttraction?.id === item.id ? GOLD : '#f0f0f0'}`, background: selectedAttraction?.id === item.id ? '#fdf8f3' : 'white', transition: 'all 200ms' }}>
-                  <div style={{ width: 88, height: 88, borderRadius: 4, overflow: 'hidden', flexShrink: 0, background: '#f0f0f0' }}>
-                    <img 
-                      src={getPlaceholderImage(item)} 
-                      alt={item.name} 
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                      onError={(e) => {
-                        e.target.onerror = null; 
-                        e.target.src = 'https://images.unsplash.com/photo-1596436889106-be35e843f6a6?q=80&w=400';
-                      }}
-                    />
-                  </div>
+                  {/* Thumbnail — collage động theo số ảnh gallery */}
+                  {(() => {
+                    let galleryUrls = [];
+                    try { galleryUrls = item.galleryImages ? JSON.parse(item.galleryImages).filter(Boolean) : []; } catch {}
+                    const fallback = 'https://images.unsplash.com/photo-1596436889106-be35e843f6a6?q=80&w=400';
+                    const allImgs = [getPlaceholderImage(item), ...galleryUrls].slice(0, 4);
+                    const n = allImgs.length;
+                    const Cell = ({ src }) => (
+                      <div style={{ overflow: 'hidden', width: '100%', height: '100%' }}>
+                        <img src={src} alt={item.name}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                          onError={e => { e.target.onerror = null; e.target.src = fallback; }}
+                        />
+                      </div>
+                    );
+                    return (
+                      <div style={{ width: 88, height: 88, borderRadius: 4, overflow: 'hidden', flexShrink: 0, background: '#f0f0f0' }}>
+                        {n === 1 && <Cell src={allImgs[0]} />}
+                        {n === 2 && (
+                          <div style={{ display: 'grid', gridTemplateRows: '1fr 1fr', gap: 1, height: '100%' }}>
+                            <Cell src={allImgs[0]} /><Cell src={allImgs[1]} />
+                          </div>
+                        )}
+                        {n === 3 && (
+                          <div style={{ display: 'grid', gridTemplateRows: '1fr 1fr', gap: 1, height: '100%' }}>
+                            <Cell src={allImgs[0]} />
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
+                              <Cell src={allImgs[1]} /><Cell src={allImgs[2]} />
+                            </div>
+                          </div>
+                        )}
+                        {n >= 4 && (
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: 1, height: '100%' }}>
+                            <Cell src={allImgs[0]} /><Cell src={allImgs[1]} />
+                            <Cell src={allImgs[2]} /><Cell src={allImgs[3]} />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
                       <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 15, color: '#18181b', lineHeight: 1.3, margin: 0 }}>{item.name}</h3>

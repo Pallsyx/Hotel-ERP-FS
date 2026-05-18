@@ -3,10 +3,11 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using HotelERP.BE.Domain.Models;
 using HotelERP.BE.Infrastructure.Data;
+using System.Text.Json;
 
 namespace HotelERP.BE.Controllers;
 
-// --- DTOs giúp nhận/trả dữ liệu an toàn ---
+// --- DTOs ---
 public class CreateAttractionDto
 {
     public string Name { get; set; } = null!;
@@ -17,19 +18,24 @@ public class CreateAttractionDto
     public decimal? DistanceKm { get; set; }
     public string? MapEmbedLink { get; set; }
     public string Status { get; set; } = "ACTIVE";
+
+    // Ảnh đại diện chính
     public IFormFile? ImageFile { get; set; }
+
+    // Nhiều ảnh gallery
+    public List<IFormFile>? GalleryFiles { get; set; }
 }
 
 public class UpdateAttractionDto : CreateAttractionDto
 {
-    public string Status { get; set; } = "ACTIVE";
+    public new string Status { get; set; } = "ACTIVE";
 }
 
 [Route("api/[controller]")]
 [ApiController]
 public class AttractionController(HotelDbContext context, HotelERP.BE.Application.Interfaces.IPhotoService photoService) : ControllerBase
 {
-    // Lấy danh sách địa điểm
+    // ── GET all ──
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
@@ -37,7 +43,7 @@ public class AttractionController(HotelDbContext context, HotelERP.BE.Applicatio
         return Ok(attractions);
     }
 
-    // Lấy chi tiết 1 địa điểm
+    // ── GET by id ──
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(int id)
     {
@@ -46,7 +52,7 @@ public class AttractionController(HotelDbContext context, HotelERP.BE.Applicatio
         return Ok(attraction);
     }
 
-    // Thêm mới địa điểm (Đảm bảo nhận GPS)
+    // ── CREATE ──
     [HttpPost]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Create([FromForm] CreateAttractionDto dto)
@@ -54,6 +60,7 @@ public class AttractionController(HotelDbContext context, HotelERP.BE.Applicatio
         string? imageUrl = null;
         string? imagePublicId = null;
 
+        // Upload ảnh chính
         if (dto.ImageFile != null)
         {
             var uploadResult = await photoService.UploadPhotoAsync(dto.ImageFile);
@@ -61,7 +68,24 @@ public class AttractionController(HotelDbContext context, HotelERP.BE.Applicatio
             imagePublicId = uploadResult.PublicId;
         }
 
-        Attraction newAttraction = new()
+        // Upload nhiều ảnh gallery
+        var galleryUrls = new List<string>();
+        var galleryPublicIds = new List<string>();
+
+        if (dto.GalleryFiles != null && dto.GalleryFiles.Count > 0)
+        {
+            foreach (var file in dto.GalleryFiles)
+            {
+                if (file.Length > 0)
+                {
+                    var result = await photoService.UploadPhotoAsync(file);
+                    galleryUrls.Add(result.Url);
+                    galleryPublicIds.Add(result.PublicId);
+                }
+            }
+        }
+
+        var newAttraction = new Attraction
         {
             Name = dto.Name,
             Type = dto.Type,
@@ -73,7 +97,9 @@ public class AttractionController(HotelDbContext context, HotelERP.BE.Applicatio
             ImagePublicId = imagePublicId,
             MapEmbedLink = dto.MapEmbedLink,
             CreatedAt = DateTime.UtcNow,
-            Status = !string.IsNullOrEmpty(dto.Status) ? dto.Status : "ACTIVE"
+            Status = !string.IsNullOrEmpty(dto.Status) ? dto.Status : "ACTIVE",
+            GalleryImages = galleryUrls.Count > 0 ? JsonSerializer.Serialize(galleryUrls) : null,
+            GalleryPublicIds = galleryPublicIds.Count > 0 ? JsonSerializer.Serialize(galleryPublicIds) : null,
         };
 
         context.Attractions.Add(newAttraction);
@@ -82,7 +108,7 @@ public class AttractionController(HotelDbContext context, HotelERP.BE.Applicatio
         return CreatedAtAction(nameof(GetById), new { id = newAttraction.Id }, newAttraction);
     }
 
-    // Cập nhật địa điểm
+    // ── UPDATE ──
     [HttpPut("{id}")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Update(int id, [FromForm] UpdateAttractionDto dto)
@@ -100,6 +126,7 @@ public class AttractionController(HotelDbContext context, HotelERP.BE.Applicatio
         attraction.Status = dto.Status;
         attraction.UpdatedAt = DateTime.UtcNow;
 
+        // Cập nhật ảnh chính nếu có file mới
         if (dto.ImageFile != null)
         {
             var uploadResult = await photoService.UploadPhotoAsync(dto.ImageFile);
@@ -107,11 +134,71 @@ public class AttractionController(HotelDbContext context, HotelERP.BE.Applicatio
             attraction.ImagePublicId = uploadResult.PublicId;
         }
 
+        // Upload thêm ảnh gallery mới (append vào gallery hiện có)
+        if (dto.GalleryFiles != null && dto.GalleryFiles.Count > 0)
+        {
+            var existingUrls = string.IsNullOrEmpty(attraction.GalleryImages)
+                ? new List<string>()
+                : JsonSerializer.Deserialize<List<string>>(attraction.GalleryImages) ?? new List<string>();
+
+            var existingPublicIds = string.IsNullOrEmpty(attraction.GalleryPublicIds)
+                ? new List<string>()
+                : JsonSerializer.Deserialize<List<string>>(attraction.GalleryPublicIds) ?? new List<string>();
+
+            foreach (var file in dto.GalleryFiles)
+            {
+                if (file.Length > 0)
+                {
+                    var result = await photoService.UploadPhotoAsync(file);
+                    existingUrls.Add(result.Url);
+                    existingPublicIds.Add(result.PublicId);
+                }
+            }
+
+            attraction.GalleryImages = JsonSerializer.Serialize(existingUrls);
+            attraction.GalleryPublicIds = JsonSerializer.Serialize(existingPublicIds);
+        }
+
         await context.SaveChangesAsync();
         return Ok(new { message = "Cập nhật thành công", data = attraction });
     }
 
-    // Xóa địa điểm
+    // ── DELETE gallery image ──
+    [HttpDelete("{id}/gallery/{index}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> DeleteGalleryImage(int id, int index)
+    {
+        var attraction = await context.Attractions.FindAsync(id);
+        if (attraction is null) return NotFound();
+
+        var urls = string.IsNullOrEmpty(attraction.GalleryImages)
+            ? new List<string>()
+            : JsonSerializer.Deserialize<List<string>>(attraction.GalleryImages) ?? new List<string>();
+
+        var publicIds = string.IsNullOrEmpty(attraction.GalleryPublicIds)
+            ? new List<string>()
+            : JsonSerializer.Deserialize<List<string>>(attraction.GalleryPublicIds) ?? new List<string>();
+
+        if (index < 0 || index >= urls.Count)
+            return BadRequest("Index không hợp lệ.");
+
+        // Xóa khỏi Cloudinary
+        if (index < publicIds.Count && !string.IsNullOrEmpty(publicIds[index]))
+        {
+            await photoService.DeletePhotoAsync(publicIds[index]);
+            publicIds.RemoveAt(index);
+        }
+
+        urls.RemoveAt(index);
+        attraction.GalleryImages = urls.Count > 0 ? JsonSerializer.Serialize(urls) : null;
+        attraction.GalleryPublicIds = publicIds.Count > 0 ? JsonSerializer.Serialize(publicIds) : null;
+        attraction.UpdatedAt = DateTime.UtcNow;
+
+        await context.SaveChangesAsync();
+        return Ok(new { message = "Đã xóa ảnh gallery.", galleryImages = attraction.GalleryImages });
+    }
+
+    // ── DELETE attraction ──
     [HttpDelete("{id}")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Delete(int id)
