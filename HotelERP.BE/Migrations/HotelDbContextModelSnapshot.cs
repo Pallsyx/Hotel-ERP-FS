@@ -646,19 +646,30 @@ namespace HotelERP.BE.Migrations
                         .HasColumnType("int");
 
                     b.Property<DateTime>("ImportedAt")
+<<<<<<< HEAD
                         .HasColumnType("datetime");
 
                     b.Property<string>("Notes")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
+=======
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+>>>>>>> 2dd3431 (feat: implement equipment supplier logging system with database migration and UI modal)
 
                     b.Property<int>("Quantity")
                         .HasColumnType("int");
 
                     b.Property<string>("SupplierName")
                         .IsRequired()
+<<<<<<< HEAD
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
+=======
+                        .HasColumnType("nvarchar(max)");
+>>>>>>> 2dd3431 (feat: implement equipment supplier logging system with database migration and UI modal)
 
                     b.Property<decimal>("UnitPrice")
                         .HasColumnType("decimal(18,2)");
@@ -2221,8 +2232,12 @@ namespace HotelERP.BE.Migrations
                         .WithMany("SupplierLogs")
                         .HasForeignKey("EquipmentId")
                         .OnDelete(DeleteBehavior.Cascade)
+<<<<<<< HEAD
                         .IsRequired()
                         .HasConstraintName("FK_EquipmentSupplierLogs_Equipments");
+=======
+                        .IsRequired();
+>>>>>>> 2dd3431 (feat: implement equipment supplier logging system with database migration and UI modal)
 
                     b.Navigation("Equipment");
                 });
