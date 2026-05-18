@@ -253,6 +253,13 @@ const RoomInventory = () => {
                       const response = await equipmentApi.importExcel(formData);
                       if (response && response.data?.success) {
                         message.success(response.data.message || 'Nhập dữ liệu thành công!');
+
+                        // Hiển thị cảnh báo cho từng dòng bị bỏ qua do mơ hồ
+                        const warnings = response.data?.warnings;
+                        if (Array.isArray(warnings) && warnings.length > 0) {
+                          warnings.forEach((w) => message.warning(w, 8));
+                        }
+
                         fetchEquipments();
                       } else {
                         message.error(response?.data?.message || 'Có lỗi xảy ra khi nhập dữ liệu!');

@@ -55,6 +55,12 @@ const bookingApi = {
   validateVoucher: (code, subtotal) => {
     return axiosClient.post('/BookingEngine/validate-voucher', { code, subtotal });
   },
+
+  // 9. Lấy voucher sinh nhật cho user đang đăng nhập (nếu hôm nay là sinh nhật)
+  // GET /api/UserProfile/birthday-voucher
+  getBirthdayVoucher: () => {
+    return axiosClient.get('/UserProfile/birthday-voucher');
+  },
 };
 
 export default bookingApi;

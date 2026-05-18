@@ -41,7 +41,8 @@ public class EquipmentsController(HotelDbContext context) : ControllerBase
                 e.InUseQuantity,
                 e.DamagedQuantity,
                 e.BasePrice,
-                e.DefaultPriceIfLost
+                e.DefaultPriceIfLost,
+                e.Supplier
             ))
             .ToListAsync();
 
@@ -66,6 +67,7 @@ public class EquipmentsController(HotelDbContext context) : ControllerBase
             BasePrice = req.BasePrice,
             DefaultPriceIfLost = req.DefaultPriceIfLost,
             ImageUrl = req.ImageUrl,
+            Supplier = req.Supplier,
             IsActive = true,
             CreatedAt = DateTime.UtcNow
         };
@@ -95,6 +97,7 @@ public class EquipmentsController(HotelDbContext context) : ControllerBase
         equipment.BasePrice = req.BasePrice;
         equipment.DefaultPriceIfLost = req.DefaultPriceIfLost;
         equipment.ImageUrl = req.ImageUrl;
+        equipment.Supplier = req.Supplier;
         equipment.UpdatedAt = DateTime.UtcNow;
 
         await context.SaveChangesAsync();
@@ -175,6 +178,7 @@ public class EquipmentsController(HotelDbContext context) : ControllerBase
             return BadRequest(new { success = false, message = "Vui lòng chọn file Excel!" });
 
         int successCount = 0;
+        var warnings = new List<string>();
 
         try
         {
@@ -203,12 +207,41 @@ public class EquipmentsController(HotelDbContext context) : ControllerBase
                 HotelERP.BE.Domain.Models.Equipment? existing = null;
                 if (!string.IsNullOrEmpty(itemCode))
                 {
+                    // Có ItemCode → chỉ match theo ItemCode, không fallback sang Name
+                    // Đảm bảo 2 sản phẩm cùng tên khác NCC (khác ItemCode) không bị gộp
                     existing = await context.Equipments.FirstOrDefaultAsync(e => e.ItemCode == itemCode);
                 }
-                
-                if (existing == null && !string.IsNullOrEmpty(name))
+                else if (!string.IsNullOrEmpty(name))
                 {
-                    existing = await context.Equipments.FirstOrDefaultAsync(e => e.Name == name);
+                    // Không có ItemCode:
+                    // Ưu tiên tìm chính xác theo Name + Supplier → đảm bảo đúng record
+                    // khi DB có 2 sản phẩm cùng tên nhưng khác nhà cung cấp
+                    if (!string.IsNullOrEmpty(supplier))
+                    {
+                        existing = await context.Equipments.FirstOrDefaultAsync(e =>
+                            e.Name == name &&
+                            e.Supplier != null &&
+                            e.Supplier.ToLower() == supplier.ToLower() &&
+                            e.IsActive);
+                    }
+                    else
+                    {
+                        // Không có NCC trong Excel → kiểm tra xem DB có bao nhiêu record cùng tên
+                        var sameNameCount = await context.Equipments.CountAsync(e => e.Name == name && e.IsActive);
+
+                        if (sameNameCount > 1)
+                        {
+                            // Mơ hồ: nhiều sản phẩm cùng tên, không biết update cái nào
+                            // → Bỏ qua dòng này, cảnh báo người dùng điền Mã Vật Tư hoặc Nhà CC
+                            warnings.Add($"Bỏ qua dòng '{name}': thiếu Mã Vật Tư hoặc Nhà Cung Cấp. " +
+                                         $"Hệ thống tìm thấy {sameNameCount} sản phẩm cùng tên — " +
+                                         "cần điền thêm Mã Vật Tư hoặc Nhà Cung Cấp để xác định đúng sản phẩm cần cập nhật.");
+                            continue;
+                        }
+
+                        // Chỉ có 1 record cùng tên → update an toàn
+                        existing = await context.Equipments.FirstOrDefaultAsync(e => e.Name == name && e.IsActive);
+                    }
                 }
 
                 if (existing != null)
@@ -259,7 +292,13 @@ public class EquipmentsController(HotelDbContext context) : ControllerBase
             }
 
             await context.SaveChangesAsync();
-            return Ok(new { success = true, message = $"Nhập Excel thành công! Đã xử lý {successCount} dòng." });
+
+            var message = $"Nhập Excel thành công! Đã xử lý {successCount} dòng.";
+            if (warnings.Count > 0)
+                message += $" {warnings.Count} dòng bị bỏ qua do thiếu thông tin định danh.";
+
+            return Ok(new { success = true, message, warnings });
+
         }
         catch (Exception ex)
         {

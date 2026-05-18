@@ -34,6 +34,7 @@ const EquipmentModal = ({ open, onCancel, editingItem, onSuccess }) => {
         name: editingItem.name,
         category: editingItem.category,
         unit: editingItem.unit,
+        supplier: editingItem.supplier || '',
         totalQuantity: editingItem.totalQuantity,
         basePrice: base,
         defaultPriceIfLost: def,
@@ -171,6 +172,14 @@ const EquipmentModal = ({ open, onCancel, editingItem, onSuccess }) => {
             <Input placeholder="Cái, Chai, Lon..." />
           </Form.Item>
         </div>
+
+        <Form.Item
+          name="supplier"
+          label="Nhà Cung Cấp"
+          style={{ marginBottom: 16 }}
+        >
+          <Input placeholder="VD: Công ty TNHH Việt Thành" />
+        </Form.Item>
 
         <div style={{ display: 'flex', gap: 16 }}>
           <Form.Item

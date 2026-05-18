@@ -12,7 +12,8 @@ public record EquipmentResponseDto(
     int InUseQuantity,
     int DamagedQuantity,
     decimal BasePrice,
-    decimal DefaultPriceIfLost
+    decimal DefaultPriceIfLost,
+    string? Supplier
 );
 
 public record CreateEquipmentDto(
@@ -23,7 +24,8 @@ public record CreateEquipmentDto(
     int TotalQuantity,
     decimal BasePrice,
     decimal DefaultPriceIfLost,
-    string? ImageUrl
+    string? ImageUrl,
+    string? Supplier
 );
 
 public record UpdateEquipmentDto(
@@ -34,5 +36,7 @@ public record UpdateEquipmentDto(
     int TotalQuantity,
     decimal BasePrice,
     decimal DefaultPriceIfLost,
-    string? ImageUrl
+    string? ImageUrl,
+    string? Supplier
 );
+

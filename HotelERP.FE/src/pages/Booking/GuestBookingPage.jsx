@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Form, Input, Button, message, Divider, Space, Tag } from 'antd';
-import { ArrowLeftOutlined, CheckCircleOutlined, InfoCircleOutlined, TagOutlined, CloseCircleOutlined } from '@ant-design/icons';
+import { Form, Input, Button, message, Divider, Space, Tag, Modal } from 'antd';
+import { ArrowLeftOutlined, CheckCircleOutlined, InfoCircleOutlined, TagOutlined, CloseCircleOutlined, GiftOutlined } from '@ant-design/icons';
 import { useAuthStore } from '../../store/authStore';
 import bookingApi from '../../api/bookingApi';
 
@@ -62,6 +62,14 @@ const premiumInputHoverStyle = `
   .premium-input::placeholder {
     color: rgba(255, 255, 255, 0.3) !important;
   }
+  @keyframes birthday-float {
+    0%, 100% { transform: translateY(0px) rotate(-2deg); }
+    50%       { transform: translateY(-6px) rotate(2deg); }
+  }
+  @keyframes birthday-glow {
+    0%, 100% { box-shadow: 0 0 20px rgba(255,200,80,0.3), 0 4px 24px rgba(0,0,0,0.4); }
+    50%       { box-shadow: 0 0 40px rgba(255,200,80,0.55), 0 4px 24px rgba(0,0,0,0.4); }
+  }
 `;
 
 export default function GuestBookingPage() {
@@ -77,6 +85,10 @@ export default function GuestBookingPage() {
   const [validatingVoucher, setValidatingVoucher] = useState(false);
   const [appliedVoucher, setAppliedVoucher] = useState(null);
   const [discountAmount, setDiscountAmount] = useState(0);
+
+  // Birthday voucher state
+  const [birthdayVoucher, setBirthdayVoucher] = useState(null);
+  const [showBirthdayModal, setShowBirthdayModal] = useState(false);
 
   // Fallback if no state
   if (!state) {
@@ -109,6 +121,39 @@ export default function GuestBookingPage() {
   const memDiscountAmount = Math.round(subtotal * (memDiscountPercent / 100));
   
   const totalPrice = subtotal - memDiscountAmount - discountAmount;
+
+  // ── Birthday voucher: tự động kiểm tra khi trang load (chỉ khi đăng nhập) ──
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    bookingApi.getBirthdayVoucher()
+      .then(res => {
+        const voucher = res?.data?.data ?? res?.data ?? null;
+        if (voucher && voucher.status === 'ACTIVE') {
+          setBirthdayVoucher(voucher);
+          setShowBirthdayModal(true);   // Hiện popup ngay khi phát hiện sinh nhật
+        }
+      })
+      .catch(() => { /* Im lặng nếu lỗi — không block flow chính */ });
+  }, [isAuthenticated]);
+
+  // Áp dụng voucher sinh nhật trực tiếp từ Modal (không cần nhập mã thủ công)
+  const applyBirthdayVoucher = () => {
+    if (!birthdayVoucher) return;
+    setAppliedVoucher(birthdayVoucher);
+    setVoucherCode(birthdayVoucher.code);
+
+    let discount = 0;
+    if (birthdayVoucher.discountType === 'PERCENT') {
+      discount = subtotal * (birthdayVoucher.discountValue / 100);
+    } else {
+      discount = birthdayVoucher.discountValue;
+    }
+    if (discount > subtotal) discount = subtotal;
+    setDiscountAmount(discount);
+
+    setShowBirthdayModal(false);
+    message.success(`🎂 Voucher sinh nhật ${birthdayVoucher.code} đã được áp dụng! Giảm ${formatVND(discount)}`);
+  };
 
   const handleApplyVoucher = async () => {
     if (!voucherCode.trim()) {
@@ -230,6 +275,146 @@ export default function GuestBookingPage() {
     <div style={{ background: '#0d0d0d', minHeight: '100vh', fontFamily: "'Inter', sans-serif", color: 'white' }}>
       <style>{premiumInputHoverStyle}</style>
       <Header />
+
+      {/* ═══════════════════════════════════════════════════════════ */}
+      {/* BIRTHDAY VOUCHER MODAL                                     */}
+      {/* ═══════════════════════════════════════════════════════════ */}
+      <Modal
+        open={showBirthdayModal}
+        onCancel={() => setShowBirthdayModal(false)}
+        footer={null}
+        centered
+        closable={false}
+        styles={{
+          content: { background: '#1a1212', border: '1px solid rgba(255,200,80,0.3)', borderRadius: 16, padding: 0, overflow: 'hidden' },
+          mask: { backdropFilter: 'blur(4px)', background: 'rgba(0,0,0,0.75)' },
+        }}
+        width={480}
+      >
+        <div style={{ animation: 'birthday-glow 2.5s ease-in-out infinite', borderRadius: 16 }}>
+          {/* Header gradient */}
+          <div style={{
+            background: 'linear-gradient(135deg, #7c4a00 0%, #c8860a 50%, #7c4a00 100%)',
+            padding: '32px 32px 24px',
+            textAlign: 'center',
+            position: 'relative',
+          }}>
+            {/* Emoji dạng floating */}
+            <div style={{ fontSize: 60, animation: 'birthday-float 3s ease-in-out infinite', display: 'inline-block', marginBottom: 8 }}>
+              🎂
+            </div>
+            <h2 style={{
+              fontFamily: "'Playfair Display', serif",
+              fontSize: 26, fontWeight: 700, color: '#fff8e7',
+              margin: '8px 0 4px', textShadow: '0 2px 8px rgba(0,0,0,0.4)',
+            }}>
+              Chúc Mừng Sinh Nhật!
+            </h2>
+            <p style={{ color: 'rgba(255,248,231,0.85)', fontSize: 15, margin: 0 }}>
+              {user?.fullName ? `Kính chúc ${user.fullName}` : 'Kính chúc quý khách'} một ngày thật vui vẻ! 🎉
+            </p>
+          </div>
+
+          {/* Body */}
+          <div style={{ padding: '28px 32px 32px' }}>
+            <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 14, lineHeight: 1.7, marginBottom: 20, textAlign: 'center' }}>
+              Nhân dịp đặc biệt này, Asteria Resort xin tặng quý khách voucher ưu đãi sinh nhật 
+              đặc biệt — chỉ dành riêng cho hôm nay!
+            </p>
+
+            {/* Voucher card */}
+            {birthdayVoucher && (
+              <div style={{
+                background: 'linear-gradient(135deg, rgba(200,134,10,0.15), rgba(255,200,80,0.08))',
+                border: '1.5px dashed #c8860a',
+                borderRadius: 12, padding: '20px 24px',
+                display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24,
+              }}>
+                <div style={{
+                  width: 52, height: 52, background: 'rgba(200,134,10,0.2)',
+                  borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 22, flexShrink: 0,
+                }}>
+                  🎁
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontFamily: 'monospace', fontSize: 20, fontWeight: 800, color: '#f0c040', letterSpacing: 2 }}>
+                    {birthdayVoucher.code}
+                  </div>
+                  <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
+                    Giảm <strong style={{ color: '#f0c040' }}>
+                      {birthdayVoucher.discountType === 'PERCENT'
+                        ? `${birthdayVoucher.discountValue}%`
+                        : formatVND(birthdayVoucher.discountValue)}
+                    </strong>
+                    {' · '}Hiệu lực đến {birthdayVoucher.validTo ? formatDateVI(birthdayVoucher.validTo) : '7 ngày'}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Action buttons */}
+            <div style={{ display: 'flex', gap: 12 }}>
+              <Button
+                block
+                onClick={applyBirthdayVoucher}
+                style={{
+                  height: 48, background: 'linear-gradient(135deg, #c8860a, #f0c040)',
+                  border: 'none', color: '#1a0a00', fontWeight: 700, fontSize: 14,
+                  letterSpacing: '0.5px', borderRadius: 8,
+                  boxShadow: '0 4px 16px rgba(200,134,10,0.4)',
+                }}
+              >
+                🎉 ÁP DỤNG NGAY
+              </Button>
+              <Button
+                block
+                onClick={() => setShowBirthdayModal(false)}
+                style={{
+                  height: 48, background: 'transparent',
+                  border: '1px solid rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.6)',
+                  fontWeight: 500, fontSize: 13, borderRadius: 8,
+                }}
+              >
+                Để sau
+              </Button>
+            </div>
+
+            <p style={{ textAlign: 'center', fontSize: 12, color: 'rgba(255,255,255,0.35)', marginTop: 16, marginBottom: 0 }}>
+              * Voucher sử dụng 1 lần, chỉ áp dụng trong ngày sinh nhật và 7 ngày tiếp theo.
+            </p>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ═══════════════════════════════════════════════════════════ */}
+      {/* BIRTHDAY BANNER (nhắc nhở khi modal đã tắt mà chưa dùng)  */}
+      {/* ═══════════════════════════════════════════════════════════ */}
+      {birthdayVoucher && !appliedVoucher && !showBirthdayModal && (
+        <div style={{
+          position: 'fixed', bottom: 24, right: 24, zIndex: 100,
+          background: 'linear-gradient(135deg, #7c4a00, #c8860a)',
+          borderRadius: 12, padding: '14px 20px',
+          display: 'flex', alignItems: 'center', gap: 12,
+          boxShadow: '0 8px 32px rgba(200,134,10,0.45)',
+          cursor: 'pointer', maxWidth: 340,
+          animation: 'birthday-glow 2.5s ease-in-out infinite',
+        }}
+          onClick={() => setShowBirthdayModal(true)}
+        >
+          <GiftOutlined style={{ fontSize: 24, color: '#fff8e7' }} />
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#fff8e7' }}>🎂 Quà sinh nhật đang chờ bạn!</div>
+            <div style={{ fontSize: 12, color: 'rgba(255,248,231,0.8)', marginTop: 2 }}>
+              Bấm để dùng voucher giảm {birthdayVoucher.discountValue}%
+            </div>
+          </div>
+          <CloseCircleOutlined
+            style={{ fontSize: 16, color: 'rgba(255,248,231,0.6)', marginLeft: 'auto' }}
+            onClick={e => { e.stopPropagation(); setBirthdayVoucher(null); }}
+          />
+        </div>
+      )}
 
       <div style={{ paddingTop: 100, paddingBottom: 60, maxWidth: 1000, margin: '0 auto', paddingInline: 24 }}>
         <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 32, color: 'white', margin: '0 0 32px' }}>
