@@ -9,34 +9,73 @@ namespace HotelERP.BE.Controllers;
 public class AmenitiesController(IAmenityService amenityService) : ControllerBase
 {
     [HttpGet]
-    public async Task<IActionResult> GetAll() 
-        => Ok(await amenityService.GetAllAmenitiesAsync());
+    public async Task<IActionResult> GetAll()
+    {
+        try
+        {
+            return Ok(await amenityService.GetAllAmenitiesAsync());
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = ex.Message });
+        }
+    }
 
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(int id)
     {
-        var result = await amenityService.GetAmenityByIdAsync(id);
-        return result != null ? Ok(result) : NotFound();
+        try
+        {
+            var result = await amenityService.GetAmenityByIdAsync(id);
+            return result != null ? Ok(result) : NotFound();
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = ex.Message });
+        }
     }
 
     [HttpPost]
-    public async Task<IActionResult> Create(CreateAmenityRequest request)
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> Create([FromForm] CreateAmenityRequest request)
     {
-        var id = await amenityService.CreateAmenityAsync(request);
-        return CreatedAtAction(nameof(GetById), new { id }, id);
+        try
+        {
+            var id = await amenityService.CreateAmenityAsync(request);
+            return CreatedAtAction(nameof(GetById), new { id }, id);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = ex.Message });
+        }
     }
 
     [HttpPut("{id}")]
-    public async Task<IActionResult> Update(int id, UpdateAmenityRequest request)
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> Update(int id, [FromForm] UpdateAmenityRequest request)
     {
-        var success = await amenityService.UpdateAmenityAsync(id, request);
-        return success ? NoContent() : NotFound();
+        try
+        {
+            var success = await amenityService.UpdateAmenityAsync(id, request);
+            return success ? NoContent() : NotFound();
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = ex.Message });
+        }
     }
 
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {
-        var success = await amenityService.DeleteAmenityAsync(id);
-        return success ? NoContent() : NotFound();
+        try
+        {
+            var success = await amenityService.DeleteAmenityAsync(id);
+            return success ? NoContent() : NotFound();
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = ex.Message });
+        }
     }
 }

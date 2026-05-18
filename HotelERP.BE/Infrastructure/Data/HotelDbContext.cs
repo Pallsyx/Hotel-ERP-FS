@@ -117,26 +117,41 @@ public partial class HotelDbContext : DbContext
             entity.Property(e => e.IsRead).HasColumnName("is_read");
             entity.Property(e => e.CreatedAt).HasColumnName("created_at");
         });
-        modelBuilder.Entity<Amenity>(entity =>
-        {
-            entity.HasKey(e => e.Id).HasName("PK__Amenitie__3213E83FF99261C0");
+      modelBuilder.Entity<Amenity>(entity =>
+{
+    entity.HasKey(e => e.Id).HasName("PK__Amenitie__3213E83FF99261C0");
 
-            entity.HasIndex(e => e.Name, "UQ_Amenities_Name").IsUnique();
+    entity.ToTable("Amenities");
 
-            entity.Property(e => e.Id).HasColumnName("id");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("(getdate())", "DF_Amenities_CreatedAt")
-                .HasColumnType("datetime")
-                .HasColumnName("created_at");
-            entity.Property(e => e.IconUrl).HasColumnName("icon_url");
-            entity.Property(e => e.Name)
-                .HasMaxLength(255)
-                .HasColumnName("name");
-            entity.Property(e => e.Status)
-                .HasMaxLength(20)
-                .HasDefaultValue("ACTIVE", "DF_Amenities_Status")
-                .HasColumnName("status");
-        });
+    entity.HasIndex(e => e.Name, "UQ_Amenities_Name").IsUnique();
+
+    entity.Property(e => e.Id).HasColumnName("id");
+
+    entity.Property(e => e.Name)
+        .HasMaxLength(255)
+        .HasColumnName("name");
+
+    entity.Property(e => e.IconUrl)
+        .HasColumnName("icon_url");
+
+    entity.Property(e => e.Status)
+        .HasMaxLength(20)
+        .HasDefaultValue("ACTIVE", "DF_Amenities_Status")
+        .HasColumnName("status");
+
+    entity.Property(e => e.CreatedAt)
+        .HasDefaultValueSql("(getdate())", "DF_Amenities_CreatedAt")
+        .HasColumnType("datetime")
+        .HasColumnName("created_at");
+
+    entity.Property(e => e.DeletedAt)
+        .HasColumnType("datetime")
+        .HasColumnName("DeletedAt");
+
+    entity.Property(e => e.UpdatedAt)
+        .HasColumnType("datetime")
+        .HasColumnName("UpdatedAt");
+});
 
         modelBuilder.Entity<Article>(entity =>
         {

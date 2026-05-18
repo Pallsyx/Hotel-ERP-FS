@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Badge,
   Button,
   Card,
+  Checkbox,
   Col,
   Form,
   Image,
@@ -26,12 +28,12 @@ import {
   PlusOutlined,
   ReloadOutlined,
   SearchOutlined,
+  StarFilled,
   UploadOutlined,
 } from '@ant-design/icons';
 import roomTypeApi from '../../api/roomTypeApi';
 import amenityApi from '../../api/amenityApi';
 import './roomTypeManagement.css';
-
 
 const { TextArea } = Input;
 
@@ -42,6 +44,42 @@ const getErrorMessage = (error, fallbackMessage) =>
   error?.response?.data?.message ||
   error?.response?.data?.title ||
   fallbackMessage;
+
+const isAbsoluteImageUrl = (value = '') =>
+  /^https?:\/\//i.test(value) || value.startsWith('data:') || value.startsWith('blob:');
+
+const resolveImageSrc = (value, fallbackFolder = '') => {
+  if (!value) return '';
+  if (isAbsoluteImageUrl(value) || value.startsWith('/')) return value;
+  return fallbackFolder ? `/${fallbackFolder}/${value}` : value;
+};
+
+const getRoomImageItems = (record) => {
+  const images = Array.isArray(record?.images)
+    ? record.images.filter((item) => !!item?.imageUrl)
+    : [];
+
+  if (images.length > 0) return images;
+
+  return record?.imageUrl
+    ? [{ id: 'legacy', imageUrl: record.imageUrl, isPrimary: true }]
+    : [];
+};
+
+const getFeaturedRoomImages = (record) => {
+  const images = getRoomImageItems(record);
+  const featuredImages = images.filter((item) => item.isPrimary);
+
+  if (featuredImages.length > 0) return featuredImages;
+  return images.length > 0 ? [images[0]] : [];
+};
+
+const buildPreviewUrl = (file) => {
+  if (file?.url) return file.url;
+  if (file?.thumbUrl) return file.thumbUrl;
+  if (file?.originFileObj) return URL.createObjectURL(file.originFileObj);
+  return '';
+};
 
 const RoomTypeManagement = () => {
   const [roomTypes, setRoomTypes] = useState([]);
@@ -62,6 +100,10 @@ const RoomTypeManagement = () => {
   const [amenityForm] = Form.useForm();
 
   const [imageFileList, setImageFileList] = useState([]);
+  const [existingRoomImages, setExistingRoomImages] = useState([]);
+  const [deletedRoomImageIds, setDeletedRoomImageIds] = useState([]);
+  const [primaryImageChoices, setPrimaryImageChoices] = useState([]);
+  const [amenityImageFileList, setAmenityImageFileList] = useState([]);
 
   const fetchData = async () => {
     setPageLoading(true);
@@ -101,8 +143,7 @@ const RoomTypeManagement = () => {
 
     return amenities.filter((item) => {
       const name = item.name?.toLowerCase() || '';
-      const iconUrl = item.iconUrl?.toLowerCase() || '';
-      return name.includes(keyword) || iconUrl.includes(keyword);
+      return name.includes(keyword);
     });
   }, [amenities, amenityKeyword]);
 
@@ -113,7 +154,7 @@ const RoomTypeManagement = () => {
       totalRoomTypes === 0
         ? 0
         : roomTypes.reduce((sum, item) => sum + Number(item.basePrice || 0), 0) / totalRoomTypes;
-    const totalRoomTypesWithImage = roomTypes.filter((item) => !!item.imageUrl).length;
+    const totalRoomTypesWithImage = roomTypes.filter((item) => getRoomImageItems(item).length > 0).length;
 
     return {
       totalRoomTypes,
@@ -126,6 +167,9 @@ const RoomTypeManagement = () => {
   const resetRoomTypeModal = () => {
     setEditingRoomType(null);
     setImageFileList([]);
+    setExistingRoomImages([]);
+    setDeletedRoomImageIds([]);
+    setPrimaryImageChoices([]);
     roomTypeForm.resetFields();
     roomTypeForm.setFieldsValue({
       capacityAdults: 1,
@@ -136,6 +180,7 @@ const RoomTypeManagement = () => {
 
   const resetAmenityModal = () => {
     setEditingAmenity(null);
+    setAmenityImageFileList([]);
     amenityForm.resetFields();
   };
 
@@ -145,8 +190,17 @@ const RoomTypeManagement = () => {
   };
 
   const openEditRoomTypeModal = (record) => {
+    const currentImages = getRoomImageItems(record).filter((item) => item.id !== 'legacy');
+    const currentFeaturedChoices = currentImages
+      .filter((item) => item.isPrimary)
+      .map((item) => `existing-${item.id}`);
+
     setEditingRoomType(record);
     setImageFileList([]);
+    setExistingRoomImages(currentImages);
+    setDeletedRoomImageIds([]);
+    setPrimaryImageChoices(currentFeaturedChoices);
+
     roomTypeForm.setFieldsValue({
       name: record.name,
       basePrice: Number(record.basePrice || 0),
@@ -165,9 +219,9 @@ const RoomTypeManagement = () => {
 
   const openEditAmenityModal = (record) => {
     setEditingAmenity(record);
+    setAmenityImageFileList([]);
     amenityForm.setFieldsValue({
       name: record.name,
-      icon: record.iconUrl,
     });
     setIsAmenityModalOpen(true);
   };
@@ -182,6 +236,42 @@ const RoomTypeManagement = () => {
     resetAmenityModal();
   };
 
+  const togglePrimaryImageChoice = (choice, checked) => {
+    setPrimaryImageChoices((prev) => {
+      if (checked) return [...new Set([...prev, choice])];
+      return prev.filter((item) => item !== choice);
+    });
+  };
+
+  const handleRoomImagesChange = ({ fileList }) => {
+    const nextList = fileList.filter(
+      (file) => file.type?.startsWith('image/') || file.originFileObj?.type?.startsWith('image/')
+    );
+
+    setImageFileList(nextList);
+
+    setPrimaryImageChoices((prev) => {
+      const nextChoices = prev.filter((choice) => {
+        if (!choice.startsWith('new-')) return true;
+        const uid = choice.replace('new-', '');
+        return nextList.some((file) => file.uid === uid);
+      });
+
+      if (nextChoices.length === 0 && existingRoomImages.length === 0 && nextList.length > 0) {
+        return [`new-${nextList[0].uid}`];
+      }
+
+      return nextChoices;
+    });
+  };
+
+  const handleRemoveExistingRoomImage = (image) => {
+    const nextImages = existingRoomImages.filter((item) => item.id !== image.id);
+    setExistingRoomImages(nextImages);
+    setDeletedRoomImageIds((prev) => [...new Set([...prev, image.id])]);
+    setPrimaryImageChoices((prev) => prev.filter((choice) => choice !== `existing-${image.id}`));
+  };
+
   const handleSubmitRoomType = async (values) => {
     setSubmitting(true);
     try {
@@ -192,8 +282,33 @@ const RoomTypeManagement = () => {
       formData.append('capacityAdults', values.capacityAdults);
       formData.append('capacityChildren', values.capacityChildren);
 
-      if (imageFileList[0]?.originFileObj) {
-        formData.append('image', imageFileList[0].originFileObj);
+      imageFileList.forEach((file) => {
+        if (file.originFileObj) {
+          formData.append('images', file.originFileObj);
+        }
+      });
+
+      deletedRoomImageIds.forEach((id) => {
+        formData.append('deletedImageIds', id);
+      });
+
+      primaryImageChoices.forEach((choice) => {
+        if (choice.startsWith('existing-')) {
+          formData.append('primaryImageIds', choice.replace('existing-', ''));
+          return;
+        }
+
+        if (choice.startsWith('new-')) {
+          const uid = choice.replace('new-', '');
+          const primaryIndex = imageFileList.findIndex((file) => file.uid === uid);
+          if (primaryIndex >= 0) {
+            formData.append('primaryImageIndexes', primaryIndex);
+          }
+        }
+      });
+
+      if (primaryImageChoices.length === 0 && imageFileList.length > 0 && existingRoomImages.length === 0) {
+        formData.append('primaryImageIndexes', 0);
       }
 
       let roomTypeId = editingRoomType?.id;
@@ -205,7 +320,9 @@ const RoomTypeManagement = () => {
         roomTypeId = response?.roomTypeId;
       }
 
-      await roomTypeApi.updateAmenities(roomTypeId, values.amenityIds || []);
+      if (roomTypeId) {
+        await roomTypeApi.updateAmenities(roomTypeId, values.amenityIds || []);
+      }
 
       message.success(
         editingRoomType
@@ -225,16 +342,18 @@ const RoomTypeManagement = () => {
   const handleSubmitAmenity = async (values) => {
     setSubmitting(true);
     try {
-      const payload = {
-        name: values.name.trim(),
-        icon: values.icon?.trim() || '',
-      };
+      const formData = new FormData();
+      formData.append('name', values.name.trim());
+
+      if (amenityImageFileList[0]?.originFileObj) {
+        formData.append('iconFile', amenityImageFileList[0].originFileObj);
+      }
 
       if (editingAmenity) {
-        await amenityApi.update(editingAmenity.id, payload);
+        await amenityApi.update(editingAmenity.id, formData);
         message.success('Cập nhật tiện ích thành công.');
       } else {
-        await amenityApi.create(payload);
+        await amenityApi.create(formData);
         message.success('Tạo tiện ích thành công.');
       }
 
@@ -267,24 +386,63 @@ const RoomTypeManagement = () => {
     }
   };
 
+  const renderRoomImageCell = (_, record) => {
+    const images = getRoomImageItems(record);
+    const featuredImages = getFeaturedRoomImages(record);
+
+    if (featuredImages.length === 0) {
+      return <div className="room-type-empty-image">Chưa có ảnh</div>;
+    }
+
+    return (
+      <div className="room-type-image-stack-cell">
+        <Image.PreviewGroup>
+          {featuredImages.slice(0, 3).map((image) => (
+            <div className="room-type-image-cell" key={`${image.id}-${image.imageUrl}`}>
+              <Image
+                src={resolveImageSrc(image.imageUrl)}
+                alt={record.name}
+                width={76}
+                height={58}
+                style={{ objectFit: 'cover', borderRadius: 12 }}
+              />
+              <Tag color="gold" className="room-type-featured-tag">
+                <StarFilled /> Nổi bật
+              </Tag>
+            </div>
+          ))}
+        </Image.PreviewGroup>
+        <Badge count={images.length} size="small" title={`${images.length} ảnh`} />
+      </div>
+    );
+  };
+
+  const renderAmenityImage = (value, name = 'ảnh tiện ích') => {
+    if (!value) {
+      return <div className="amenity-icon-empty">Chưa có ảnh</div>;
+    }
+
+    return (
+      <div className="amenity-icon-cell">
+        <Image
+          src={resolveImageSrc(value, 'amenities')}
+          alt={name}
+          width={46}
+          height={46}
+          style={{ objectFit: 'contain', borderRadius: 10 }}
+          fallback="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='92' height='92'><rect width='100%25' height='100%25' rx='16' fill='%23f6f0df'/><text x='50%25' y='54%25' text-anchor='middle' font-family='Arial' font-size='13' fill='%23946f22'>Anh</text></svg>"
+        />
+      </div>
+    );
+  };
+
   const roomTypeColumns = [
     {
-      title: 'Ảnh',
+      title: 'Ảnh nổi bật',
       dataIndex: 'imageUrl',
       key: 'imageUrl',
-      width: 110,
-      render: (imageUrl) =>
-        imageUrl ? (
-          <Image
-            src={imageUrl}
-            alt="room-type"
-            width={88}
-            height={64}
-            style={{ objectFit: 'cover', borderRadius: 12 }}
-          />
-        ) : (
-          <div className="room-type-empty-image">Chưa có ảnh</div>
-        ),
+      width: 230,
+      render: renderRoomImageCell,
     },
     {
       title: 'Tên loại phòng',
@@ -316,12 +474,15 @@ const RoomTypeManagement = () => {
       title: 'Tiện ích',
       dataIndex: 'amenities',
       key: 'amenities',
-      width: 260,
+      width: 320,
       render: (items) =>
         items?.length ? (
           <Space size={[0, 8]} wrap>
             {items.map((item) => (
               <Tag key={item.id} color="gold" className="room-type-amenity-tag">
+                <span className="room-type-amenity-tag__icon">
+                  {renderAmenityImage(item.iconUrl, item.name)}
+                </span>
                 {item.name}
               </Tag>
             ))}
@@ -378,17 +539,17 @@ const RoomTypeManagement = () => {
       align: 'center',
     },
     {
+      title: 'Hình ảnh',
+      dataIndex: 'iconUrl',
+      key: 'iconUrl',
+      width: 120,
+      render: (value, record) => renderAmenityImage(value, record.name),
+    },
+    {
       title: 'Tên tiện ích',
       dataIndex: 'name',
       key: 'name',
       render: (value) => <span style={{ fontWeight: 700 }}>{value}</span>,
-    },
-    {
-      title: 'Icon / Tên file icon',
-      dataIndex: 'iconUrl',
-      key: 'iconUrl',
-      render: (value) =>
-        value ? <Tag color="blue">{value}</Tag> : <span className="room-type-muted">Không có</span>,
     },
     {
       title: 'Hành động',
@@ -451,7 +612,7 @@ const RoomTypeManagement = () => {
         columns={roomTypeColumns}
         dataSource={filteredRoomTypes}
         bordered
-        scroll={{ x: 1200 }}
+        scroll={{ x: 1350 }}
         pagination={{
           pageSize: 5,
           showSizeChanger: true,
@@ -470,7 +631,7 @@ const RoomTypeManagement = () => {
             value={amenityKeyword}
             onChange={(e) => setAmenityKeyword(e.target.value)}
             prefix={<SearchOutlined />}
-            placeholder="Tìm theo tên tiện ích hoặc icon..."
+            placeholder="Tìm theo tên tiện ích..."
             allowClear
             style={{ width: 320 }}
           />
@@ -504,13 +665,8 @@ const RoomTypeManagement = () => {
 
   return (
     <div className="room-type-page">
-      <div className="room-type-hero">
-        <div className="room-type-hero__eyebrow">Hotel ERP • Room Types & Amenities</div>
-        <div className="room-type-hero__title">Quản lý Loại phòng & Tiện ích</div>
-        <p className="room-type-hero__subtitle">
-          Giao diện này được làm theo tinh thần của trang mẫu: nền xanh đậm, điểm nhấn vàng,
-          card bo tròn và cảm giác “grand hotel”. Một sảnh lễ tân thu nhỏ nhưng dành cho dữ liệu.
-        </p>
+      <div className="room-type-hero room-type-hero--simple">
+        <div className="room-type-hero__title">Quản lý Loại phòng &amp; Tiện ích</div>
       </div>
 
       <Row gutter={[16, 16]}>
@@ -569,7 +725,7 @@ const RoomTypeManagement = () => {
         onCancel={handleCloseRoomTypeModal}
         footer={null}
         destroyOnHidden
-        width={860}
+        width={920}
       >
         <Form form={roomTypeForm} layout="vertical" onFinish={handleSubmitRoomType}>
           <Row gutter={16}>
@@ -599,7 +755,7 @@ const RoomTypeManagement = () => {
                   formatter={(value) =>
                     `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
                   }
-                  parser={(value) => value.replace(/\$\s?|(,*)/g, '')}
+                  parser={(value) => (value || '').replace(/\$\s?|(,*)/g, '')}
                 />
               </Form.Item>
             </Col>
@@ -632,7 +788,7 @@ const RoomTypeManagement = () => {
           <Form.Item
             name="amenityIds"
             label="Gán tiện ích cho loại phòng"
-            tooltip="Chức năng này dùng Select Multiple để đáp ứng yêu cầu Checkbox/Select Multiple trong PDF."
+            tooltip="Chọn nhiều tiện ích áp dụng cho cùng một hạng phòng."
           >
             <Select
               mode="multiple"
@@ -649,15 +805,81 @@ const RoomTypeManagement = () => {
           <div className="room-type-section-label">Ảnh loại phòng</div>
           <Upload
             beforeUpload={() => false}
-            maxCount={1}
+            multiple
+            accept="image/*"
             fileList={imageFileList}
-            onChange={({ fileList }) => setImageFileList(fileList.slice(-1))}
-            listType="text"
+            onChange={handleRoomImagesChange}
+            listType="picture-card"
           >
-            <Button icon={<UploadOutlined />}>Chọn ảnh từ máy</Button>
+            <div>
+              <UploadOutlined />
+              <div style={{ marginTop: 8 }}>Thêm ảnh</div>
+            </div>
           </Upload>
 
-          {editingRoomType?.imageUrl && imageFileList.length === 0 && (
+          {(existingRoomImages.length > 0 || imageFileList.length > 0) && (
+            <div className="room-type-gallery-panel">
+              <div className="room-type-section-label">Chọn ảnh nổi bật</div>
+              <div className="room-type-help-text">
+                Có thể tick nhiều ảnh. Những ảnh này sẽ được đánh dấu nổi bật và hiển thị ở bảng.
+              </div>
+
+              <div className="room-type-gallery-grid">
+                {existingRoomImages.map((image) => {
+                  const choice = `existing-${image.id}`;
+                  return (
+                    <div className="room-type-gallery-item" key={choice}>
+                      <Image
+                        src={resolveImageSrc(image.imageUrl)}
+                        alt="Ảnh loại phòng"
+                        className="room-type-gallery-image"
+                      />
+                      <div className="room-type-gallery-actions">
+                        <Checkbox
+                          checked={primaryImageChoices.includes(choice)}
+                          onChange={(event) => togglePrimaryImageChoice(choice, event.target.checked)}
+                        >
+                          Ảnh nổi bật
+                        </Checkbox>
+                        <Button
+                          danger
+                          size="small"
+                          icon={<DeleteOutlined />}
+                          onClick={() => handleRemoveExistingRoomImage(image)}
+                        >
+                          Xóa
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {imageFileList.map((file) => {
+                  const choice = `new-${file.uid}`;
+                  return (
+                    <div className="room-type-gallery-item" key={choice}>
+                      <Image
+                        src={buildPreviewUrl(file)}
+                        alt={file.name}
+                        className="room-type-gallery-image"
+                      />
+                      <div className="room-type-gallery-actions">
+                        <Checkbox
+                          checked={primaryImageChoices.includes(choice)}
+                          onChange={(event) => togglePrimaryImageChoice(choice, event.target.checked)}
+                        >
+                          Ảnh nổi bật
+                        </Checkbox>
+                        <Tag color="blue">Ảnh mới</Tag>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {editingRoomType?.imageUrl && existingRoomImages.length === 0 && imageFileList.length === 0 && (
             <div className="room-type-current-image">
               <div className="room-type-section-label">Ảnh hiện tại</div>
               <img
@@ -665,6 +887,7 @@ const RoomTypeManagement = () => {
                 alt={editingRoomType.name}
                 className="room-type-preview-image"
               />
+              <div className="room-type-muted">Ảnh cũ đang lưu theo đường dẫn Cloudinary.</div>
             </div>
           )}
 
@@ -696,13 +919,27 @@ const RoomTypeManagement = () => {
             <Input placeholder="Ví dụ: Wifi miễn phí" />
           </Form.Item>
 
-          <Form.Item
-            name="icon"
-            label="Icon URL / tên file icon"
-            tooltip="BE hiện lưu vào icon_url. Có thể nhập tên file như wifi.png hoặc URL."
+          <div className="room-type-section-label">Hình ảnh tiện ích</div>
+          <Upload
+            beforeUpload={() => false}
+            maxCount={1}
+            accept="image/*"
+            fileList={amenityImageFileList}
+            onChange={({ fileList }) => setAmenityImageFileList(fileList.slice(-1))}
+            listType="picture-card"
           >
-            <Input placeholder="Ví dụ: wifi.png hoặc https://..." />
-          </Form.Item>
+            <div>
+              <UploadOutlined />
+              <div style={{ marginTop: 8 }}>Chọn ảnh</div>
+            </div>
+          </Upload>
+
+          {editingAmenity?.iconUrl && amenityImageFileList.length === 0 && (
+            <div className="room-type-current-image">
+              <div className="room-type-section-label">Ảnh hiện tại</div>
+              {renderAmenityImage(editingAmenity.iconUrl, editingAmenity.name)}
+            </div>
+          )}
 
           <div className="room-type-modal-footer">
             <Button onClick={handleCloseAmenityModal}>Hủy</Button>
