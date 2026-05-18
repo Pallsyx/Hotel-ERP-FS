@@ -647,16 +647,22 @@ namespace HotelERP.BE.Migrations
 
                     b.Property<DateTime>("ImportedAt")
 <<<<<<< HEAD
+<<<<<<< HEAD
                         .HasColumnType("datetime");
 
                     b.Property<string>("Notes")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
 =======
+=======
+>>>>>>> 2dd3431 (feat: implement equipment supplier logging system with database migration and UI modal)
                         .HasColumnType("datetime2");
 
                     b.Property<string>("Notes")
                         .HasColumnType("nvarchar(max)");
+<<<<<<< HEAD
+>>>>>>> 2dd3431 (feat: implement equipment supplier logging system with database migration and UI modal)
+=======
 >>>>>>> 2dd3431 (feat: implement equipment supplier logging system with database migration and UI modal)
 
                     b.Property<int>("Quantity")
@@ -665,8 +671,12 @@ namespace HotelERP.BE.Migrations
                     b.Property<string>("SupplierName")
                         .IsRequired()
 <<<<<<< HEAD
+<<<<<<< HEAD
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
+=======
+                        .HasColumnType("nvarchar(max)");
+>>>>>>> 2dd3431 (feat: implement equipment supplier logging system with database migration and UI modal)
 =======
                         .HasColumnType("nvarchar(max)");
 >>>>>>> 2dd3431 (feat: implement equipment supplier logging system with database migration and UI modal)
@@ -2233,8 +2243,12 @@ namespace HotelERP.BE.Migrations
                         .HasForeignKey("EquipmentId")
                         .OnDelete(DeleteBehavior.Cascade)
 <<<<<<< HEAD
+<<<<<<< HEAD
                         .IsRequired()
                         .HasConstraintName("FK_EquipmentSupplierLogs_Equipments");
+=======
+                        .IsRequired();
+>>>>>>> 2dd3431 (feat: implement equipment supplier logging system with database migration and UI modal)
 =======
                         .IsRequired();
 >>>>>>> 2dd3431 (feat: implement equipment supplier logging system with database migration and UI modal)
