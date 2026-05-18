@@ -66,6 +66,21 @@ const bookingManagementApi = {
   createOrder: (data) => {
     return axiosClient.post('/booking-management/orders', data);
   },
+
+  // Cập nhật trạng thái đơn: Booked → InProgress → Completed | Cancelled
+  updateOrderStatus: (orderId, newStatus, notes = null) => {
+    return axiosClient.put(`/booking-management/orders/${orderId}/status`, { newStatus, notes });
+  },
+
+  // Cross-check khách in-house theo số phòng (xác minh trước khi tạo đơn)
+  crossCheckGuestByRoom: (roomNumber) => {
+    return axiosClient.get(`/booking-management/rooms/${encodeURIComponent(roomNumber)}/in-house-guest`);
+  },
+
+  // Ghi nợ đơn dịch vụ vào folio phòng (thanh toán khi check-out)
+  postOrderToFolio: (orderId) => {
+    return axiosClient.post(`/booking-management/orders/${orderId}/post-to-folio`);
+  },
 };
 
 export default bookingManagementApi;

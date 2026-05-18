@@ -223,4 +223,65 @@ public class BookingManagementController : ControllerBase
 
         return Ok(new { success = true, message, data = order });
     }
+
+    // ==============================================================
+    // API 12: PUT /api/booking-management/orders/{id}/status
+    // Cập nhật trạng thái đơn dịch vụ theo workflow
+    // Booked → InProgress → Completed | Cancelled
+    // ==============================================================
+    /// <summary>
+    /// Cập nhật trạng thái đơn dịch vụ.
+    /// Luồng hợp lệ: Booked → InProgress → Completed. Có thể Cancelled từ Booked/InProgress.
+    /// </summary>
+    [HttpPut("orders/{orderId}/status")]
+    public async Task<IActionResult> UpdateOrderStatus(int orderId, [FromBody] UpdateOrderStatusRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.NewStatus))
+            return BadRequest(new { success = false, message = "Trạng thái mới không được để trống." });
+
+        var (success, message) = await _orderService.UpdateOrderStatusAsync(orderId, request);
+
+        if (!success)
+            return BadRequest(new { success = false, message });
+
+        return Ok(new { success = true, message });
+    }
+
+    // ==============================================================
+    // API 13: GET /api/booking-management/rooms/{roomNumber}/in-house-guest
+    // Cross-check khách đang lưu trú theo số phòng
+    // ==============================================================
+    /// <summary>
+    /// Xác minh khách đang ở phòng theo số phòng.
+    /// Dùng trước khi tạo đơn dịch vụ cho khách in-house để tránh gian lận.
+    /// </summary>
+    [HttpGet("rooms/{roomNumber}/in-house-guest")]
+    public async Task<IActionResult> CrossCheckGuestByRoom(string roomNumber)
+    {
+        if (string.IsNullOrWhiteSpace(roomNumber))
+            return BadRequest(new { success = false, message = "Số phòng không hợp lệ." });
+
+        var result = await _orderService.CrossCheckGuestByRoomAsync(roomNumber);
+        return Ok(new { success = true, data = result });
+    }
+
+    // ==============================================================
+    // API 14: POST /api/booking-management/orders/{id}/post-to-folio
+    // Ghi nợ tiền dịch vụ vào hóa đơn tổng của phòng (Folio)
+    // ==============================================================
+    /// <summary>
+    /// Ghi nợ tổng tiền đơn dịch vụ đã Completed vào Folio (Invoice Draft) của phòng.
+    /// Khách sẽ thanh toán cùng tiền phòng khi Check-out.
+    /// Có bảo vệ chống ghi nợ 2 lần.
+    /// </summary>
+    [HttpPost("orders/{orderId}/post-to-folio")]
+    public async Task<IActionResult> PostOrderToFolio(int orderId)
+    {
+        var result = await _orderService.PostChargeToFolioAsync(orderId);
+
+        if (!result.Success)
+            return BadRequest(new { success = false, message = result.Message });
+
+        return Ok(new { success = true, message = result.Message, data = result });
+    }
 }

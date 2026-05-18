@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Card, Table, Input, Button, Space, Typography, Tooltip, message,
-  Modal, Select, InputNumber, Form, Divider, Tag, Badge, Collapse,
-  Empty, Spin, Row, Col, Statistic,
+  Modal, Select, InputNumber, Form, Tag, Collapse,
+  Empty, Spin, Row, Col, Statistic, Popconfirm,
 } from 'antd';
 import {
   SearchOutlined, EyeOutlined, CopyOutlined, PlusOutlined,
   ShoppingCartOutlined, DeleteOutlined, UserOutlined, UnorderedListOutlined,
+  PlayCircleOutlined, CheckCircleOutlined, CloseCircleOutlined, DollarOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import bookingManagementApi from '../../api/bookingManagementApi';
@@ -16,13 +17,21 @@ const { Title, Text } = Typography;
 const { Panel } = Collapse;
 
 // ============================================================
-// STATUS COLOR MAP
+// STATUS CONFIG
 // ============================================================
 const ORDER_STATUS_COLOR = {
-  Pending: 'orange',
-  Confirmed: 'blue',
+  Booked: 'blue',
+  InProgress: 'orange',
   Completed: 'green',
   Cancelled: 'red',
+  Pending: 'default',
+};
+const ORDER_STATUS_LABEL = {
+  Booked: 'Đã đặt',
+  InProgress: 'Đang thực hiện',
+  Completed: 'Hoàn tất',
+  Cancelled: 'Đã hủy',
+  Pending: 'Chờ xử lý',
 };
 
 // ============================================================
@@ -327,27 +336,61 @@ const OrderServiceModal = ({ open, onClose, bookingDetailId, guestName, onSucces
 };
 
 // ============================================================
-// EXPANDED ROW: Lịch sử đơn dịch vụ của 1 phòng
+// EXPANDED ROW: Lịch sử đơn dịch vụ + nút điều khiển workflow
 // ============================================================
 const OrderHistoryPanel = ({ bookingDetailId }) => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(null); // orderId đang xử lý
 
-  useEffect(() => {
+  const fetchOrders = useCallback(async () => {
     if (!bookingDetailId) return;
-    const fetchOrders = async () => {
-      setLoading(true);
-      try {
-        const res = await bookingManagementApi.getOrdersByBookingDetail(bookingDetailId);
-        if (res.data?.success) setOrders(res.data.data);
-      } catch {
-        message.error('Không thể tải lịch sử dịch vụ.');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchOrders();
+    setLoading(true);
+    try {
+      const res = await bookingManagementApi.getOrdersByBookingDetail(bookingDetailId);
+      if (res.data?.success) setOrders(res.data.data);
+    } catch {
+      message.error('Không thể tải lịch sử dịch vụ.');
+    } finally {
+      setLoading(false);
+    }
   }, [bookingDetailId]);
+
+  useEffect(() => { fetchOrders(); }, [fetchOrders]);
+
+  const handleStatusUpdate = async (orderId, newStatus) => {
+    setActionLoading(orderId);
+    try {
+      const res = await bookingManagementApi.updateOrderStatus(orderId, newStatus);
+      if (res.data?.success) {
+        message.success(res.data.message);
+        fetchOrders();
+      } else {
+        message.error(res.data?.message || 'Cập nhật thất bại.');
+      }
+    } catch (err) {
+      message.error(err?.response?.data?.message || 'Có lỗi xảy ra.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handlePostToFolio = async (orderId) => {
+    setActionLoading(orderId);
+    try {
+      const res = await bookingManagementApi.postOrderToFolio(orderId);
+      if (res.data?.success) {
+        message.success(res.data.message);
+        fetchOrders();
+      } else {
+        message.error(res.data?.message || 'Ghi nợ thất bại.');
+      }
+    } catch (err) {
+      message.error(err?.response?.data?.message || 'Có lỗi xảy ra.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   if (loading) return <Spin size="small" style={{ display: 'block', margin: '16px auto' }} />;
   if (orders.length === 0)
@@ -369,41 +412,123 @@ const OrderHistoryPanel = ({ bookingDetailId }) => {
           <Panel
             key={order.id}
             header={
-              <Space>
-                <Tag color={ORDER_STATUS_COLOR[order.status] || 'default'}>{order.status}</Tag>
+              <Space wrap>
+                <Tag color={ORDER_STATUS_COLOR[order.status] || 'default'}>
+                  {ORDER_STATUS_LABEL[order.status] || order.status}
+                </Tag>
                 <Text strong>{order.orderCode}</Text>
                 <Text type="secondary" style={{ fontSize: 12 }}>
-                  {dayjs(order.orderDate).format('DD/MM/YYYY HH:mm')}
+                  {dayjs(order.orderDate).format('DD/MM HH:mm')}
                 </Text>
                 <Text strong style={{ color: '#cf1322' }}>
                   {Number(order.totalAmount).toLocaleString('vi-VN')}đ
                 </Text>
+                {order.isPostedToFolio && (
+                  <Tag color="purple" style={{ fontSize: 11 }}>Đã ghi folio</Tag>
+                )}
               </Space>
             }
           >
+            {/* Bảng dịch vụ */}
             <Table
               size="small"
               dataSource={order.items}
               rowKey="serviceId"
               pagination={false}
+              style={{ marginBottom: 8 }}
               columns={[
                 { title: 'Dịch vụ', dataIndex: 'serviceName' },
-                { title: 'SL', dataIndex: 'quantity', align: 'center', width: 60 },
+                { title: 'SL', dataIndex: 'quantity', align: 'center', width: 50 },
                 {
                   title: 'Đơn giá', dataIndex: 'unitPrice', align: 'right',
                   render: v => `${Number(v).toLocaleString('vi-VN')}đ`,
                 },
                 {
                   title: 'Thành tiền', dataIndex: 'lineTotal', align: 'right',
-                  render: v => <Text strong>{Number(v).toLocaleString('vi-VN')}đ</Text>,
+                  render: v => <Text strong style={{ color: '#1890ff' }}>{Number(v).toLocaleString('vi-VN')}đ</Text>,
                 },
               ]}
             />
+
+            {/* Ghi chú */}
             {order.notes && (
-              <Text type="secondary" style={{ fontSize: 12, marginTop: 4, display: 'block' }}>
-                Ghi chú: {order.notes}
+              <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 8 }}>
+                📝 {order.notes}
               </Text>
             )}
+
+            {/* Nút điều khiển workflow */}
+            <Space wrap size="small">
+              {/* Booked → InProgress */}
+              {order.status === 'Booked' && (
+                <Popconfirm
+                  title="Bắt đầu thực hiện dịch vụ?"
+                  onConfirm={() => handleStatusUpdate(order.id, 'InProgress')}
+                  okText="Bắt đầu" cancelText="Hủy"
+                >
+                  <Button
+                    size="small" type="primary"
+                    icon={<PlayCircleOutlined />}
+                    loading={actionLoading === order.id}
+                  >
+                    Bắt đầu
+                  </Button>
+                </Popconfirm>
+              )}
+
+              {/* InProgress → Completed */}
+              {order.status === 'InProgress' && (
+                <Popconfirm
+                  title="Xác nhận hoàn tất dịch vụ?"
+                  onConfirm={() => handleStatusUpdate(order.id, 'Completed')}
+                  okText="Hoàn tất" cancelText="Hủy"
+                >
+                  <Button
+                    size="small" type="primary" style={{ background: '#52c41a', borderColor: '#52c41a' }}
+                    icon={<CheckCircleOutlined />}
+                    loading={actionLoading === order.id}
+                  >
+                    Hoàn tất
+                  </Button>
+                </Popconfirm>
+              )}
+
+              {/* Ghi nợ vào folio (chỉ khi Completed và chưa post) */}
+              {order.status === 'Completed' && !order.isPostedToFolio && (
+                <Popconfirm
+                  title={`Ghi nợ ${Number(order.totalAmount).toLocaleString('vi-VN')}đ vào hóa đơn phòng?`}
+                  description="Khách sẽ thanh toán khi Check-out."
+                  onConfirm={() => handlePostToFolio(order.id)}
+                  okText="Ghi nợ" cancelText="Hủy" okType="primary"
+                >
+                  <Button
+                    size="small"
+                    icon={<DollarOutlined />}
+                    style={{ borderColor: '#722ed1', color: '#722ed1' }}
+                    loading={actionLoading === order.id}
+                  >
+                    Ghi nợ vào phòng
+                  </Button>
+                </Popconfirm>
+              )}
+
+              {/* Huỷ đơn (Booked hoặc InProgress) */}
+              {(order.status === 'Booked' || order.status === 'InProgress') && (
+                <Popconfirm
+                  title="Xác nhận hủy đơn dịch vụ này?"
+                  onConfirm={() => handleStatusUpdate(order.id, 'Cancelled')}
+                  okText="Hủy đơn" cancelText="Giữ lại" okType="danger"
+                >
+                  <Button
+                    size="small" danger
+                    icon={<CloseCircleOutlined />}
+                    loading={actionLoading === order.id}
+                  >
+                    Hủy đơn
+                  </Button>
+                </Popconfirm>
+              )}
+            </Space>
           </Panel>
         ))}
       </Collapse>
