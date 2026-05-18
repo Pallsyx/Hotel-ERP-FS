@@ -44,7 +44,28 @@ const bookingManagementApi = {
   // Nạp cọc
   addDeposit: (bookingId, amount) => {
     return axiosClient.put(`/booking-management/${bookingId}/deposit`, { amount });
-  }
+  },
+
+  // =====================================
+  // DỊCH VỤ (ORDER SERVICE)
+  // =====================================
+
+  // Lấy danh sách dịch vụ ACTIVE nhóm theo danh mục
+  getServices: () => {
+    return axiosClient.get('/booking-management/services');
+  },
+
+  // Lấy lịch sử đơn dịch vụ của một BookingDetail (phòng cụ thể)
+  getOrdersByBookingDetail: (bookingDetailId) => {
+    return axiosClient.get(`/booking-management/details/${bookingDetailId}/orders`);
+  },
+
+  // Tạo đơn dịch vụ mới
+  // - Khách in-house: { bookingDetailId, items: [{serviceId, quantity}], notes }
+  // - Khách vãng lai POS: { bookingDetailId: null, guestName (tùy chọn), items, notes }
+  createOrder: (data) => {
+    return axiosClient.post('/booking-management/orders', data);
+  },
 };
 
 export default bookingManagementApi;

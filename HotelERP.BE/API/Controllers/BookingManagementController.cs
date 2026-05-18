@@ -1,4 +1,5 @@
 using HotelERP.BE.Application.DTOs.BookingManagement;
+using HotelERP.BE.Application.DTOs.OrderService;
 using HotelERP.BE.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -11,10 +12,14 @@ namespace HotelERP.BE.API.Controllers;
 public class BookingManagementController : ControllerBase
 {
     private readonly IBookingManagementService _bookingService;
+    private readonly IOrderServiceManagementService _orderService;
 
-    public BookingManagementController(IBookingManagementService bookingService)
+    public BookingManagementController(
+        IBookingManagementService bookingService,
+        IOrderServiceManagementService orderService)
     {
         _bookingService = bookingService;
+        _orderService = orderService;
     }
 
     // ==============================================================
@@ -167,5 +172,55 @@ public class BookingManagementController : ControllerBase
         if (!result.Success) return BadRequest(new { success = false, message = result.Message });
 
         return Ok(new { success = true, message = result.Message, newDeposit = result.NewDeposit });
+    }
+
+    // ==============================================================
+    // API 9: GET /api/booking-management/services
+    // Lấy danh sách dịch vụ ACTIVE, nhóm theo danh mục (cho modal đặt DV)
+    // ==============================================================
+    /// <summary>
+    /// Lấy danh sách tất cả dịch vụ đang hoạt động, nhóm theo danh mục.
+    /// Dùng để hiển thị menu chọn dịch vụ cho lễ tân.
+    /// </summary>
+    [HttpGet("services")]
+    public async Task<IActionResult> GetServices()
+    {
+        var result = await _orderService.GetAllServicesByCategoryAsync();
+        return Ok(new { success = true, data = result });
+    }
+
+    // ==============================================================
+    // API 10: GET /api/booking-management/details/{detailId}/orders
+    // Lấy lịch sử đơn dịch vụ của 1 BookingDetail (phòng đang ở)
+    // ==============================================================
+    /// <summary>
+    /// Lấy danh sách đơn dịch vụ đã đặt cho một phòng cụ thể (BookingDetail).
+    /// Dùng để hiển thị lịch sử dịch vụ trong tab In-House.
+    /// </summary>
+    [HttpGet("details/{detailId}/orders")]
+    public async Task<IActionResult> GetOrdersByBookingDetail(int detailId)
+    {
+        var result = await _orderService.GetOrdersByBookingDetailAsync(detailId);
+        return Ok(new { success = true, count = result.Count, data = result });
+    }
+
+    // ==============================================================
+    // API 11: POST /api/booking-management/orders
+    // Tạo đơn dịch vụ (khách in-house HOẶC khách vãng lai POS)
+    // ==============================================================
+    /// <summary>
+    /// Tạo đơn dịch vụ mới.
+    /// - Khách đang ở phòng: truyền BookingDetailId.
+    /// - Khách vãng lai (POS): BookingDetailId = null, GuestName tùy chọn.
+    /// </summary>
+    [HttpPost("orders")]
+    public async Task<IActionResult> CreateOrder([FromBody] CreateOrderServiceRequest request)
+    {
+        var (success, message, order) = await _orderService.CreateOrderAsync(request);
+
+        if (!success)
+            return BadRequest(new { success = false, message });
+
+        return Ok(new { success = true, message, data = order });
     }
 }
