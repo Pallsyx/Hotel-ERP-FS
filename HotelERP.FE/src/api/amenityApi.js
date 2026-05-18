@@ -1,5 +1,11 @@
 import axiosClient from './axiosClient';
 
+const multipartConfig = {
+  headers: {
+    'Content-Type': 'multipart/form-data',
+  },
+};
+
 const amenityApi = {
   getAll: async () => {
     const response = await axiosClient.get('/amenities');
@@ -11,13 +17,13 @@ const amenityApi = {
     return response.data || null;
   },
 
-  create: async (payload) => {
-    const response = await axiosClient.post('/amenities', payload);
+  create: async (formData) => {
+    const response = await axiosClient.post('/amenities', formData, multipartConfig);
     return response.data;
   },
 
-  update: async (id, payload) => {
-    const response = await axiosClient.put(`/amenities/${id}`, payload);
+  update: async (id, formData) => {
+    const response = await axiosClient.put(`/amenities/${id}`, formData, multipartConfig);
     return response.data;
   },
 

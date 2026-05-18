@@ -109,6 +109,7 @@ public class ReviewController(HotelDbContext context, ICloudinaryService cloudin
     // ==========================================
     // 3A. ADMIN DUYỆT BÀI ĐÁNH GIÁ
     // ==========================================
+    [Authorize]
     [HttpPut("{id}/approve")]
     public async Task<IActionResult> ApproveReview(int id)
     {
@@ -125,39 +126,51 @@ public class ReviewController(HotelDbContext context, ICloudinaryService cloudin
     // ==========================================
     // 3B. ADMIN ẨN ĐÁNH GIÁ (KÈM LÝ DO)
     // ==========================================
+    [Authorize]
     [HttpPut("{id}/hide")]
     public async Task<IActionResult> HideReview(int id)
     {
         var review = await context.Reviews.IgnoreQueryFilters().FirstOrDefaultAsync(r => r.Id == id);
         if (review is null) return NotFound("Không tìm thấy đánh giá.");
 
+        // 1. Cập nhật trạng thái review — lưu trước, đảm bảo luôn thành công
         review.IsApproved = false;
         review.Status = "HIDDEN";
-
-        // 2. Lấy userId và role thật từ JWT token
-        var userIdRaw = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        int.TryParse(userIdRaw, out int actingUserId);
-        var actingRole = User.FindFirstValue(ClaimTypes.Role) ?? "System";
-
-        // 3. Lấy và Decode header X-Audit-Reason an toàn
-        string decodedReason = "Không có lý do";
-        if (Request.Headers.TryGetValue("X-Audit-Reason", out var reasonValues))
-        {
-            decodedReason = WebUtility.UrlDecode(reasonValues.ToString());
-        }
-
-        await context.AddAuditLogAsync(
-            userId: actingUserId,
-            roleName: actingRole,
-            actionType: "HIDE_REVIEW",
-            entityType: "Reviews",
-            message: $"Ẩn đánh giá #{id}: {decodedReason}",
-            contextParams: new { reviewId = id },
-            changes: new { oldData = new { Status = "APPROVED" }, newData = new { Status = "HIDDEN" } }
-        );
         await context.SaveChangesAsync();
 
-        return Ok(new { message = "Đã ẩn đánh giá và ghi log thành công." });
+        // 2. Lấy userId và role từ JWT token
+        var userIdRaw = User.FindFirstValue(ClaimTypes.NameIdentifier)
+                     ?? User.FindFirst("UserId")?.Value;
+        int.TryParse(userIdRaw, out int actingUserId);
+        var actingRole = User.FindFirstValue(ClaimTypes.Role) ?? "Admin";
+
+        // 3. Lấy và Decode header X-Audit-Reason
+        string decodedReason = "Không có lý do";
+        if (Request.Headers.TryGetValue("X-Audit-Reason", out var reasonValues))
+            decodedReason = WebUtility.UrlDecode(reasonValues.ToString());
+
+        // 4. Ghi audit log — best-effort, không làm hỏng luồng chính
+        if (actingUserId > 0)
+        {
+            try
+            {
+                await context.AddAuditLogAsync(
+                    userId: actingUserId,
+                    roleName: actingRole,
+                    actionType: "HIDE_REVIEW",
+                    entityType: "Reviews",
+                    message: $"Ẩn đánh giá #{id}: {decodedReason}",
+                    contextParams: new { reviewId = id },
+                    changes: new { oldData = new { review.Status }, newData = new { Status = "HIDDEN" } }
+                );
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[AuditLog Warning] HideReview #{id}: {ex.Message}");
+            }
+        }
+
+        return Ok(new { message = "Đã ẩn đánh giá thành công." });
     }
 
     // ==========================================
@@ -177,6 +190,7 @@ public class ReviewController(HotelDbContext context, ICloudinaryService cloudin
         }
     }
 
+    [Authorize]
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {

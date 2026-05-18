@@ -16,6 +16,7 @@ public class CreateAttractionDto
     public decimal Longitude { get; set; }
     public decimal? DistanceKm { get; set; }
     public string? MapEmbedLink { get; set; }
+    public string Status { get; set; } = "ACTIVE";
     public IFormFile? ImageFile { get; set; }
 }
 
@@ -62,20 +63,18 @@ public class AttractionController(HotelDbContext context, HotelERP.BE.Applicatio
 
         try
         {
-            Attraction newAttraction = new()
-            {
-                Name = dto.Name,
-                Type = dto.Type,
-                Description = dto.Description,
-                Latitude = dto.Latitude,
-                Longitude = dto.Longitude,
-                DistanceKm = dto.DistanceKm,
-                ImageUrl = imageUrl,
-                ImagePublicId = imagePublicId,
-                MapEmbedLink = dto.MapEmbedLink,
-                CreatedAt = DateTime.UtcNow,
-                Status = "ACTIVE"
-            };
+            Name = dto.Name,
+            Type = dto.Type,
+            Description = dto.Description,
+            Latitude = dto.Latitude,
+            Longitude = dto.Longitude,
+            DistanceKm = dto.DistanceKm,
+            ImageUrl = imageUrl,
+            ImagePublicId = imagePublicId,
+            MapEmbedLink = dto.MapEmbedLink,
+            CreatedAt = DateTime.UtcNow,
+            Status = !string.IsNullOrEmpty(dto.Status) ? dto.Status : "ACTIVE"
+        };
 
             context.Attractions.Add(newAttraction);
             await context.SaveChangesAsync();

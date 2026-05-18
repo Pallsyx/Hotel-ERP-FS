@@ -212,7 +212,11 @@ export default function HomePage() {
   useEffect(() => { let t; if (play) t = setInterval(() => setCur(p => (p + 1) % SLIDES.length), 5000); return () => clearInterval(t); }, [play, cur]);
   useEffect(() => {
     articleApi.search().then(r => setArticles((r.data || []).slice(0, 6))).catch(() => { });
-    attractionApi.getAll().then(r => setAttractions((r.data || []).filter(a => a.status !== 'INACTIVE').slice(0, 10))).catch(() => { });
+    attractionApi.getAll().then(r => setAttractions(
+      (r.data || [])
+        .filter(a => a.status === 'ACTIVE')
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    )).catch(() => { });
   }, []);
   useEffect(() => {
     document.title = 'Asteria Resort - Không gian nghỉ dưỡng đẳng cấp';

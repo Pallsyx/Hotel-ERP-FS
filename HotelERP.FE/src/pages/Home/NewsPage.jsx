@@ -160,7 +160,7 @@ export default function NewsPage() {
       </div>
 
       {/* ── STICKY FILTER BAR ── */}
-      <div style={{ background: 'white', borderBottom: '1px solid #e5e7eb', position: 'sticky', top: 64, zIndex: 30, boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
+      <div style={{ background: 'white', borderBottom: '1px solid #e5e7eb', position: 'sticky', top: 60, zIndex: 30, boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
         <div style={{ maxWidth: 1280, margin: '0 auto', padding: '14px 24px', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'space-between' }}>
           {/* Category pills */}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>

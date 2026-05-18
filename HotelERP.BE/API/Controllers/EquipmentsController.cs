@@ -117,9 +117,17 @@ public class EquipmentsController(HotelDbContext context) : ControllerBase
     }
 
     [HttpGet("export-excel")]
-    public async Task<IActionResult> ExportExcel()
+    public async Task<IActionResult> ExportExcel([FromQuery] string? search, [FromQuery] string? category)
     {
-        var equipments = await context.Equipments.Where(e => e.IsActive).OrderBy(e => e.ItemCode).ToListAsync();
+        var query = context.Equipments.Where(e => e.IsActive);
+
+        if (!string.IsNullOrEmpty(search))
+            query = query.Where(e => e.Name.Contains(search) || e.ItemCode.Contains(search));
+
+        if (!string.IsNullOrEmpty(category))
+            query = query.Where(e => e.Category == category);
+
+        var equipments = await query.OrderBy(e => e.ItemCode).ToListAsync();
         
         using var workbook = new ClosedXML.Excel.XLWorkbook();
         var worksheet = workbook.Worksheets.Add("VatTu");
@@ -270,11 +278,11 @@ public class EquipmentsController(HotelDbContext context) : ControllerBase
                     var newCode     = !string.IsNullOrEmpty(itemCode) ? itemCode : $"VT-{Guid.NewGuid().ToString()[..6].ToUpper()}";
                     var newName     = !string.IsNullOrEmpty(name)     ? name     : newCode;
                     var newCategory = !string.IsNullOrEmpty(category) ? category : "Khác";
-                    var newUnit     = !string.IsNullOrEmpty(unit)     ? unit     : "Cái";
-
+                    var newUnit = !string.IsNullOrEmpty(unit) ? unit : "Cái";
+                    
                     int.TryParse(totalQuantityStr ?? "0", out int totalQuantity);
-                    decimal.TryParse(basePriceStr    ?? "0", System.Globalization.NumberStyles.Any, culture, out decimal basePrice);
-                    decimal.TryParse(defaultPriceStr ?? "0", System.Globalization.NumberStyles.Any, culture, out decimal defaultPrice);
+                    decimal.TryParse(basePriceStr    ?? "0", out decimal basePrice);
+                    decimal.TryParse(defaultPriceStr ?? "0", out decimal defaultPrice);
 
                     context.Equipments.Add(new HotelERP.BE.Domain.Models.Equipment
                     {

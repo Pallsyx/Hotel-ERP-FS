@@ -200,15 +200,27 @@ const RoomInventory = () => {
                 icon={<DownloadOutlined />}
                 onClick={async () => {
                   try {
-                    const response = await equipmentApi.exportExcel();
+                    const params = {};
+                    if (searchText) params.search = searchText;
+                    if (category) params.category = category;
+
+                    const response = await equipmentApi.exportExcel(params);
                     const url = window.URL.createObjectURL(new Blob([response.data]));
                     const link = document.createElement('a');
                     link.href = url;
-                    link.setAttribute('download', 'DanhSachVatTu.xlsx');
+
+                    // Đặt tên file theo filter đang chọn
+                    let fileName = 'DanhSachVatTu';
+                    if (category) fileName += `_${category}`;
+                    if (searchText) fileName += `_Tim-${searchText}`;
+                    link.setAttribute('download', `${fileName}.xlsx`);
+
                     document.body.appendChild(link);
                     link.click();
                     link.parentNode.removeChild(link);
-                    message.success('Tải file Excel thành công!');
+
+                    const total = equipments.length;
+                    message.success(`Xuất Excel thành công! (${total} vật tư)`);
                   } catch (error) {
                     console.error(error);
                     message.error('Lỗi khi xuất file Excel!');
