@@ -65,6 +65,30 @@ function Header({ category }) {
   );
 }
 
+/* ─── Related Article Grid Card (full section below) ────────── */
+function RelatedGridCard({ item }) {
+  const navigate = useNavigate();
+  const [hov, setHov] = useState(false);
+  return (
+    <Link to={`/news/${item.slug}`} style={{ textDecoration: 'none' }}>
+      <div
+        onMouseEnter={() => setHov(true)}
+        onMouseLeave={() => setHov(false)}
+        style={{ background: '#1a1a1a', border: `1px solid ${hov ? G : 'rgba(255,255,255,.06)'}`, borderRadius: 8, overflow: 'hidden', transition: 'all 280ms', transform: hov ? 'translateY(-4px)' : 'none', boxShadow: hov ? '0 16px 40px rgba(0,0,0,.5)' : 'none' }}
+      >
+        <div style={{ height: 180, overflow: 'hidden' }}>
+          <img src={item.thumbnailUrl || FALLBACK} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover', transform: hov ? 'scale(1.06)' : 'scale(1)', transition: 'transform 500ms' }} />
+        </div>
+        <div style={{ padding: '18px 20px 22px' }}>
+          {item.categoryName && <span style={{ fontSize: 9, color: G, fontWeight: 700, letterSpacing: '.2em', textTransform: 'uppercase' }}>{item.categoryName}</span>}
+          <h3 style={{ ...SF, fontSize: 17, color: 'white', lineHeight: 1.4, margin: '8px 0 6px', fontWeight: 400, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{item.title}</h3>
+          <span style={{ fontSize: 11, color: 'rgba(255,255,255,.35)' }}>{formatDate(item.publishedAt)}</span>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
 /* ─── Related Article Mini Card ─────────────────────────────── */
 function RelatedCard({ article }) {
   const navigate = useNavigate();
@@ -345,24 +369,9 @@ export default function ArticleDetailPage() {
               <h2 style={{ ...SF, fontSize: 'clamp(24px,3vw,36px)', color: 'white', margin: 0, fontWeight: 400 }}>Bài Viết Liên Quan</h2>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 24 }}>
-              {related.map(item => {
-                const [hov, setHov] = React.useState(false);
-                return (
-                  <Link key={item.id} to={`/news/${item.slug}`} style={{ textDecoration: 'none' }}>
-                    <div onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-                      style={{ background: '#1a1a1a', border: `1px solid ${hov ? G : 'rgba(255,255,255,.06)'}`, borderRadius: 8, overflow: 'hidden', transition: 'all 280ms', transform: hov ? 'translateY(-4px)' : 'none', boxShadow: hov ? `0 16px 40px rgba(0,0,0,.5)` : 'none' }}>
-                      <div style={{ height: 180, overflow: 'hidden' }}>
-                        <img src={item.thumbnailUrl || FALLBACK} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover', transform: hov ? 'scale(1.06)' : 'scale(1)', transition: 'transform 500ms' }} />
-                      </div>
-                      <div style={{ padding: '18px 20px 22px' }}>
-                        {item.categoryName && <span style={{ fontSize: 9, color: G, fontWeight: 700, letterSpacing: '.2em', textTransform: 'uppercase' }}>{item.categoryName}</span>}
-                        <h3 style={{ ...SF, fontSize: 17, color: 'white', lineHeight: 1.4, margin: '8px 0 6px', fontWeight: 400, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{item.title}</h3>
-                        <span style={{ fontSize: 11, color: 'rgba(255,255,255,.35)' }}>{formatDate(item.publishedAt)}</span>
-                      </div>
-                    </div>
-                  </Link>
-                );
-              })}
+              {related.map(item => (
+                <RelatedGridCard key={item.id} item={item} />
+              ))}
             </div>
           </div>
         </section>

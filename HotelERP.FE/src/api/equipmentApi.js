@@ -13,7 +13,8 @@ export const equipmentApi = {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
 
-  exportExcel: () => axiosClient.get('/Equipments/export-excel', {
-    responseType: 'blob'
+  exportExcel: (params) => axiosClient.get('/Equipments/export-excel', {
+    responseType: 'blob',
+    params
   }),
 };
