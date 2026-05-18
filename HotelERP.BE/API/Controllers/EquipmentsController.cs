@@ -13,9 +13,15 @@ namespace HotelERP.API.Controllers;
 public class EquipmentsController(HotelDbContext context) : ControllerBase
 {
     [HttpGet]
-    public async Task<IActionResult> GetEquipments([FromQuery] string? search, [FromQuery] string? category)
+    public async Task<IActionResult> GetEquipments(
+        [FromQuery] string? search,
+        [FromQuery] string? category,
+        [FromQuery] bool includeDeleted = false)
     {
-        var query = context.Equipments.Where(e => e.IsActive);
+        // Mặc định chỉ lấy IsActive=true, trừ khi muốn xem sản phẩm đã xóa mềm
+        var query = includeDeleted
+            ? context.Equipments.Where(e => !e.IsActive)
+            : context.Equipments.Where(e => e.IsActive);
 
         if (!string.IsNullOrEmpty(search))
         {
@@ -119,6 +125,77 @@ public class EquipmentsController(HotelDbContext context) : ControllerBase
         return Ok(new { success = true, message = "Đã xóa vật tư!" });
     }
 
+    [HttpPatch("{id}/restore")]
+    public async Task<IActionResult> RestoreEquipment(int id)
+    {
+        // Chỉ tìm trong sản phẩm đã xóa mềm
+        var equipment = await context.Equipments.FirstOrDefaultAsync(e => e.Id == id && !e.IsActive);
+        if (equipment == null)
+            return NotFound(new { success = false, message = "Không tìm thấy vật tư đã xóa!" });
+
+        // Kiểm tra xem trong kho có sản phẩm tương tự đang hoạt động không
+        var duplicate = await context.Equipments.FirstOrDefaultAsync(e =>
+            e.Name == equipment.Name &&
+            e.Supplier == equipment.Supplier &&
+            e.IsActive &&
+            e.Id != id);
+
+        if (duplicate != null)
+        {
+            return BadRequest(new
+            {
+                success = false,
+                message = $"Không thể khôi phục: trong kho đang có sản phẩm \"{ equipment.Name}\" " +
+                          $"(mã {duplicate.ItemCode}) cùng nhà cung cấp đang hoạt động. " +
+                          $"Vui lòng xóa sản phẩm trùng trước khi khôi phục."
+            });
+        }
+
+        equipment.IsActive = true;
+        equipment.UpdatedAt = DateTime.UtcNow;
+        await context.SaveChangesAsync();
+
+        return Ok(new { success = true, message = $"Đã khôi phục \"{ equipment.Name}\" vào kho!" });
+    }
+
+    [HttpGet("{id}/suppliers")]
+    public async Task<IActionResult> GetSupplierLogs(int id)
+    {
+        var equipment = await context.Equipments.FirstOrDefaultAsync(e => e.Id == id);
+        if (equipment == null)
+            return NotFound(new { success = false, message = "Không tìm thấy vật tư!" });
+
+        var logs = await context.EquipmentSupplierLogs
+            .Where(l => l.EquipmentId == id)
+            .OrderByDescending(l => l.ImportedAt)
+            .Select(l => new
+            {
+                l.Id,
+                l.SupplierName,
+                l.Quantity,
+                l.UnitPrice,
+                l.ImportedAt,
+                l.Notes
+            })
+            .ToListAsync();
+
+        // Tổng hợp theo từng NCC
+        var summary = logs
+            .GroupBy(l => l.SupplierName)
+            .Select(g => new
+            {
+                supplierName = g.Key,
+                totalQuantity = g.Sum(l => l.Quantity),
+                lastUnitPrice = g.OrderByDescending(l => l.ImportedAt).First().UnitPrice,
+                lastImportedAt = g.Max(l => l.ImportedAt),
+                importCount = g.Count()
+            })
+            .OrderByDescending(s => s.totalQuantity)
+            .ToList();
+
+        return Ok(new { success = true, data = new { equipmentName = equipment.Name, summary, logs } });
+    }
+
     [HttpGet("export-excel")]
     public async Task<IActionResult> ExportExcel([FromQuery] string? search, [FromQuery] string? category)
     {
@@ -177,70 +254,175 @@ public class EquipmentsController(HotelDbContext context) : ControllerBase
         if (file == null || file.Length == 0)
             return BadRequest(new { success = false, message = "Vui lòng chọn file Excel!" });
 
+        // FIX #2: Validate định dạng file
+        var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (ext != ".xlsx" && ext != ".xlsm")
+            return BadRequest(new { success = false, message = "Chỉ hỗ trợ file .xlsx hoặc .xlsm. File .xls (Excel cũ) không được hỗ trợ." });
+
         int successCount = 0;
         var warnings = new List<string>();
+
+        // FIX #4 + #6: Helper normalize giá (bỏ ký tự ngàn) + parse
+        static decimal ParsePrice(string? raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return 0;
+            // Bỏ dấu chấm/phẩy ngàn: "16.000" → "16000", "16,000" → "16000"
+            var normalized = raw.Trim().Replace(".", "").Replace(",", "");
+            return decimal.TryParse(normalized, out var result) ? result : 0;
+        }
+
+        // FIX #5: Parse số lượng linh hoạt ("10.5" → 10, "10 kg" → 10)
+        static int ParseQty(string? raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return 0;
+            var normalized = raw.Trim().Split(' ')[0].Replace(",", "").Replace(".", "");
+            return int.TryParse(normalized, out var result) ? result
+                   : (decimal.TryParse(raw.Trim(), out var d) ? (int)Math.Round(d) : 0);
+        }
+
+        // FIX #5b: Separator cho danh sách NCC — dùng " | " thay vì ", " tránh conflict tên NCC có dấu phẩy
+        const string SupplierSep = " | ";
 
         try
         {
             using var stream = new System.IO.MemoryStream();
             await file.CopyToAsync(stream);
-            using var workbook = new ClosedXML.Excel.XLWorkbook(stream);
-            var worksheet = workbook.Worksheet(1);
+
+            // FIX #3: Bắt lỗi file mật khẩu / file hỏng
+            ClosedXML.Excel.XLWorkbook workbook;
+            try { workbook = new ClosedXML.Excel.XLWorkbook(stream); }
+            catch (Exception ex)
+            {
+                return BadRequest(new { success = false, message = $"Không thể mở file Excel: {ex.Message}. File có thể bị mật khẩu bảo vệ hoặc bị hỏng." });
+            }
+            using (workbook)
+            {
+            // FIX #8: Tìm sheet "VatTu" trước, fallback sheet đầu tiên
+            var worksheet = workbook.Worksheets.FirstOrDefault(ws =>
+                ws.Name.Equals("VatTu", StringComparison.OrdinalIgnoreCase))
+                ?? workbook.Worksheet(1);
             var rows = worksheet.RowsUsed().Skip(1); // Skip header
 
             foreach (var row in rows)
             {
                 if (row == null) continue;
 
-                var itemCode = row.Cell(1)?.Value.ToString()?.Trim() ?? "";
-                var name = row.Cell(2)?.Value.ToString()?.Trim() ?? "";
+                // FIX #7: Safe read (formula cells, null cells)
+                static string SafeCell(ClosedXML.Excel.IXLCell? cell)
+                    => cell == null ? "" : (cell.CachedValue.ToString()?.Trim() ?? cell.Value.ToString()?.Trim() ?? "");
+
+                var itemCode = SafeCell(row.Cell(1));
+                var name     = SafeCell(row.Cell(2));
 
                 if (string.IsNullOrEmpty(itemCode) && string.IsNullOrEmpty(name)) continue;
 
-                var category = row.Cell(3)?.Value.ToString()?.Trim() ?? "";
-                var unit = row.Cell(4)?.Value.ToString()?.Trim() ?? "";
-                var totalQuantityStr = row.Cell(5)?.Value.ToString()?.Trim();
-                var basePriceStr = row.Cell(6)?.Value.ToString()?.Trim();
-                var defaultPriceStr = row.Cell(7)?.Value.ToString()?.Trim();
-                var supplier = row.Cell(8)?.Value.ToString()?.Trim();
+                var category = SafeCell(row.Cell(3));
+                var unit     = SafeCell(row.Cell(4));
+                var totalQuantityStr = SafeCell(row.Cell(5));
+                var basePriceStr     = SafeCell(row.Cell(6));
+                var defaultPriceStr  = SafeCell(row.Cell(7));
+                var supplier         = SafeCell(row.Cell(8));
 
                 HotelERP.BE.Domain.Models.Equipment? existing = null;
                 if (!string.IsNullOrEmpty(itemCode))
                 {
-                    // Có ItemCode → chỉ match theo ItemCode, không fallback sang Name
-                    // Đảm bảo 2 sản phẩm cùng tên khác NCC (khác ItemCode) không bị gộp
-                    existing = await context.Equipments.FirstOrDefaultAsync(e => e.ItemCode == itemCode);
-                }
-                else if (!string.IsNullOrEmpty(name))
-                {
-                    // Không có ItemCode:
-                    // Ưu tiên tìm chính xác theo Name + Supplier → đảm bảo đúng record
-                    // khi DB có 2 sản phẩm cùng tên nhưng khác nhà cung cấp
-                    if (!string.IsNullOrEmpty(supplier))
+                    // Tìm theo ItemCode — ưu tiên Active trước
+                    existing = await context.Equipments.FirstOrDefaultAsync(e => e.ItemCode == itemCode && e.IsActive);
+
+                    if (existing == null)
+                    {
+                        // Không tìm thấy Active → kiểm tra soft-deleted
+                        var deleted = await context.Equipments.FirstOrDefaultAsync(e => e.ItemCode == itemCode && !e.IsActive);
+                        if (deleted != null)
+                        {
+                            // Tự động reactivate thay vì tạo mới (tránh vi phạm UNIQUE key)
+                            existing = deleted;
+                            warnings.Add($"Mã vật tư '{itemCode}' ({deleted.Name}) đã bị xóa khỏi kho, hệ thống tự động khôi phục và cập nhật dữ liệu.");
+                        }
+                    }
+
+                    // ItemCode không tồn tại trong DB (cả active lẫn đã xóa)
+                    // → Fallback sang Name + Unit để tránh tạo bản ghi trùng lặp
+                    if (existing == null && !string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(unit))
                     {
                         existing = await context.Equipments.FirstOrDefaultAsync(e =>
                             e.Name == name &&
-                            e.Supplier != null &&
-                            e.Supplier.ToLower() == supplier.ToLower() &&
+                            e.Unit.ToLower() == unit.ToLower() &&
                             e.IsActive);
+
+                        if (existing != null)
+                            warnings.Add($"Mã '{itemCode}' không tồn tại — đã gộp vào sản phẩm '{existing.Name}' ({existing.ItemCode}) theo Tên + Đơn vị tính.");
+                        else
+                        {
+                            // Kiểm tra cả soft-deleted
+                            var deletedByNameUnit = await context.Equipments.FirstOrDefaultAsync(e =>
+                                e.Name == name &&
+                                e.Unit.ToLower() == unit.ToLower() &&
+                                !e.IsActive);
+                            if (deletedByNameUnit != null)
+                            {
+                                existing = deletedByNameUnit;
+                                warnings.Add($"Mã '{itemCode}' không tồn tại — tìm thấy '{deletedByNameUnit.Name}' ({deletedByNameUnit.ItemCode}) đã xóa, tự động khôi phục.");
+                            }
+                        }
+                    }
+                }
+                else if (!string.IsNullOrEmpty(name))
+                {
+                    // Không có ItemCode → tìm theo Name + Unit
+                    // Cùng tên + cùng đơn vị = cùng 1 sản phẩm (dù khác NCC)
+                    var lookupUnit = !string.IsNullOrEmpty(unit) ? unit : null;
+
+                    if (lookupUnit != null)
+                    {
+                        // Tìm active theo Name + Unit
+                        existing = await context.Equipments.FirstOrDefaultAsync(e =>
+                            e.Name == name &&
+                            e.Unit.ToLower() == lookupUnit.ToLower() &&
+                            e.IsActive);
+
+                        // Không có active → kiểm tra soft-deleted
+                        if (existing == null)
+                        {
+                            var deletedByNameUnit = await context.Equipments.FirstOrDefaultAsync(e =>
+                                e.Name == name &&
+                                e.Unit.ToLower() == lookupUnit.ToLower() &&
+                                !e.IsActive);
+
+                            if (deletedByNameUnit != null)
+                            {
+                                existing = deletedByNameUnit;
+                                warnings.Add($"Sản phẩm '{name}' ({lookupUnit}) đã bị xóa khỏi kho, hệ thống tự động khôi phục và cập nhật dữ liệu.");
+                            }
+                        }
                     }
                     else
                     {
-                        // Không có NCC trong Excel → kiểm tra xem DB có bao nhiêu record cùng tên
+                        // Không có đơn vị → fallback tìm theo tên (active) đúng 1 kết quả
                         var sameNameCount = await context.Equipments.CountAsync(e => e.Name == name && e.IsActive);
 
                         if (sameNameCount > 1)
                         {
-                            // Mơ hồ: nhiều sản phẩm cùng tên, không biết update cái nào
-                            // → Bỏ qua dòng này, cảnh báo người dùng điền Mã Vật Tư hoặc Nhà CC
-                            warnings.Add($"Bỏ qua dòng '{name}': thiếu Mã Vật Tư hoặc Nhà Cung Cấp. " +
-                                         $"Hệ thống tìm thấy {sameNameCount} sản phẩm cùng tên — " +
-                                         "cần điền thêm Mã Vật Tư hoặc Nhà Cung Cấp để xác định đúng sản phẩm cần cập nhật.");
+                            warnings.Add($"Bỏ qua dòng '{name}': tìm thấy {sameNameCount} sản phẩm cùng tên — cần thêm Mã Vật Tư hoặc Đơn Vị Tính để xác định đúng.");
                             continue;
                         }
 
-                        // Chỉ có 1 record cùng tên → update an toàn
                         existing = await context.Equipments.FirstOrDefaultAsync(e => e.Name == name && e.IsActive);
+
+                        if (existing == null)
+                        {
+                            var deletedCount = await context.Equipments.CountAsync(e => e.Name == name && !e.IsActive);
+                            if (deletedCount == 1)
+                            {
+                                existing = await context.Equipments.FirstOrDefaultAsync(e => e.Name == name && !e.IsActive);
+                                warnings.Add($"Sản phẩm '{name}' đã bị xóa khỏi kho, hệ thống tự động khôi phục.");
+                            }
+                            else if (deletedCount > 1)
+                            {
+                                warnings.Add($"Bỏ qua dòng '{name}': tìm thấy {deletedCount} sản phẩm đã xóa cùng tên — vui lòng thêm Mã Vật Tư hoặc Đơn Vị Tính.");
+                                continue;
+                            }
+                        }
                     }
                 }
 
@@ -249,19 +431,46 @@ public class EquipmentsController(HotelDbContext context) : ControllerBase
                     if (!string.IsNullOrEmpty(name)) existing.Name = name;
                     if (!string.IsNullOrEmpty(category)) existing.Category = category;
                     if (!string.IsNullOrEmpty(unit)) existing.Unit = unit;
-                    if (!string.IsNullOrEmpty(supplier)) existing.Supplier = supplier;
 
-                    if (!string.IsNullOrEmpty(totalQuantityStr) && int.TryParse(totalQuantityStr, out int tq)) 
-                        existing.TotalQuantity += tq;
-                    
-                    if (!string.IsNullOrEmpty(basePriceStr) && decimal.TryParse(basePriceStr, out decimal bp)) 
-                        existing.BasePrice = bp;
-                    
-                    if (!string.IsNullOrEmpty(defaultPriceStr) && decimal.TryParse(defaultPriceStr, out decimal dp)) 
-                        existing.DefaultPriceIfLost = dp;
+                    // Gộp NCC vào danh sách nếu chưa có (tránh trùng lặp)
+                    if (!string.IsNullOrEmpty(supplier))
+                    {
+                        var currentSuppliers = (existing.Supplier ?? "")
+                            .Split(new[] { " | " }, StringSplitOptions.RemoveEmptyEntries)
+                            .Select(s => s.Trim())
+                            .ToList();
+
+                        if (!currentSuppliers.Any(s => s.Equals(supplier, StringComparison.OrdinalIgnoreCase)))
+                            currentSuppliers.Add(supplier.Trim());
+
+                        existing.Supplier = string.Join(SupplierSep, currentSuppliers);
+                    }
+
+                    // FIX #1: SET số lượng (không cộng thêm) — tránh double khi import lại
+                    var qty = ParseQty(totalQuantityStr);
+                    if (qty > 0) existing.TotalQuantity = qty;
+
+                    var bp = ParsePrice(basePriceStr);
+                    if (bp > 0) existing.BasePrice = bp;
+
+                    var dp = ParsePrice(defaultPriceStr);
+                    if (dp > 0) existing.DefaultPriceIfLost = dp;
 
                     existing.IsActive  = true;
                     existing.UpdatedAt = DateTime.UtcNow;
+
+                    // Ghi log NCC nếu có supplier
+                    if (!string.IsNullOrEmpty(supplier))
+                    {
+                        context.EquipmentSupplierLogs.Add(new HotelERP.BE.Domain.Models.EquipmentSupplierLog
+                        {
+                            EquipmentId  = existing.Id,
+                            SupplierName = supplier,
+                            Quantity     = qty,
+                            UnitPrice    = bp,
+                            ImportedAt   = DateTime.UtcNow
+                        });
+                    }
                 }
                 else
                 {
@@ -274,7 +483,7 @@ public class EquipmentsController(HotelDbContext context) : ControllerBase
                     decimal.TryParse(basePriceStr    ?? "0", out decimal basePrice);
                     decimal.TryParse(defaultPriceStr ?? "0", out decimal defaultPrice);
 
-                    context.Equipments.Add(new HotelERP.BE.Domain.Models.Equipment
+                    var newEquipment = new HotelERP.BE.Domain.Models.Equipment
                     {
                         ItemCode           = newCode,
                         Name               = newName,
@@ -286,10 +495,25 @@ public class EquipmentsController(HotelDbContext context) : ControllerBase
                         Supplier           = supplier,
                         IsActive           = true,
                         CreatedAt          = DateTime.UtcNow
-                    });
-                }
+                    };
+                    context.Equipments.Add(newEquipment);
+                    await context.SaveChangesAsync(); // cần Id của newEquipment để log NCC
+
+                    // Ghi log NCC nếu có supplier
+                    if (!string.IsNullOrEmpty(supplier))
+                    {
+                        context.EquipmentSupplierLogs.Add(new HotelERP.BE.Domain.Models.EquipmentSupplierLog
+                        {
+                            EquipmentId  = newEquipment.Id,
+                            SupplierName = supplier,
+                            Quantity     = totalQuantity,
+                            UnitPrice    = basePrice,
+                            ImportedAt   = DateTime.UtcNow
+                        });
+                    }
+                } // end else (CREATE)
                 successCount++;
-            }
+            } // end foreach row
 
             await context.SaveChangesAsync();
 
@@ -299,10 +523,14 @@ public class EquipmentsController(HotelDbContext context) : ControllerBase
 
             return Ok(new { success = true, message, warnings });
 
+            } // end using (workbook)
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { success = false, message = "Lỗi khi xử lý file Excel: " + ex.Message });
+            var innerMsg = ex.InnerException?.InnerException?.Message 
+                        ?? ex.InnerException?.Message 
+                        ?? "Không có thêm chi tiết";
+            return StatusCode(500, new { success = false, message = $"Lỗi: {ex.Message} | Chi tiết: {innerMsg}" });
         }
     }
 }

@@ -69,6 +69,8 @@ public partial class HotelDbContext : DbContext
 
     public virtual DbSet<Equipment> Equipments { get; set; }
 
+    public virtual DbSet<EquipmentSupplierLog> EquipmentSupplierLogs { get; set; }
+
     public virtual DbSet<RoomType> RoomTypes { get; set; }
 
     public virtual DbSet<RoomTypeAmenity> RoomTypeAmenities { get; set; }
@@ -95,6 +97,21 @@ public partial class HotelDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<UserPermission>().HasKey(up => new { up.UserId, up.PermissionId });
+
+        // EquipmentSupplierLog configuration
+        modelBuilder.Entity<EquipmentSupplierLog>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.UnitPrice).HasColumnType("decimal(18,2)");
+            entity.Property(e => e.ImportedAt).HasColumnType("datetime");
+            entity.Property(e => e.SupplierName).HasMaxLength(500);
+            entity.Property(e => e.Notes).HasMaxLength(1000);
+
+            entity.HasOne(e => e.Equipment)
+                .WithMany(eq => eq.SupplierLogs)
+                .HasForeignKey(e => e.EquipmentId)
+                .HasConstraintName("FK_EquipmentSupplierLogs_Equipments");
+        });
 
         modelBuilder.Entity<ArticleCategory>().HasQueryFilter(c => c.Status == "ACTIVE");
 
