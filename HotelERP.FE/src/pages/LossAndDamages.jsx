@@ -17,33 +17,6 @@ const { RangePicker } = DatePicker;
 const { Text, Title } = Typography;
 const { Option } = Select;
 
-// --- MOCK DATA ---
-const mockBookings = [
-  { id: '102', roomName: 'Phòng 102' },
-  { id: '103', roomName: 'Phòng 103' },
-  { id: 'BK001', roomName: 'Phòng 101' },
-  { id: 'BK002', roomName: 'Phòng 205 (VIP)' },
-];
-
-const mockRoomItems = [
-  { id: 'IT01', name: 'Khăn tắm', price: 150000 },
-  { id: 'IT02', name: 'Cốc thủy tinh', price: 50000 },
-  { id: 'IT03', name: 'Điều khiển TV', price: 300000 },
-  { id: 'IT04', name: 'Bình siêu tốc Sunhouse', price: 350000 },
-  { id: 'IT05', name: 'Nước ngọt Coca Cola 320ml', price: 20000 },
-  { id: 'IT06', name: 'Bánh Oreo 133g', price: 30000 },
-  { id: 'IT07', name: 'Nước suối Lavie 500ml', price: 15000 },
-];
-
-const INITIAL_DATA = [
-  { id: 38, roomNumber: '102', itemName: 'Nước ngọt Coca Cola 320ml', quantity: 1, penaltyAmount: 20000, description: '', createdAt: '2026-03-28T04:14:00', evidenceImageUrl: null },
-  { id: 35, roomNumber: '102', itemName: 'Ấm đun nước siêu tốc Sunhouse', quantity: 1, penaltyAmount: 350000, description: '', createdAt: '2026-03-28T03:04:00', evidenceImageUrl: null },
-  { id: 34, roomNumber: '102', itemName: 'Bánh Oreo 133g', quantity: 1, penaltyAmount: 30000, description: 'khách dùng', createdAt: '2026-03-28T01:28:00', evidenceImageUrl: null },
-  { id: 26, roomNumber: '103', itemName: 'Bánh Oreo 133g', quantity: 1, penaltyAmount: 30000, description: '', createdAt: '2026-03-27T15:18:00', evidenceImageUrl: null },
-  { id: 25, roomNumber: '103', itemName: 'Nước ngọt Coca Cola 320ml', quantity: 2, penaltyAmount: 20000, description: '', createdAt: '2026-03-27T15:16:00', evidenceImageUrl: null },
-  { id: 24, roomNumber: '103', itemName: 'Nước suối Lavie 500ml', quantity: 1, penaltyAmount: 15000, description: '', createdAt: '2026-03-27T13:05:00', evidenceImageUrl: null },
-];
-
 export default function LossAndDamages() {
   const [data, setData] = useState([]);
   const [stats, setStats] = useState({ totalIncidents: 0, totalAmount: 0, totalQuantity: 0 });

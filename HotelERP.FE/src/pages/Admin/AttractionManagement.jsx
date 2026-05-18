@@ -7,6 +7,26 @@ import { useAuthStore } from '../../store/authStore';
 const { TextArea } = Input;
 const { Option } = Select;
 
+const CLOUDINARY_BASE = 'https://res.cloudinary.com/dfvdvkssv/image/upload/hotel_placeholders';
+
+const getPlaceholderImage = (item) => {
+  if (item.imageUrl && (item.imageUrl.startsWith('http') || item.imageUrl.startsWith('https'))) return item.imageUrl;
+  const name = (item.name || '').toLowerCase();
+  const type = (item.type || '').toLowerCase();
+  if (name.includes('biển') || name.includes('beach')) return `${CLOUDINARY_BASE}/beach_placeholder.jpg`;
+  if (name.includes('chợ') || name.includes('thương mại')) return `${CLOUDINARY_BASE}/market_placeholder.jpg`;
+  if (name.includes('bảo tàng') || name.includes('museum') || name.includes('di tích')) return `${CLOUDINARY_BASE}/museum_placeholder.jpg`;
+  if (name.includes('phố') || name.includes('street')) return `${CLOUDINARY_BASE}/street_placeholder.jpg`;
+  if (name.includes('chùa') || name.includes('pagoda') || name.includes('đền')) return `${CLOUDINARY_BASE}/pagoda_placeholder.jpg`;
+  if (name.includes('vui chơi') || name.includes('park') || type.includes('giải trí')) return `${CLOUDINARY_BASE}/park_placeholder.jpg`;
+  if (name.includes('suối') || name.includes('thác') || name.includes('nước')) return `${CLOUDINARY_BASE}/waterfall_placeholder.jpg`;
+  if (name.includes('làng') || name.includes('nghề')) return `${CLOUDINARY_BASE}/village_placeholder.jpg`;
+  if (name.includes('hoàng hôn') || name.includes('ngắm')) return `${CLOUDINARY_BASE}/sunset_placeholder.jpg`;
+  if (name.includes('núi') || name.includes('rừng')) return `${CLOUDINARY_BASE}/mountain_placeholder.jpg`;
+  if (type.includes('Ẩm thực') || name.includes('food') || name.includes('ăn')) return `${CLOUDINARY_BASE}/food_placeholder.jpg`;
+  return `${CLOUDINARY_BASE}/market_placeholder.jpg`;
+};
+
 export default function AttractionManagement() {
   const [attractions, setAttractions] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -35,6 +55,7 @@ export default function AttractionManagement() {
   const handleAdd = () => {
     setEditingId(null);
     form.resetFields();
+    form.setFieldsValue({ Status: 'ACTIVE' }); // mặc định ACTIVE khi tạo mới
     setFileList([]);
     setIsModalVisible(true);
   };
@@ -99,6 +120,7 @@ export default function AttractionManagement() {
       formData.append('Longitude', values.Longitude || 0);
       if (values.DistanceKm) formData.append('DistanceKm', values.DistanceKm);
       if (values.Status) formData.append('Status', values.Status);
+      else formData.append('Status', 'ACTIVE');
       
       // Handle file upload
       if (fileList.length > 0 && fileList[0].originFileObj) {
@@ -135,7 +157,16 @@ export default function AttractionManagement() {
       title: 'Hình ảnh',
       dataIndex: 'imageUrl',
       key: 'imageUrl',
-      render: (text) => text ? <Image src={text} alt="attraction" width={80} height={50} style={{ objectFit: 'cover', borderRadius: '4px' }} /> : <Tag color="default">Chưa có ảnh</Tag>,
+      render: (text, record) => (
+        <div style={{ width: 80, height: 55, borderRadius: 6, overflow: 'hidden', background: '#f5f5f5' }}>
+          <img
+            src={getPlaceholderImage(record)}
+            alt={record.name}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            onError={(e) => { e.target.onerror = null; e.target.src = `${CLOUDINARY_BASE}/market_placeholder.jpg`; }}
+          />
+        </div>
+      ),
     },
     {
       title: 'Tên địa điểm',
@@ -221,10 +252,7 @@ export default function AttractionManagement() {
             <Input placeholder="Ví dụ: Khu du lịch Bửu Long" />
           </Form.Item>
 
-          <Form.Item
-            name="Type"
-            label="Loại hình"
-          >
+          <Form.Item name="Type" label="Loại hình">
             <Select placeholder="Chọn loại hình">
               <Option value="Di tích">Di tích</Option>
               <Option value="Ẩm thực">Ẩm thực</Option>
@@ -280,14 +308,12 @@ export default function AttractionManagement() {
             </Upload>
           </Form.Item>
 
-          {editingId && (
-            <Form.Item name="Status" label="Trạng thái">
-              <Select>
-                <Option value="ACTIVE">Hoạt động (ACTIVE)</Option>
-                <Option value="INACTIVE">Ẩn (INACTIVE)</Option>
-              </Select>
-            </Form.Item>
-          )}
+          <Form.Item name="Status" label="Trạng thái">
+            <Select>
+              <Option value="ACTIVE">Hoạt động (ACTIVE)</Option>
+              <Option value="INACTIVE">Ẩn (INACTIVE)</Option>
+            </Select>
+          </Form.Item>
         </Form>
       </Modal>
     </div>

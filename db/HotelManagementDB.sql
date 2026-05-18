@@ -2950,3 +2950,152 @@ UPDATE dbo.Notifications SET created_at = GETDATE() WHERE created_at IS NULL;
 ALTER TABLE dbo.Notifications ALTER COLUMN created_at DATETIME NOT NULL;
 GO
 
+-- ========================================================================
+-- 9. SEED DATA MẶC ĐỊNH - ATTRACTIONS (Type, Tọa độ, Địa chỉ)
+-- Chạy lại mỗi khi reset DB để phục hồi data mặc định
+-- ========================================================================
+USE [HotelManagementDB]
+GO
+
+-- Thêm cột type và address nếu chưa có
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Attractions') AND name = 'type')
+    ALTER TABLE [dbo].[Attractions] ADD [type] NVARCHAR(100) NULL;
+GO
+
+-- Cập nhật loại hình, tọa độ và hình ảnh Cloudinary cho các địa điểm mặc định
+DECLARE @base NVARCHAR(200) = N'https://res.cloudinary.com/dfvdvkssv/image/upload/hotel_placeholders';
+UPDATE [Attractions] SET [type]=N'Ẩm thực',   [latitude]=10.9485,[longitude]=106.7911,[image_url]=@base+N'/market_placeholder.jpg',   [image_public_id]=N'hotel_placeholders/market_placeholder'    WHERE [name]=N'Chợ Trung Tâm';
+UPDATE [Attractions] SET [type]=N'Thiên nhiên',[latitude]=10.9310,[longitude]=106.8320,[image_url]=@base+N'/beach_placeholder.jpg',    [image_public_id]=N'hotel_placeholders/beach_placeholder'     WHERE [name]=N'Bãi Biển Chính';
+UPDATE [Attractions] SET [type]=N'Di tích',   [latitude]=10.9455,[longitude]=106.8150,[image_url]=@base+N'/museum_placeholder.jpg',   [image_public_id]=N'hotel_placeholders/museum_placeholder'    WHERE [name]=N'Bảo Tàng Thành Phố';
+UPDATE [Attractions] SET [type]=N'Giải trí',  [latitude]=10.9520,[longitude]=106.8080,[image_url]=@base+N'/street_placeholder.jpg',   [image_public_id]=N'hotel_placeholders/street_placeholder'    WHERE [name]=N'Phố Đi Bộ';
+UPDATE [Attractions] SET [type]=N'Di tích',   [latitude]=10.9380,[longitude]=106.7980,[image_url]=@base+N'/pagoda_placeholder.jpg',   [image_public_id]=N'hotel_placeholders/pagoda_placeholder'    WHERE [name]=N'Chùa Cổ Lịch Sử';
+UPDATE [Attractions] SET [type]=N'Giải trí',  [latitude]=10.9610,[longitude]=106.8250,[image_url]=@base+N'/park_placeholder.jpg',     [image_public_id]=N'hotel_placeholders/park_placeholder'      WHERE [name] LIKE N'%Vui Chơi%' OR [name] LIKE N'%Giải Trí%';
+UPDATE [Attractions] SET [type]=N'Thiên nhiên',[latitude]=10.9275,[longitude]=106.7850,[image_url]=@base+N'/waterfall_placeholder.jpg',[image_public_id]=N'hotel_placeholders/waterfall_placeholder' WHERE [name] LIKE N'%Suối%';
+UPDATE [Attractions] SET [type]=N'Di tích',   [latitude]=10.9190,[longitude]=106.7760,[image_url]=@base+N'/village_placeholder.jpg',  [image_public_id]=N'hotel_placeholders/village_placeholder'   WHERE [name] LIKE N'%Làng Nghề%';
+UPDATE [Attractions] SET [type]=N'Giải trí',  [latitude]=10.9500,[longitude]=106.8190,[image_url]=@base+N'/market_placeholder.jpg',   [image_public_id]=N'hotel_placeholders/market_placeholder'    WHERE [name] LIKE N'%Thương Mại%' OR [name] LIKE N'%Mua Sắm%';
+UPDATE [Attractions] SET [type]=N'Thiên nhiên',[latitude]=10.9150,[longitude]=106.8400,[image_url]=@base+N'/sunset_placeholder.jpg',   [image_public_id]=N'hotel_placeholders/sunset_placeholder'    WHERE [name] LIKE N'%Ngắm%' OR [name] LIKE N'%View%';
+GO
+
+GO
+
+PRINT N'✅ Seed data Attractions hoàn tất!';
+GO
+
+-- ============================================================
+-- SEED: Cập nhật Summary cho 10 bài viết mặc định
+-- ============================================================
+UPDATE [Articles] SET [summary]=N'Nhà hàng mới của Asteria Resort chính thức khai trương với không gian sang trọng, thực đơn đặc sắc kết hợp tinh hoa ẩm thực địa phương và quốc tế, hứa hẹn mang đến trải nghiệm ẩm thực đỉnh cao cho thực khách.' WHERE [slug]=N'khai-truong-nha-hang';
+UPDATE [Articles] SET [summary]=N'Khám phá 5 địa điểm du lịch nổi bật nhất quanh Asteria Resort — từ những bãi biển hoang sơ, khu di tích lịch sử đến những khu ẩm thực nhộn nhịp mà bạn nhất định không thể bỏ qua trong chuyến nghỉ dưỡng.' WHERE [slug]=N'5-diem-den';
+UPDATE [Articles] SET [summary]=N'Vùng biển quanh resort sở hữu nguồn hải sản tươi ngon phong phú. Cùng khám phá những món ăn trứ danh từ tôm hùm, cua biển đến các đặc sản địa phương được chế biến tinh tế bởi đội ngũ đầu bếp của Asteria.' WHERE [slug]=N'mon-ngon-hai-san';
+UPDATE [Articles] SET [summary]=N'Đón năm mới 2026 cùng Asteria Resort với đêm tiệc đếm ngược hoành tráng — pháo hoa rực rỡ, âm nhạc sôi động và những trải nghiệm độc đáo được chuẩn bị chu đáo để kỳ nghỉ của bạn trở nên thật đặc biệt.' WHERE [slug]=N'su-kien-nam-moi';
+UPDATE [Articles] SET [summary]=N'Mùa hè 2026, Asteria Resort tung ra loạt ưu đãi hấp dẫn: giảm đến 30% giá phòng, miễn phí bữa sáng và nhiều đặc quyền dành riêng cho hội viên. Đặt phòng sớm để không bỏ lỡ cơ hội nghỉ dưỡng tuyệt vời!' WHERE [slug]=N'khuyen-mai-mua-he';
+UPDATE [Articles] SET [summary]=N'Vùng đất nơi Asteria Resort tọa lạc ẩn chứa bề dày lịch sử và văn hóa đặc sắc. Hãy cùng chúng tôi khám phá những di tích, phong tục tập quán và câu chuyện hấp dẫn của người dân địa phương.' WHERE [slug]=N'lich-su-van-hoa';
+UPDATE [Articles] SET [summary]=N'Hướng dẫn chi tiết các phương tiện di chuyển từ sân bay đến Asteria Resort: xe đưa đón riêng, taxi, xe buýt và ứng dụng gọi xe — giúp hành trình của bạn thuận tiện và tiết kiệm nhất.' WHERE [slug]=N'tu-san-bay-ve-ks';
+UPDATE [Articles] SET [summary]=N'Cuối tuần lý tưởng tại Asteria Resort: ngâm mình trong hồ bơi vô cực, thư giãn tại spa đẳng cấp, thưởng thức cocktail hoàng hôn bên bờ biển — tất cả những bí quyết để bạn nạp lại năng lượng trọn vẹn.' WHERE [slug]=N'cach-thu-gian';
+UPDATE [Articles] SET [summary]=N'Mọi thông tin bạn cần biết về quy trình nhận và trả phòng tại Asteria Resort: giờ check-in, thủ tục, chính sách hành lý, dịch vụ phòng và những lưu ý quan trọng để chuyến lưu trú diễn ra suôn sẻ.' WHERE [slug]=N'quy-dinh-nhan-tra';
+UPDATE [Articles] SET [summary]=N'Bộ ảnh flycam độc quyền ghi lại vẻ đẹp toàn cảnh Asteria Resort từ trên cao — hồ bơi vô cực, bãi biển riêng, khuôn viên xanh mát và kiến trúc sang trọng hòa mình cùng thiên nhiên tuyệt mỹ.' WHERE [slug]=N'bo-anh-resort';
+GO
+
+-- ============================================================
+-- SEED: 6 Bài viết mới chất lượng cao
+-- ============================================================
+IF NOT EXISTS (SELECT 1 FROM Articles WHERE slug=N'nghe-thuat-thu-gian-spa-asteria')
+INSERT INTO Articles (category_id,author_id,title,slug,summary,content,thumbnail_url,tags,status,published_at,created_at) VALUES
+(8,1,N'Nghệ Thuật Thư Giãn — Liệu Pháp Spa Độc Đáo Tại Asteria',N'nghe-thuat-thu-gian-spa-asteria',
+N'Spa tại Asteria Resort không đơn thuần là nơi massage — đó là hành trình phục hồi tâm hồn và thể xác với các liệu pháp kết hợp tinh dầu thiên nhiên, đá núi lửa và kỹ thuật cổ truyền phương Đông.',
+N'<h2>Spa Asteria — Nơi Thân Thể Được Hồi Sinh</h2><p>Giữa không gian xanh mát của resort, khu Spa Asteria hiện ra như một ốc đảo yên bình tách biệt hoàn toàn khỏi nhịp sống bận rộn. Ánh sáng dịu nhẹ, tiếng nhạc thiền định và mùi hương tinh dầu sả chanh lan tỏa nhẹ nhàng ngay từ khi bước vào cửa.</p><h2>Các Liệu Trình Nổi Bật</h2><p><strong>Thạch Trị Liệu:</strong> Những viên đá bazan được nung nóng đến nhiệt độ lý tưởng, đặt dọc theo các huyệt đạo để khai thông kinh mạch, giảm đau cơ và cải thiện tuần hoàn máu.</p><p><strong>Liệu Pháp Hoa Sen:</strong> Kết hợp tắm muối hoa sen, đắp mặt nạ bùn khoáng và massage toàn thân bằng tinh dầu sen trắng.</p><blockquote>Hãy để Asteria Spa là nơi bạn tìm lại chính mình sau những tháng ngày vội vã.</blockquote>',
+N'https://images.unsplash.com/photo-1540555700478-4be289fbecef?q=80&w=1200',
+N'spa,thư giãn,wellness,nghỉ dưỡng',N'ACTIVE',GETDATE(),GETDATE());
+
+IF NOT EXISTS (SELECT 1 FROM Articles WHERE slug=N'tinh-hoa-am-thuc-mien-bien')
+INSERT INTO Articles (category_id,author_id,title,slug,summary,content,thumbnail_url,tags,status,published_at,created_at) VALUES
+(3,1,N'Tinh Hoa Ẩm Thực Miền Biển — Hành Trình Khơi Dậy Vị Giác',N'tinh-hoa-am-thuc-mien-bien',
+N'Từ mâm cơm dân dã của ngư dân đến bàn tiệc fine dining sang trọng, ẩm thực miền biển nơi Asteria Resort tọa lạc là câu chuyện về sự kết hợp hoàn hảo giữa nguyên liệu tươi sống và nghệ thuật chế biến tinh tế.',
+N'<h2>Vùng Nguyên Liệu Vàng Của Biển Cả</h2><p>Mỗi buổi sáng, ngư dân địa phương mang về những mẻ cá tươi roi rói — tôm hùm đỏ au, cua biển chắc thịt, mực ống bạc trắng và nghêu sò vừa vớt lên từ lòng đại dương. Đội bếp của Asteria Resort trực tiếp có mặt tại bến cảng để chọn lựa những nguyên liệu ngon nhất ngay từ sáng sớm.</p><h2>Những Món Ăn Không Thể Bỏ Qua</h2><p><strong>Tôm Hùm Nướng Bơ Tỏi:</strong> Tôm hùm tươi sống nướng trên than hoa, phủ bơ tỏi thơm lừng và chanh tươi.</p><p><strong>Gỏi Cá Trích Cuốn Bánh Tráng:</strong> Đặc sản địa phương — cá trích tươi sống xắt mỏng, ướp cùng sả, ớt và các loại rau thơm rừng.</p><blockquote>Ẩm thực miền biển không chỉ là thức ăn — đó là văn hóa, là câu chuyện và là ký ức.</blockquote>',
+N'https://images.unsplash.com/photo-1559058789-672da06263d8?q=80&w=1200',
+N'ẩm thực,hải sản,nhà hàng,đặc sản',N'ACTIVE',GETDATE(),GETDATE());
+
+IF NOT EXISTS (SELECT 1 FROM Articles WHERE slug=N'cam-nang-du-lich-bien-bi-quyet')
+INSERT INTO Articles (category_id,author_id,title,slug,summary,content,thumbnail_url,tags,status,published_at,created_at) VALUES
+(2,1,N'Cẩm Nang Du Lịch Biển — 7 Bí Quyết Cho Kỳ Nghỉ Hoàn Hảo',N'cam-nang-du-lich-bien-bi-quyet',
+N'Đừng để những điều nhỏ nhặt làm hỏng kỳ nghỉ mà bạn đã mong đợi cả năm. 7 bí quyết thiết thực dưới đây sẽ giúp bạn tận hưởng trọn vẹn từng khoảnh khắc tại vùng biển tuyệt đẹp của Asteria Resort.',
+N'<h2>1. Đặt Phòng Sớm</h2><p>Các phòng view biển thường cháy chỗ vào cuối tuần. Đặt sớm giúp tiết kiệm đến 25%.</p><h2>2. Chọn Thời Điểm Vàng</h2><p>Mùa lý tưởng nhất là từ <strong>tháng 3 đến tháng 8</strong> — biển êm, nắng đẹp và ít mưa.</p><h2>3. Tận Dụng Dịch Vụ Miễn Phí</h2><p>Bể bơi vô cực, phòng tập gym, xe đạp, kayak và yoga bình minh — tất cả miễn phí cho khách lưu trú.</p><h2>4. Khám Phá Ẩm Thực Địa Phương</h2><p>Nhờ lễ tân gợi ý những quán ăn địa phương xung quanh để tìm hương vị chân thực.</p>',
+N'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=1200',
+N'cẩm nang,du lịch,bí quyết,mẹo hay',N'ACTIVE',GETDATE(),GETDATE());
+
+IF NOT EXISTS (SELECT 1 FROM Articles WHERE slug=N'asteria-ra-mat-dich-vu-butler')
+INSERT INTO Articles (category_id,author_id,title,slug,summary,content,thumbnail_url,tags,status,published_at,created_at) VALUES
+(1,1,N'Asteria Resort Ra Mắt Dịch Vụ Butler Cá Nhân Hóa',N'asteria-ra-mat-dich-vu-butler',
+N'Từ tháng 6 năm 2026, Asteria Resort chính thức triển khai dịch vụ Butler — người phục vụ riêng 24/7 sẵn sàng đáp ứng mọi nhu cầu từ đặt bàn nhà hàng, sắp xếp tour đến chuẩn bị bữa sáng theo khẩu vị cá nhân.',
+N'<h2>Dịch Vụ Butler — Đẳng Cấp 5 Sao Thực Sự</h2><p>Asteria Resort nâng trải nghiệm khách lên tầm cao mới với <strong>Personal Butler</strong> — người phục vụ riêng được đào tạo chuyên nghiệp từ trường quản trị khách sạn quốc tế.</p><h2>Butler Có Thể Làm Gì?</h2><ul><li>Chuẩn bị phòng theo sở thích cá nhân trước khi bạn đến</li><li>Đặt bàn tại các nhà hàng trong và ngoài resort</li><li>Sắp xếp phương tiện di chuyển và tour khám phá</li><li>Tư vấn và đặt liệu trình Spa phù hợp</li></ul><blockquote>Lần đầu tiên tôi cảm nhận được sự khác biệt thực sự của dịch vụ 5 sao. — Nguyễn Thị Lan, Hà Nội</blockquote>',
+N'https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?q=80&w=1200',
+N'dịch vụ,butler,5 sao,tin tức resort',N'ACTIVE',GETDATE(),GETDATE());
+
+IF NOT EXISTS (SELECT 1 FROM Articles WHERE slug=N'le-hoi-anh-sang-mua-he')
+INSERT INTO Articles (category_id,author_id,title,slug,summary,content,thumbnail_url,tags,status,published_at,created_at) VALUES
+(4,1,N'Lễ Hội Ánh Sáng Mùa Hè — Đêm Hội Không Thể Quên Tại Asteria',N'le-hoi-anh-sang-mua-he',
+N'Mỗi tối thứ 7 của tháng 7, bãi biển Asteria Resort biến thành sân khấu của lễ hội ánh sáng lung linh với hàng nghìn ngọn đèn lồng, màn trình diễn fire show và âm nhạc acoustic dưới bầu trời đêm đầy sao.',
+N'<h2>Khi Đêm Biển Trở Thành Huyền Ảo</h2><p>Bãi biển riêng của Asteria Resort được thắp lên bằng hàng nghìn ngọn đèn lồng giấy đủ màu sắc — khoảnh khắc mà nhiều du khách gọi là <em>kỷ niệm đẹp nhất trong cuộc đời</em>.</p><h2>Chương Trình Đêm Hội</h2><p><strong>18:30</strong> — Sunset Cocktail Party trên bãi biển</p><p><strong>19:30</strong> — Fire Show mãn nhãn bởi nghệ sĩ chuyên nghiệp</p><p><strong>20:00</strong> — Thả đèn lồng và viết ước nguyện</p><p><strong>21:00</strong> — Acoustic Live Music và BBQ hải sản</p><blockquote>Những ngọn đèn lồng bay lên trời như những giấc mơ được thả tự do — trải nghiệm chỉ có tại Asteria.</blockquote>',
+N'https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?q=80&w=1200',
+N'sự kiện,lễ hội,đêm hội,ánh sáng',N'ACTIVE',GETDATE(),GETDATE());
+
+IF NOT EXISTS (SELECT 1 FROM Articles WHERE slug=N'kham-pha-lang-chai-co-van-hoa')
+INSERT INTO Articles (category_id,author_id,title,slug,summary,content,thumbnail_url,tags,status,published_at,created_at) VALUES
+(6,1,N'Khám Phá Làng Chài Cổ — Nét Văn Hóa Ngàn Năm Còn Đó',N'kham-pha-lang-chai-co-van-hoa',
+N'Chỉ cách Asteria Resort 3km, làng chài cổ hơn 200 năm tuổi vẫn còn lưu giữ nguyên vẹn lối sống và văn hóa truyền thống của ngư dân — một hành trình trở về với những điều bình dị và chân thực nhất.',
+N'<h2>Làng Chài Cổ — Kho Tàng Văn Hóa Sống</h2><p>Nơi này vẫn giữ nguyên nét cổ kính với những ngôi nhà mái ngói rêu phong, thuyền gỗ sơn đỏ đậu dọc bến và những người phụ nữ ngồi vá lưới dưới bóng cây.</p><h2>Một Ngày Cùng Ngư Dân</h2><p>Asteria Resort tổ chức <strong>tour một ngày làm ngư dân</strong>: thức dậy lúc 4 giờ sáng, ra khơi cùng thuyền đánh cá, học cách thả lưới và mang hải sản về nấu bữa trưa ngay trên thuyền.</p><h2>Những Điểm Nhất Định Phải Ghé</h2><ul><li><strong>Đền Ngư Phủ:</strong> 180 năm tuổi, kiến trúc kết hợp Chăm và Việt</li><li><strong>Chợ Hải Sản Buổi Sáng:</strong> Họp từ 5-7 giờ, mua hải sản tươi giá thực</li><li><strong>Xưởng Đóng Thuyền Gỗ:</strong> Nghề thủ công 150 năm của gia đình cụ Bảy</li></ul><blockquote>Văn hóa không phải thứ được trình diễn cho du khách — hãy đến bằng tâm thế của người học hỏi.</blockquote>',
+N'https://images.unsplash.com/photo-1528702748617-c64d49f918af?q=80&w=1200',
+N'văn hóa,làng chài,truyền thống,khám phá',N'ACTIVE',GETDATE(),GETDATE());
+GO
+
+PRINT N'✅ Seed data Articles hoàn tất!';
+GO
+
+-- ============================================================
+-- SEED: SEO Metadata (meta_title + meta_description) cho 16 bài viết
+-- ============================================================
+UPDATE [Articles] SET [meta_title]=N'Khai Trương Nhà Hàng Mới | Asteria Resort',                  [meta_description]=N'Nhà hàng mới tại Asteria Resort khai trương với thực đơn đặc sắc kết hợp ẩm thực địa phương và quốc tế. Đặt bàn ngay hôm nay để trải nghiệm.'       WHERE [slug]=N'khai-truong-nha-hang';
+UPDATE [Articles] SET [meta_title]=N'5 Điểm Đến Không Thể Bỏ Lỡ | Asteria Resort',               [meta_description]=N'Khám phá 5 địa điểm du lịch nổi bật nhất quanh Asteria Resort từ bãi biển hoang sơ đến khu di tích lịch sử và khu ẩm thực đặc sắc.'               WHERE [slug]=N'5-diem-den';
+UPDATE [Articles] SET [meta_title]=N'Món Ngon Hải Sản Địa Phương | Asteria Resort',                [meta_description]=N'Khám phá đặc sản hải sản tươi ngon: tôm hùm, cua biển, mực ống — được chế biến tinh tế bởi đội ngũ đầu bếp Asteria Resort.'                       WHERE [slug]=N'mon-ngon-hai-san';
+UPDATE [Articles] SET [meta_title]=N'Sự Kiện Đếm Ngược Năm Mới 2026 | Asteria Resort',            [meta_description]=N'Đón năm mới 2026 tại Asteria Resort với đêm tiệc hoành tráng, pháo hoa rực rỡ và những trải nghiệm độc đáo không thể quên.'                     WHERE [slug]=N'su-kien-nam-moi';
+UPDATE [Articles] SET [meta_title]=N'Khuyến Mãi Mùa Hè 2026 | Giảm 30% | Asteria Resort',        [meta_description]=N'Ưu đãi mùa hè 2026: giảm đến 30% giá phòng, miễn phí bữa sáng và đặc quyền dành riêng cho hội viên Asteria Rewards.'                          WHERE [slug]=N'khuyen-mai-mua-he';
+UPDATE [Articles] SET [meta_title]=N'Lịch Sử Văn Hóa Vùng Miền | Asteria Resort',                 [meta_description]=N'Khám phá bề dày lịch sử và văn hóa đặc sắc của vùng đất nơi Asteria Resort tọa lạc qua di tích và phong tục truyền thống.'                  WHERE [slug]=N'lich-su-van-hoa';
+UPDATE [Articles] SET [meta_title]=N'Từ Sân Bay Đến Asteria Resort | Hướng Dẫn Di Chuyển',        [meta_description]=N'Hướng dẫn chi tiết các phương tiện di chuyển từ sân bay đến Asteria Resort: xe đưa đón riêng, taxi, xe buýt và ứng dụng gọi xe.'           WHERE [slug]=N'tu-san-bay-ve-ks';
+UPDATE [Articles] SET [meta_title]=N'Bí Quyết Thư Giãn Cuối Tuần | Asteria Resort',               [meta_description]=N'Tận hưởng cuối tuần lý tưởng tại Asteria Resort: hồ bơi vô cực, spa đẳng cấp 5 sao và cocktail hoàng hôn bên bờ biển tuyệt đẹp.'             WHERE [slug]=N'cach-thu-gian';
+UPDATE [Articles] SET [meta_title]=N'Quy Định Nhận Trả Phòng | Asteria Resort',                    [meta_description]=N'Thông tin đầy đủ về check-in, check-out tại Asteria Resort: giờ nhận phòng, chính sách hành lý và các dịch vụ tiện ích đi kèm.'               WHERE [slug]=N'quy-dinh-nhan-tra';
+UPDATE [Articles] SET [meta_title]=N'Bộ Ảnh Flycam Asteria Resort | Toàn Cảnh Từ Trên Cao',       [meta_description]=N'Chiêm ngưỡng vẻ đẹp toàn cảnh Asteria Resort qua bộ ảnh flycam: hồ bơi vô cực, bãi biển riêng và kiến trúc sang trọng hòa cùng thiên nhiên.' WHERE [slug]=N'bo-anh-resort';
+UPDATE [Articles] SET [meta_title]=N'Liệu Pháp Spa Đặc Sắc | Asteria Spa & Wellness',             [meta_description]=N'Trải nghiệm các liệu trình spa cao cấp tại Asteria: thạch trị liệu, liệu pháp hoa sen và massage đá nóng Himalaya phục hồi toàn diện.'        WHERE [slug]=N'nghe-thuat-thu-gian-spa-asteria';
+UPDATE [Articles] SET [meta_title]=N'Ẩm Thực Miền Biển Đặc Sắc | Nhà Hàng Asteria Resort',       [meta_description]=N'Thưởng thức hải sản tươi sống mỗi ngày tại Asteria Resort: tôm hùm nướng bơ tỏi, gỏi cá trích và BBQ hải sản trên bãi biển mỗi cuối tuần.'  WHERE [slug]=N'tinh-hoa-am-thuc-mien-bien';
+UPDATE [Articles] SET [meta_title]=N'7 Bí Quyết Du Lịch Biển Hoàn Hảo | Asteria Resort',         [meta_description]=N'7 bí quyết giúp bạn tận hưởng kỳ nghỉ biển trọn vẹn tại Asteria Resort: đặt phòng sớm, chọn thời điểm vàng và khám phá ẩm thực địa phương.' WHERE [slug]=N'cam-nang-du-lich-bien-bi-quyet';
+UPDATE [Articles] SET [meta_title]=N'Dịch Vụ Personal Butler 24/7 | Asteria Resort 5 Sao',        [meta_description]=N'Asteria Resort ra mắt dịch vụ Butler cá nhân hóa — người phục vụ riêng 24/7 sẵn sàng đáp ứng mọi nhu cầu từ đặt bàn đến sắp xếp tour.'       WHERE [slug]=N'asteria-ra-mat-dich-vu-butler';
+UPDATE [Articles] SET [meta_title]=N'Lễ Hội Ánh Sáng Mùa Hè | Sự Kiện Asteria Resort',           [meta_description]=N'Tham gia lễ hội ánh sáng mỗi tối thứ 7 tháng 7 tại Asteria Resort: hàng nghìn đèn lồng, fire show mãn nhãn và BBQ hải sản trên bãi biển.'    WHERE [slug]=N'le-hoi-anh-sang-mua-he';
+UPDATE [Articles] SET [meta_title]=N'Khám Phá Làng Chài Cổ 200 Năm | Văn Hóa Địa Phương',       [meta_description]=N'Làng chài cổ cách Asteria Resort 3km lưu giữ văn hóa ngư dân truyền thống: đền Ngư Phủ 180 năm, chợ hải sản và xưởng đóng thuyền gỗ thủ công.' WHERE [slug]=N'kham-pha-lang-chai-co-van-hoa';
+GO
+
+PRINT N'✅ Seed data SEO Metadata Articles hoàn tất!';
+GO
+
+-- ============================================================
+-- SEED: Thumbnail Cloudinary cho 16 bài viết
+-- ============================================================
+DECLARE @cdn NVARCHAR(100) = N'https://res.cloudinary.com/dfvdvkssv/image/upload/article_thumbnails/';
+UPDATE [Articles] SET [thumbnail_url]=@cdn+N'khai_truong_nha_hang.jpg',  [thumbnail_public_id]=N'article_thumbnails/khai_truong_nha_hang'  WHERE [slug]=N'khai-truong-nha-hang';
+UPDATE [Articles] SET [thumbnail_url]=@cdn+N'5_diem_den.jpg',            [thumbnail_public_id]=N'article_thumbnails/5_diem_den'            WHERE [slug]=N'5-diem-den';
+UPDATE [Articles] SET [thumbnail_url]=@cdn+N'mon_ngon_hai_san.jpg',      [thumbnail_public_id]=N'article_thumbnails/mon_ngon_hai_san'      WHERE [slug]=N'mon-ngon-hai-san';
+UPDATE [Articles] SET [thumbnail_url]=@cdn+N'su_kien_nam_moi.jpg',       [thumbnail_public_id]=N'article_thumbnails/su_kien_nam_moi'       WHERE [slug]=N'su-kien-nam-moi';
+UPDATE [Articles] SET [thumbnail_url]=@cdn+N'khuyen_mai_mua_he.jpg',     [thumbnail_public_id]=N'article_thumbnails/khuyen_mai_mua_he'     WHERE [slug]=N'khuyen-mai-mua-he';
+UPDATE [Articles] SET [thumbnail_url]=@cdn+N'lich_su_van_hoa.jpg',       [thumbnail_public_id]=N'article_thumbnails/lich_su_van_hoa'       WHERE [slug]=N'lich-su-van-hoa';
+UPDATE [Articles] SET [thumbnail_url]=@cdn+N'tu_san_bay_ve_ks.jpg',      [thumbnail_public_id]=N'article_thumbnails/tu_san_bay_ve_ks'      WHERE [slug]=N'tu-san-bay-ve-ks';
+UPDATE [Articles] SET [thumbnail_url]=@cdn+N'cach_thu_gian.jpg',         [thumbnail_public_id]=N'article_thumbnails/cach_thu_gian'         WHERE [slug]=N'cach-thu-gian';
+UPDATE [Articles] SET [thumbnail_url]=@cdn+N'quy_dinh_nhan_tra.jpg',     [thumbnail_public_id]=N'article_thumbnails/quy_dinh_nhan_tra'     WHERE [slug]=N'quy-dinh-nhan-tra';
+UPDATE [Articles] SET [thumbnail_url]=@cdn+N'bo_anh_resort.jpg',         [thumbnail_public_id]=N'article_thumbnails/bo_anh_resort'         WHERE [slug]=N'bo-anh-resort';
+UPDATE [Articles] SET [thumbnail_url]=@cdn+N'spa_asteria.jpg',           [thumbnail_public_id]=N'article_thumbnails/spa_asteria'           WHERE [slug]=N'nghe-thuat-thu-gian-spa-asteria';
+UPDATE [Articles] SET [thumbnail_url]=@cdn+N'am_thuc_mien_bien.jpg',     [thumbnail_public_id]=N'article_thumbnails/am_thuc_mien_bien'     WHERE [slug]=N'tinh-hoa-am-thuc-mien-bien';
+UPDATE [Articles] SET [thumbnail_url]=@cdn+N'cam_nang_du_lich_bien.jpg', [thumbnail_public_id]=N'article_thumbnails/cam_nang_du_lich_bien' WHERE [slug]=N'cam-nang-du-lich-bien-bi-quyet';
+UPDATE [Articles] SET [thumbnail_url]=@cdn+N'dich_vu_butler.jpg',        [thumbnail_public_id]=N'article_thumbnails/dich_vu_butler'        WHERE [slug]=N'asteria-ra-mat-dich-vu-butler';
+UPDATE [Articles] SET [thumbnail_url]=@cdn+N'le_hoi_anh_sang.jpg',       [thumbnail_public_id]=N'article_thumbnails/le_hoi_anh_sang'       WHERE [slug]=N'le-hoi-anh-sang-mua-he';
+UPDATE [Articles] SET [thumbnail_url]=@cdn+N'lang_chai_co.jpg',          [thumbnail_public_id]=N'article_thumbnails/lang_chai_co'          WHERE [slug]=N'kham-pha-lang-chai-co-van-hoa';
+GO
+
+PRINT N'✅ Seed data Thumbnails Articles hoàn tất!';
+GO
