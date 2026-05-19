@@ -30,6 +30,10 @@ createDraftInvoice: (payload) =>
   getAllInvoices: (params) =>
     axiosClient.get('/invoices', { params }),
 
+  // Tạo hóa đơn đã thanh toán cho khách vãng lai (walk-in service)
+  createWalkInInvoice: (data) =>
+    axiosClient.post('/invoices/walkin-service', data),
+
   getDraftInvoice: (bookingId) =>
     axiosClient.get(`/invoices/draft/${bookingId}`),
 

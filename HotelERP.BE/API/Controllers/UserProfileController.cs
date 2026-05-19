@@ -136,6 +136,8 @@ public class UserProfileController : ControllerBase
             var bookings = await _context.Bookings
                 .Include(b => b.BookingDetails)
                     .ThenInclude(bd => bd.RoomType)
+                .Include(b => b.BookingDetails)
+                    .ThenInclude(bd => bd.Room)
                 .Where(b => b.UserId == userId)
                 .OrderByDescending(b => b.CreatedAt)
                 .Select(b => new {
@@ -147,8 +149,11 @@ public class UserProfileController : ControllerBase
                     b.DepositAmount,
                     b.PaymentStatus,
                     Details = b.BookingDetails.Select(bd => new {
+                        bd.Id,
                         bd.RoomTypeId,
                         RoomTypeName = bd.RoomType != null ? bd.RoomType.Name : "",
+                        RoomNumber = bd.Room != null ? bd.Room.RoomNumber : "",
+                        bd.Status,
                         bd.CheckInDate,
                         bd.CheckOutDate,
                         bd.Nights,

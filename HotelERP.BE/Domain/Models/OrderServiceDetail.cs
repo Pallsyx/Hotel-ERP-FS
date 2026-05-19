@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace HotelERP.BE.Domain.Models;
@@ -18,6 +18,9 @@ public partial class OrderServiceDetail
     public decimal LineTotal { get; set; }
 
     public string? Notes { get; set; }
+
+    /// <summary>Active | Cancelled</summary>
+    public string Status { get; set; } = "Active";
 
     public virtual OrderService? OrderService { get; set; }
 

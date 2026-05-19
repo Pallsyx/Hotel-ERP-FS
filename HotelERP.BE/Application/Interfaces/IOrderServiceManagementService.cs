@@ -35,4 +35,10 @@ public interface IOrderServiceManagementService
     /// Khách thanh toán khi Check-out.
     /// </summary>
     Task<PostToFolioResult> PostChargeToFolioAsync(int orderId);
+
+    /// <summary>
+    /// Hủy một dòng dịch vụ riêng lẻ trong đơn.
+    /// Tự động tính lại TotalAmount và Cancel cả đơn nếu tất cả item đều bị hủy.
+    /// </summary>
+    Task<(bool Success, string Message)> CancelOrderDetailAsync(int detailId, string? reason);
 }

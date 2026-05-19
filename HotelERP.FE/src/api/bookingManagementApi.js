@@ -81,6 +81,13 @@ const bookingManagementApi = {
   postOrderToFolio: (orderId) => {
     return axiosClient.post(`/booking-management/orders/${orderId}/post-to-folio`);
   },
+
+  // Hủy một dòng dịch vụ riêng lẻ trong đơn (item-level cancel)
+  cancelOrderDetail: (detailId, reason = null) => {
+    return axiosClient.delete(`/booking-management/order-details/${detailId}`, {
+      data: { reason },
+    });
+  },
 };
 
 export default bookingManagementApi;

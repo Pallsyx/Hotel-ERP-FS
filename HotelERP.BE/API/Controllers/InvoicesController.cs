@@ -1,8 +1,11 @@
 using System.Security.Claims;
 using HotelERP.BE.DTOs.Invoices;
 using HotelERP.BE.Application.Interfaces;
+using HotelERP.BE.Infrastructure.Data;
+using HotelERP.BE.Domain.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace HotelERP.BE.API.Controllers
 {
@@ -12,10 +15,12 @@ namespace HotelERP.BE.API.Controllers
     public class InvoicesController : ControllerBase
     {
         private readonly IInvoiceService _invoiceService;
+        private readonly HotelDbContext _context;
 
-        public InvoicesController(IInvoiceService invoiceService)
+        public InvoicesController(IInvoiceService invoiceService, HotelDbContext context)
         {
             _invoiceService = invoiceService;
+            _context = context;
         }
 
         [HttpGet]
@@ -91,6 +96,90 @@ namespace HotelERP.BE.API.Controllers
             }
 
             return BadRequest(new { message = "Thanh toán thất bại!" });
+        }
+
+        // ──────────────────────────────────────────────────────────────────────
+        // Tạo hoá đơn nhanh cho khách vãng lai (walk-in service order)
+        // Không cần BookingId → Invoice.BookingId = null (đã nullable trong DB)
+        // ──────────────────────────────────────────────────────────────────────
+        [HttpPost("walkin-service")]
+        public async Task<IActionResult> CreateWalkInServiceInvoice(
+            [FromBody] CreateWalkInServiceInvoiceRequest request,
+            CancellationToken cancellationToken)
+        {
+            if (request.OrderId <= 0)
+                return BadRequest(new { success = false, message = "OrderId không hợp lệ." });
+
+            // Load order
+            var order = await _context.OrderServices
+                .Include(o => o.OrderServiceDetails)
+                    .ThenInclude(d => d.Service)
+                .FirstOrDefaultAsync(o => o.Id == request.OrderId, cancellationToken);
+
+            if (order is null)
+                return NotFound(new { success = false, message = "Không tìm thấy đơn dịch vụ." });
+
+            if (order.BookingDetailId.HasValue)
+                return BadRequest(new { success = false, message = "Đây không phải đơn vãng lai." });
+
+            var now = DateTime.UtcNow;
+            var invoiceCode = $"WLK-{now:yyyyMMddHHmm}-{order.Id}";
+
+            // Tạo Invoice
+            var invoice = new Invoice
+            {
+                BookingId            = null,   // Walk-in: không gắn booking
+                InvoiceCode          = invoiceCode,
+                TotalRoomAmount      = 0,
+                TotalServiceAmount   = order.TotalAmount,
+                TotalDamageAmount    = 0,
+                DiscountAmount       = 0,
+                ManualAdjustmentAmount = 0,
+                TaxAmount            = 0,
+                FinalTotal           = order.TotalAmount,
+                RefundAmount         = 0,
+                Status               = "Paid",
+                Notes                = $"[WALK-IN] Đơn #{order.OrderCode}" +
+                                       (string.IsNullOrWhiteSpace(request.GuestName) ? "" : $" – {request.GuestName}"),
+                IssuedAt             = now,
+                PaidAt               = now,
+                CreatedAt            = now,
+                UpdatedAt            = now,
+            };
+            _context.Invoices.Add(invoice);
+            await _context.SaveChangesAsync(cancellationToken); // cần ID trước
+
+            // Tạo Payment record
+            var payment = new Payment
+            {
+                InvoiceId        = invoice.Id,
+                PaymentMethod    = request.PaymentMethod ?? "CASH",
+                AmountPaid       = order.TotalAmount,
+                PaymentDirection = "IN",
+                PaymentDate      = now,
+                Status           = "Completed",
+                TransactionCode  = request.TransactionCode,
+                GatewayName      = "COUNTER",
+                CreatedAt        = now,
+            };
+            _context.Payments.Add(payment);
+
+            // Đánh dấu đơn đã thanh toán (tránh tạo invoice lần 2)
+            order.Notes = string.IsNullOrWhiteSpace(order.Notes)
+                ? $"[INVOICED] {invoiceCode}"
+                : $"{order.Notes} | [INVOICED] {invoiceCode}";
+            order.UpdatedAt = now;
+
+            await _context.SaveChangesAsync(cancellationToken);
+
+            return Ok(new
+            {
+                success     = true,
+                message     = "Đã tạo hóa đơn thành công.",
+                invoiceCode = invoiceCode,
+                invoiceId   = invoice.Id,
+                total       = order.TotalAmount,
+            });
         }
 
         [HttpGet("bookings/{bookingId:int}/eligible-details")]

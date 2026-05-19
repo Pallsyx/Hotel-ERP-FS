@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-
+import { useSignalR } from '../../../hooks/useSignalR.jsx';
 
 const normalizeStayDays = (value, hasCharge = false) => {
   const n = Number(value || 0);
@@ -73,6 +73,20 @@ const FinalizeInvoiceModal = ({ open, invoiceId, onCancel, onSuccess }) => {
   const pollingRef = useRef(null);
   const createLockRef = useRef(false);
   const lastCreateAtRef = useRef(0);
+
+  // ── SignalR: tự động reload invoice khi có đơn dịch vụ mới ──────────────────
+  const { connection } = useSignalR();
+  useEffect(() => {
+    if (!connection || !open || !invoiceId) return;
+    const handler = () => {
+      // Có đơn dịch vụ mới → reload chi tiết hóa đơn để tính tiền lại
+      fetchInvoiceDetail();
+    };
+    connection.on('NewServiceOrder', handler);
+    return () => connection.off('NewServiceOrder', handler);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connection, open, invoiceId]);
+  // ───────────────────────────────────────────────────────────────────
 
   const stopPolling = () => {
     if (pollingRef.current) {
@@ -290,7 +304,19 @@ const FinalizeInvoiceModal = ({ open, invoiceId, onCancel, onSuccess }) => {
 
   return (
     <Modal
-      title={`Thanh toán hóa đơn • Invoice #${invoiceId || ''}`}
+      title={
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: 32 }}>
+          <span>Thanh toán hóa đơn • Invoice #{invoiceId || ''}</span>
+          <Button
+            size="small" type="text" icon={<span style={{ fontSize: 14 }}>🔄</span>}
+            loading={loadingDetail}
+            onClick={fetchInvoiceDetail}
+            style={{ marginLeft: 8, color: '#1677ff' }}
+          >
+            Cập nhật
+          </Button>
+        </div>
+      }
       open={open}
       onCancel={onCancel}
       width={900}
@@ -351,6 +377,20 @@ const FinalizeInvoiceModal = ({ open, invoiceId, onCancel, onSuccess }) => {
             </Descriptions>
 
             <Card title="Chi tiết hóa đơn" size="small" style={{ marginBottom: 20 }}>
+              {/* Cảnh báo nếu tiền dịch vụ = 0 nhưng thực tế khách có đơn DV */}
+              {Number(totalServiceAmount) === 0 && (
+                <Alert
+                  type="warning"
+                  showIcon
+                  style={{ marginBottom: 12 }}
+                  message="Tiền dịch vụ đang hiển thị 0 — nếu khách có đặt dịch vụ, nhấn ➡️ Cập nhật để làm mới hóa đơn."
+                  action={
+                    <Button size="small" onClick={fetchInvoiceDetail} loading={loadingDetail}>
+                      🔄 Cập nhật
+                    </Button>
+                  }
+                />
+              )}
               <Row gutter={[16, 16]}>
 
                 <Col span={12}><Text>Số ngày/đêm đã ở</Text></Col>

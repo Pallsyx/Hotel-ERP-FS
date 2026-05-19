@@ -31,6 +31,7 @@ import ArticleManagement from '../pages/Admin/ArticleManagement';
 import CategoryManagement from '../pages/Admin/CategoryManagement';
 import AttractionManagement from '../pages/Admin/AttractionManagement';
 import ReviewManagement from '../pages/Admin/ReviewManagement';
+import ServiceManagementPage from '../pages/Admin/ServiceManagementPage';
 
 const Placeholder = ({ title }) => (
   <div style={{ padding: 24, textAlign: 'center' }}>
@@ -101,6 +102,7 @@ const AdminRoutes = () => {
         <Route path="arrivals" element={<Arrivals />} />
         <Route path="in-house" element={<InHouse />} />
         <Route path="departures" element={<Departures />} />
+        <Route path="services" element={<ServiceManagementPage />} />
         <Route path='invoices' element={<InvoiceDashboard />} />
         <Route path='invoices/workbench' element={<InvoiceManagement />} />
 

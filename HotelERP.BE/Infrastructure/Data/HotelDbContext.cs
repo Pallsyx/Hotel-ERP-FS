@@ -753,6 +753,10 @@ public partial class HotelDbContext : DbContext
             entity.Property(e => e.UnitPrice)
                 .HasColumnType("decimal(18, 2)")
                 .HasColumnName("unit_price");
+            entity.Property(e => e.Status)
+                .HasMaxLength(20)
+                .HasDefaultValue("Active")
+                .HasColumnName("status");
 
             entity.HasOne(d => d.OrderService).WithMany(p => p.OrderServiceDetails)
                 .HasForeignKey(d => d.OrderServiceId)

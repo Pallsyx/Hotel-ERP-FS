@@ -1,8 +1,10 @@
 using HotelERP.BE.Application.DTOs.BookingManagement;
 using HotelERP.BE.Application.DTOs.OrderService;
 using HotelERP.BE.Application.Interfaces;
+using HotelERP.BE.Hubs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 
 namespace HotelERP.BE.API.Controllers;
 
@@ -13,13 +15,16 @@ public class BookingManagementController : ControllerBase
 {
     private readonly IBookingManagementService _bookingService;
     private readonly IOrderServiceManagementService _orderService;
+    private readonly IHubContext<NotificationHub> _hubContext;
 
     public BookingManagementController(
         IBookingManagementService bookingService,
-        IOrderServiceManagementService orderService)
+        IOrderServiceManagementService orderService,
+        IHubContext<NotificationHub> hubContext)
     {
         _bookingService = bookingService;
         _orderService = orderService;
+        _hubContext = hubContext;
     }
 
     // ==============================================================
@@ -180,9 +185,10 @@ public class BookingManagementController : ControllerBase
     // ==============================================================
     /// <summary>
     /// Lấy danh sách tất cả dịch vụ đang hoạt động, nhóm theo danh mục.
-    /// Dùng để hiển thị menu chọn dịch vụ cho lễ tân.
+    /// Cho phép tất cả user đăng nhập xem (bao gồm khách).
     /// </summary>
     [HttpGet("services")]
+    [Authorize] // Cho phép mọi role đăng nhập (override class-level Receptionist-only)
     public async Task<IActionResult> GetServices()
     {
         var result = await _orderService.GetAllServicesByCategoryAsync();
@@ -212,14 +218,33 @@ public class BookingManagementController : ControllerBase
     /// Tạo đơn dịch vụ mới.
     /// - Khách đang ở phòng: truyền BookingDetailId.
     /// - Khách vãng lai (POS): BookingDetailId = null, GuestName tùy chọn.
+    /// Cho phép tất cả user đăng nhập gọi để khách có thể đặt từ site.
     /// </summary>
     [HttpPost("orders")]
+    [Authorize] // Cho phép mọi role đăng nhập (override class-level Receptionist-only)
     public async Task<IActionResult> CreateOrder([FromBody] CreateOrderServiceRequest request)
     {
         var (success, message, order) = await _orderService.CreateOrderAsync(request);
 
         if (!success)
             return BadRequest(new { success = false, message });
+
+        // Ẩy SignalR real-time đến group Receptionist + Admin
+        if (order is not null)
+        {
+            var payload = new
+            {
+                orderCode     = order.OrderCode,
+                guestName     = order.GuestName ?? "Khách",
+                totalAmount   = order.TotalAmount,
+                isWalkIn      = order.BookingDetailId is null,
+                roomInfo      = order.BookingDetailId.HasValue ? $"BookingDetail #{order.BookingDetailId}" : "Vãng lai",
+                createdAt     = DateTime.UtcNow,
+            };
+            await _hubContext.Clients.Group("Receptionist").SendAsync("NewServiceOrder", payload);
+            await _hubContext.Clients.Group("Admin").SendAsync("NewServiceOrder", payload);
+            await _hubContext.Clients.Group("Manager").SendAsync("NewServiceOrder", payload);
+        }
 
         return Ok(new { success = true, message, data = order });
     }
@@ -283,5 +308,24 @@ public class BookingManagementController : ControllerBase
             return BadRequest(new { success = false, message = result.Message });
 
         return Ok(new { success = true, message = result.Message, data = result });
+    }
+
+    // ==============================================================
+    // API 15: DELETE /api/booking-management/order-details/{detailId}
+    // Hủy một dòng dịch vụ riêng lẻ trong đơn
+    // ==============================================================
+    /// <summary>
+    /// Hủy một dòng dịch vụ riêng lẻ (item-level cancel).
+    /// Tự động tính lại tổng tiền đơn. Nếu toàn bộ item bị hủy thì cả đơn chuyển Cancelled.
+    /// </summary>
+    [HttpDelete("order-details/{detailId}")]
+    public async Task<IActionResult> CancelOrderDetail(int detailId, [FromBody] CancelOrderDetailRequest? request)
+    {
+        var (success, message) = await _orderService.CancelOrderDetailAsync(detailId, request?.Reason);
+
+        if (!success)
+            return BadRequest(new { success = false, message });
+
+        return Ok(new { success = true, message });
     }
 }

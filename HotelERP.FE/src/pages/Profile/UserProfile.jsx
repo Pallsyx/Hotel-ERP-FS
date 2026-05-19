@@ -1,14 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { message } from '../../utils/antdGlobal';
+import { message, Modal, Table, Alert, Select, InputNumber, Empty, Spin, Button, Form, Input, Space, Row, Col, Statistic, Popconfirm, Tag } from 'antd';
 import { 
   UserOutlined, LockOutlined, PhoneOutlined, MailOutlined, HomeOutlined, 
   CameraOutlined, EyeOutlined, EyeInvisibleOutlined, ArrowLeftOutlined,
-  CalendarOutlined, CheckCircleOutlined
+  CalendarOutlined, CheckCircleOutlined, ShoppingCartOutlined, PlusOutlined,
+  DeleteOutlined, PrinterOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from '../../store/authStore';
 import userProfileApi from '../../api/userProfileApi';
 import voucherApi from '../../api/voucherApi';
+import bookingManagementApi from '../../api/bookingManagementApi';
+import GuestServiceTab from './GuestServiceTab';
 import MainFooter from '../../components/Layout/MainFooter';
 
 const G = '#b8956a';
@@ -90,7 +93,12 @@ export default function UserProfile() {
   const [sc, setSc] = useState(false);
   const [profileData, setProfileData] = useState(null);
 
-  const [activeTab, setActiveTab] = useState('profile'); 
+  // Đọc tab ban đầu từ URL (chỉ 1 lần khi mount)
+  const [activeTab, setActiveTab] = useState(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get('tab') || 'profile';
+  });
+
   const [myBookings, setMyBookings] = useState([]);
   const [loadingBookings, setLoadingBookings] = useState(false);
   const [vouchers, setVouchers] = useState([]);
@@ -109,10 +117,25 @@ export default function UserProfile() {
   const isAdminArea = location.pathname.startsWith('/admin');
   const theme = getTheme(isAdminArea);
 
+  // Walk-in service modal (triggered from FloatingSidebar)
+  const [walkInOpen, setWalkInOpen] = useState(false);
+
   useEffect(() => {
     const f = () => setSc(window.scrollY > 50);
     window.addEventListener('scroll', f);
     return () => window.removeEventListener('scroll', f);
+  }, []);
+
+  // Nhận event từ FloatingSidebar (chử không navigate để tránh reload)
+  useEffect(() => {
+    const onTabChange = (e) => setActiveTab(e.detail);
+    const onOpenWalkIn = () => setWalkInOpen(true);
+    window.addEventListener('profile-tab-change', onTabChange);
+    window.addEventListener('open-walkin-service', onOpenWalkIn);
+    return () => {
+      window.removeEventListener('profile-tab-change', onTabChange);
+      window.removeEventListener('open-walkin-service', onOpenWalkIn);
+    };
   }, []);
 
   const handleSyncPoints = async () => {
@@ -129,16 +152,6 @@ export default function UserProfile() {
       message.error('Lỗi khi đồng bộ điểm');
     }
   };
-
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const tab = params.get('tab');
-    if (tab) {
-      setActiveTab(tab);
-    } else {
-      setActiveTab('profile');
-    }
-  }, [location.search]);
 
   useEffect(() => {
     document.title = 'Hồ Sơ Cá Nhân - Asteria Resort';
@@ -276,16 +289,10 @@ export default function UserProfile() {
         {[
           { id: 'profile', label: 'Hồ Sơ & Bảo Mật' },
           { id: 'bookings', label: 'Lịch Sử Đặt Phòng' },
+          { id: 'services', label: '✦ Đặt Dịch Vụ' },
           { id: 'vouchers', label: 'Phiếu Giảm Giá' }
         ].map(tab => (
-          <button key={tab.id} onClick={() => {
-            setActiveTab(tab.id);
-            if (tab.id === 'profile') {
-              navigate('/profile', { replace: true });
-            } else {
-              navigate(`/profile?tab=${tab.id}`, { replace: true });
-            }
-          }} style={{
+          <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
             background: 'none', border: 'none', padding: '0 0 16px', cursor: 'pointer',
             color: activeTab === tab.id ? G : theme.subText,
             fontSize: 11, fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase',
@@ -393,6 +400,9 @@ export default function UserProfile() {
             ))}
           </div>
         </div>
+      )}
+      {activeTab === 'services' && (
+        <GuestServiceTab myBookings={myBookings} theme={theme} isAdminArea={isAdminArea} />
       )}
     </>
   );

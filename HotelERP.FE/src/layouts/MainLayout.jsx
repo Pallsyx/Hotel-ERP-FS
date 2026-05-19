@@ -5,7 +5,7 @@ import {
   AppstoreOutlined, HomeOutlined, DatabaseOutlined, FormatPainterOutlined,
   WarningOutlined, DashboardOutlined, IdcardOutlined, FileTextOutlined,
   GiftOutlined, EditOutlined, MenuFoldOutlined, MenuUnfoldOutlined,
-  CommentOutlined,
+  CommentOutlined, ShoppingOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
@@ -106,6 +106,7 @@ const MainLayout = () => {
             { key: '/admin/arrivals',    label: 'Khách đến hôm nay' },
             { key: '/admin/in-house',    label: 'Khách đang lưu trú' },
             { key: '/admin/departures',  label: 'Thủ tục trả phòng' },
+            { key: '/admin/services',    label: 'Quản lý Dịch vụ' },
           ],
         },
         { key: '/admin/invoices', icon: <FileTextOutlined />, label: 'Quản lý Hóa đơn', requiredPermission: 'MANAGE_INVOICES' },
@@ -264,7 +265,7 @@ const MainLayout = () => {
                   theme="dark"
                   mode="inline"
                   defaultOpenKeys={[
-                    ...(location.pathname.startsWith('/admin/bookings') || location.pathname.startsWith('/admin/arrivals') || location.pathname.startsWith('/admin/in-house') || location.pathname.startsWith('/admin/departures') ? ['reception_menu'] : []),
+                    ...(location.pathname.startsWith('/admin/bookings') || location.pathname.startsWith('/admin/arrivals') || location.pathname.startsWith('/admin/in-house') || location.pathname.startsWith('/admin/departures') || location.pathname.startsWith('/admin/services') ? ['reception_menu'] : []),
                     ...(location.pathname.startsWith('/admin/posts') || location.pathname.startsWith('/admin/article-categories') ? ['content_menu'] : []),
                   ]}
                   selectedKeys={[location.pathname]}

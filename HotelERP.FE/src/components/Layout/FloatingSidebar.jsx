@@ -82,17 +82,46 @@ export default function FloatingSidebar() {
           {
             icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M15 5l-1.5-1.5L12 5l-1.5-1.5L9 5 7.5 3.5 6 5v14l1.5-1.5L9 19l1.5-1.5L12 19l1.5-1.5L15 19l1.5-1.5L18 19V5l-1.5-1.5L15 5z"/><path d="M12 11h.01"/><path d="M12 15h.01"/><path d="M8 11h.01"/><path d="M8 15h.01"/><path d="M16 11h.01"/><path d="M16 15h.01"/></svg>,
             label: 'Vouchers & Điểm thưởng',
-            action: () => nav('/profile?tab=vouchers')
+            action: () => {
+              if (location.pathname === '/profile') {
+                window.dispatchEvent(new CustomEvent('profile-tab-change', { detail: 'vouchers' }));
+              } else {
+                nav('/profile?tab=vouchers');
+              }
+            }
           },
           {
             icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
             label: 'Hồ sơ cá nhân',
-            action: () => nav('/profile')
+            action: () => {
+              if (location.pathname === '/profile') {
+                window.dispatchEvent(new CustomEvent('profile-tab-change', { detail: 'profile' }));
+              } else {
+                nav('/profile');
+              }
+            }
           },
           {
             icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
             label: 'Lịch sử đặt phòng',
-            action: () => nav('/profile?tab=bookings')
+            action: () => {
+              if (location.pathname === '/profile') {
+                window.dispatchEvent(new CustomEvent('profile-tab-change', { detail: 'bookings' }));
+              } else {
+                nav('/profile?tab=bookings');
+              }
+            }
+          },
+          {
+            icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>,
+            label: 'Dịch vụ của tôi',
+            action: () => {
+              if (location.pathname === '/profile') {
+                window.dispatchEvent(new CustomEvent('profile-tab-change', { detail: 'services' }));
+              } else {
+                nav('/profile?tab=services');
+              }
+            }
           },
           {
             icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15"/></svg>,

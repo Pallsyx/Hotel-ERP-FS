@@ -36,6 +36,12 @@ public class UpdateOrderStatusRequest
     public string? Notes { get; set; }
 }
 
+/// <summary>Body hủy một dòng dịch vụ riêng lẻ trong đơn</summary>
+public class CancelOrderDetailRequest
+{
+    public string? Reason { get; set; }
+}
+
 // ===================================================
 // RESPONSE DTOs
 // ===================================================
@@ -64,12 +70,15 @@ public class ServiceCategoryDto
 /// <summary>Một dòng trong đơn dịch vụ</summary>
 public class OrderServiceDetailDto
 {
+    public int DetailId { get; set; }
     public int ServiceId { get; set; }
     public string ServiceName { get; set; } = null!;
     public int Quantity { get; set; }
     public decimal UnitPrice { get; set; }
     public decimal LineTotal { get; set; }
     public string? Notes { get; set; }
+    /// <summary>Active | Cancelled</summary>
+    public string Status { get; set; } = "Active";
 }
 
 /// <summary>Thông tin một đơn dịch vụ trả về client</summary>

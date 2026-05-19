@@ -108,7 +108,7 @@ public class OrderServiceManagementService : IOrderServiceManagementService
 
         var serviceIds = request.Items.Select(i => i.ServiceId).Distinct().ToList();
         var services = await _context.Services
-            .Where(s => serviceIds.Contains(s.Id) && s.Status == "ACTIVE")
+            .Where(s => serviceIds.Contains(s.Id) && s.Status.ToUpper() == "ACTIVE")
             .ToListAsync();
 
         if (services.Count != serviceIds.Count)
@@ -366,14 +366,78 @@ public class OrderServiceManagementService : IOrderServiceManagementService
             IsPostedToFolio = isPosted,
             Items = os.OrderServiceDetails.Select(d => new OrderServiceDetailDto
             {
+                DetailId = d.Id,
                 ServiceId = d.ServiceId ?? 0,
                 ServiceName = d.Service?.Name ?? "N/A",
                 Quantity = d.Quantity,
                 UnitPrice = d.UnitPrice,
                 LineTotal = d.LineTotal,
-                Notes = d.Notes
+                Notes = d.Notes,
+                Status = d.Status
             }).ToList()
         };
+    }
+
+    // ==============================================================
+    // 7. Hủy một dòng dịch vụ riêng lẻ (Item-level Cancel)
+    // ==============================================================
+    public async Task<(bool Success, string Message)> CancelOrderDetailAsync(int detailId, string? reason)
+    {
+        var detail = await _context.OrderServiceDetails
+            .Include(d => d.OrderService)
+            .FirstOrDefaultAsync(d => d.Id == detailId);
+
+        if (detail == null)
+            return (false, $"Không tìm thấy dòng dịch vụ #{detailId}.");
+
+        if (detail.Status == "Cancelled")
+            return (false, "Dòng dịch vụ này đã bị hủy trước đó.");
+
+        var order = detail.OrderService!;
+
+        // Kiểm tra đơn có thể chỉnh sửa
+        if (order.Status == "Completed" || order.Status == "Cancelled")
+            return (false, $"Đơn đã {order.Status}, không thể hủy từng dịch vụ.");
+
+        // Hủy dòng này
+        detail.Status = "Cancelled";
+        if (!string.IsNullOrWhiteSpace(reason))
+            detail.Notes = string.IsNullOrWhiteSpace(detail.Notes)
+                ? $"[Hủy] {reason}"
+                : $"{detail.Notes} | [Hủy] {reason}";
+
+        // Tính lại TotalAmount của đơn (chỉ tính các item Active)
+        var allDetails = await _context.OrderServiceDetails
+            .Where(d => d.OrderServiceId == order.Id)
+            .ToListAsync();
+
+        // Cập nhật detail.Status trong memory trước khi tính
+        var targetDetail = allDetails.First(d => d.Id == detailId);
+        targetDetail.Status = "Cancelled";
+
+        var newTotal = allDetails
+            .Where(d => d.Status != "Cancelled")
+            .Sum(d => d.LineTotal);
+
+        order.TotalAmount = newTotal;
+        order.UpdatedAt = DateTime.UtcNow;
+
+        // Nếu tất cả item bị hủy, tự động Cancel cả đơn
+        if (newTotal == 0)
+        {
+            order.Status = "Cancelled";
+            order.Notes = string.IsNullOrWhiteSpace(order.Notes)
+                ? "[Tự động] Hủy do toàn bộ dịch vụ bị hủy"
+                : $"{order.Notes} | [Tự động] Hủy do toàn bộ dịch vụ bị hủy";
+        }
+
+        await _context.SaveChangesAsync();
+
+        // Refresh invoice
+        if (order.BookingDetailId.HasValue)
+            await RefreshInvoiceServiceAmountAsync(order.BookingDetailId.Value);
+
+        return (true, $"Dòng dịch vụ đã được hủy. Tổng tiền mới: {newTotal:N0}đ.");
     }
 
     // ==============================================================
