@@ -148,6 +148,44 @@ export default function NewsPage() {
         />
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(17,17,17,0.95), rgba(17,17,17,0.4))' }} />
         <div style={{ position: 'relative', zIndex: 10, textAlign: 'center', padding: '0 24px', marginTop: 124 }}>
+          {/* ── Breadcrumb ──────────────────────── */}
+          <nav
+            aria-label="breadcrumb"
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0, marginBottom: 20 }}
+          >
+            {/* Home */}
+            <a
+              href="/"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+                color: 'rgba(255,255,255,.45)', textDecoration: 'none',
+                fontSize: 11, letterSpacing: '0.04em',
+                paddingBottom: 2, borderBottom: '1px solid transparent',
+                transition: 'color 200ms, border-color 200ms',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.color = 'rgba(255,255,255,.85)'; e.currentTarget.style.borderBottomColor = 'rgba(255,255,255,.3)'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,.45)'; e.currentTarget.style.borderBottomColor = 'transparent'; }}
+            >
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                <polyline points="9,22 9,12 15,12 15,22" />
+              </svg>
+              Trang Chủ
+            </a>
+
+            {/* Chevron */}
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.2)" strokeWidth="1.5" style={{ margin: '0 6px', flexShrink: 0 }}>
+              <polyline points="9,18 15,12 9,6" />
+            </svg>
+
+            {/* Current page — highlighted gold */}
+            <span style={{
+              fontSize: 11, letterSpacing: '0.04em',
+              color: GOLD, fontWeight: 600,
+              paddingBottom: 2, borderBottom: `1px solid ${GOLD}60`,
+            }}>Tin Tức</span>
+          </nav>
+
           <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.4em', textTransform: 'uppercase', color: GOLD, marginBottom: 16 }}>CẨM NANG & TIN TỨC</p>
           <h1 style={{ ...SF, fontSize: 'clamp(32px,5vw,56px)', color: 'white', lineHeight: 1.2, margin: '0 0 16px', fontWeight: 400 }}>
             Khám Phá Trải Nghiệm<br />Hoàn Mỹ Tại Asteria
@@ -160,7 +198,7 @@ export default function NewsPage() {
       </div>
 
       {/* ── STICKY FILTER BAR ── */}
-      <div style={{ background: 'white', borderBottom: '1px solid #e5e7eb', position: 'sticky', top: 60, zIndex: 30, boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
+      <div style={{ background: 'white', borderBottom: '1px solid #e5e7eb', position: 'sticky', top: 64, zIndex: 50, boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
         <div style={{ maxWidth: 1280, margin: '0 auto', padding: '14px 24px', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'space-between' }}>
           {/* Category pills */}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -182,7 +220,7 @@ export default function NewsPage() {
               placeholder="Tìm kiếm bài viết..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              style={{ padding: '8px 16px', fontSize: 13, border: 'none', outline: 'none', width: 240, background: '#fafafa' }}
+              style={{ padding: '8px 16px', fontSize: 13, border: 'none', outline: 'none', width: 240, background: '#fafafa', color: '#111', caretColor: '#111' }}
             />
             <button type="submit" style={{ padding: '8px 16px', background: DARK, color: 'white', border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, letterSpacing: '1px' }}>
               TÌM

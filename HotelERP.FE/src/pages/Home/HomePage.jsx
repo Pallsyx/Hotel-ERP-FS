@@ -232,6 +232,44 @@ export default function HomePage() {
     }
   }, [window.location.hash]);
 
+  // Auto-advance destinations slider mỗi 4 giây, dừng khi hover
+  useEffect(() => {
+    if (attractions.length === 0) return;
+    const CARDS_PER_PAGE = 4;
+    const totalPages = Math.ceil(attractions.length / CARDS_PER_PAGE);
+    if (totalPages <= 1) return;
+
+    let paused = false;
+    const advance = () => {
+      if (paused) return;
+      const el = document.getElementById('dest-track');
+      if (!el) return;
+      const idx = parseInt(el.dataset.page || '0');
+      const next = (idx + 1) % totalPages;
+      el.style.transform = `translateX(-${next * 100}%)`;
+      el.dataset.page = String(next);
+    };
+
+    const timer = setInterval(advance, 4000);
+
+    // Dừng khi hover vào slider
+    const container = document.querySelector('#attractions-sec');
+    const onEnter = () => { paused = true; };
+    const onLeave = () => { paused = false; };
+    if (container) {
+      container.addEventListener('mouseenter', onEnter);
+      container.addEventListener('mouseleave', onLeave);
+    }
+
+    return () => {
+      clearInterval(timer);
+      if (container) {
+        container.removeEventListener('mouseenter', onEnter);
+        container.removeEventListener('mouseleave', onLeave);
+      }
+    };
+  }, [attractions]);
+
   return (
     <div style={{ background: '#fafafa', minHeight: '100vh', fontFamily: "'Inter',sans-serif" }}>
       <MainHeader transparent={true} />
@@ -305,8 +343,8 @@ export default function HomePage() {
       </section>
 
       {/* ATTRACTIONS (Destinations style) */}
-      <section id="attractions-sec" style={{ background: 'white', padding: '80px 24px' }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+      <section id="attractions-sec" style={{ background: 'white', padding: '80px 0' }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px' }}>
           {/* Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 40, flexWrap: 'wrap', gap: 24 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
@@ -314,81 +352,154 @@ export default function HomePage() {
               <div style={{ width: 1, height: 24, background: '#d4d4d8' }} />
               <span style={{ fontSize: 16, color: '#3f3f46', fontWeight: 500 }}>Điểm đến</span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={() => nav('/attractions')} style={{ background: '#18181b', color: 'white', border: 'none', borderRadius: 999, padding: '8px 20px', fontSize: 13, cursor: 'pointer', transition: 'opacity 200ms' }} onMouseEnter={e => e.target.style.opacity = '0.8'} onMouseLeave={e => e.target.style.opacity = '1'}>Nổi bật</button>
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={() => document.getElementById('dest-slider').scrollBy({ left: -350, behavior: 'smooth' })} style={{ width: 40, height: 40, borderRadius: '50%', border: '1px solid #e4e4e7', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#18181b', transition: 'background 200ms' }} onMouseEnter={e => e.target.style.background = '#f4f4f5'} onMouseLeave={e => e.target.style.background = 'white'}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M15 18l-6-6 6-6" /></svg>
-                </button>
-                <button onClick={() => document.getElementById('dest-slider').scrollBy({ left: 350, behavior: 'smooth' })} style={{ width: 40, height: 40, borderRadius: '50%', border: '1px solid #e4e4e7', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#18181b', transition: 'background 200ms' }} onMouseEnter={e => e.target.style.background = '#f4f4f5'} onMouseLeave={e => e.target.style.background = 'white'}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M9 18l6-6-6-6" /></svg>
-                </button>
-              </div>
-            </div>
+            <button onClick={() => nav('/attractions')} style={{ background: '#18181b', color: 'white', border: 'none', borderRadius: 999, padding: '8px 20px', fontSize: 13, cursor: 'pointer', transition: 'opacity 200ms' }} onMouseEnter={e => e.target.style.opacity = '0.8'} onMouseLeave={e => e.target.style.opacity = '1'}>Nổi bật</button>
           </div>
 
           <div style={{ width: '100%', height: 1, background: '#e4e4e7', marginBottom: 40 }} />
+        </div>
 
-          {/* Slider */}
-          <div id="dest-slider" style={{ display: 'flex', gap: 24, overflowX: 'auto', scrollBehavior: 'smooth', paddingBottom: 24, scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
-            <style>{`#dest-slider::-webkit-scrollbar { display: none; }`}</style>
-            {attractions.length === 0 ? <p style={{ width: '100%', textAlign: 'center', color: '#71717a', fontSize: 14 }}>Đang tải...</p> : (attractions.length < 4 ? [...attractions, ...attractions, ...attractions] : attractions).map((a, i) => (
-                  <div key={a.id + '-' + i} style={{ position: 'relative', flexShrink: 0, width: 320, height: 480, overflow: 'hidden', cursor: 'pointer', borderRadius: 4 }}
-                    onMouseEnter={e => {
-                      e.currentTarget.querySelector('img').style.transform = 'scale(1.08)';
-                      e.currentTarget.querySelector('.overlay-bg').style.background = 'rgba(0,0,0,0.6)';
-                      e.currentTarget.querySelector('.hover-content').style.opacity = '1';
-                      e.currentTarget.querySelector('.hover-content').style.transform = 'translateY(0)';
-                      e.currentTarget.querySelector('.default-title').style.opacity = '0';
+        {attractions.length === 0
+          ? <p style={{ textAlign: 'center', color: '#71717a', fontSize: 14 }}>Đang tải...</p>
+          : (() => {
+              const CARDS_PER_PAGE = 4;
+              const GAP = 4;
+              // Không duplicate — dùng vòng cung modulo (0 → 1 → ... → 0)
+              const srcList = attractions;
+              const totalPages = Math.ceil(srcList.length / CARDS_PER_PAGE);
+
+              return (
+                <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 64px', position: 'relative' }}>
+                  {/* Arrow trái — nằm trong vùng padding bên trái */}
+                  <button id="dest-prev"
+                    onClick={() => {
+                      const el = document.getElementById('dest-track');
+                      const idx = parseInt(el.dataset.page || '0');
+                      const next = (idx - 1 + totalPages) % totalPages;
+                      el.style.transform = `translateX(-${next * 100}%)`;
+                      el.dataset.page = next;
                     }}
-                    onMouseLeave={e => {
-                      e.currentTarget.querySelector('img').style.transform = 'scale(1)';
-                      e.currentTarget.querySelector('.overlay-bg').style.background = 'linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 50%)';
-                      e.currentTarget.querySelector('.hover-content').style.opacity = '0';
-                      e.currentTarget.querySelector('.hover-content').style.transform = 'translateY(20px)';
-                      e.currentTarget.querySelector('.default-title').style.opacity = '1';
-                    }}
-                    onClick={() => nav('/attractions')}
+                    style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', zIndex: 10, width: 40, height: 40, borderRadius: '50%', background: 'white', border: 'none', boxShadow: '0 4px 16px rgba(0,0,0,0.15)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 250ms' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#18181b'; e.currentTarget.querySelector('svg').style.stroke = 'white'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'white'; e.currentTarget.querySelector('svg').style.stroke = '#18181b'; }}
                   >
-                    <img 
-                      src={getPlaceholderImage(a)} 
-                      alt={a.name} 
-                      style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 700ms ease' }}
-                      onError={(e) => {
-                        e.target.onerror = null; 
-                        e.target.src = 'https://res.cloudinary.com/dfvdvkssv/image/upload/v1778288591/hotel_placeholders/market_placeholder.jpg';
-                      }}
-                    />
-                    <div className="overlay-bg" style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 50%)', transition: 'background 400ms ease' }} />
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#18181b" strokeWidth="2" style={{ transition: 'stroke 250ms' }}><path d="M15 18l-6-6 6-6"/></svg>
+                  </button>
 
-                    {/* Default Title (bottom) */}
-                    <div className="default-title" style={{ position: 'absolute', bottom: 32, left: 24, right: 24, transition: 'opacity 400ms ease' }}>
-                      <h3 style={{ color: 'white', fontSize: 20, fontWeight: 600, margin: 0, textShadow: '0 2px 10px rgba(0,0,0,0.3)' }}>{a.name}</h3>
-                    </div>
+                  {/* Arrow phải — nằm trong vùng padding bên phải */}
+                  <button id="dest-next"
+                    onClick={() => {
+                      const el = document.getElementById('dest-track');
+                      const idx = parseInt(el.dataset.page || '0');
+                      const next = (idx + 1) % totalPages;
+                      el.style.transform = `translateX(-${next * 100}%)`;
+                      el.dataset.page = next;
+                    }}
+                    style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', zIndex: 10, width: 40, height: 40, borderRadius: '50%', background: 'white', border: 'none', boxShadow: '0 4px 16px rgba(0,0,0,0.15)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 250ms' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#18181b'; e.currentTarget.querySelector('svg').style.stroke = 'white'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'white'; e.currentTarget.querySelector('svg').style.stroke = '#18181b'; }}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#18181b" strokeWidth="2" style={{ transition: 'stroke 250ms' }}><path d="M9 18l6-6-6-6"/></svg>
+                  </button>
 
-                    {/* Hover Content */}
-                    <div className="hover-content" style={{ position: 'absolute', inset: 0, padding: 32, display: 'flex', flexDirection: 'column', justifyContent: 'center', opacity: 0, transform: 'translateY(20px)', transition: 'all 400ms ease' }}>
-                      <h3 style={{ color: 'white', fontSize: 22, fontWeight: 600, marginBottom: 24, textAlign: 'center' }}>{a.name}</h3>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center' }}>
-                        <button style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.5)', color: 'white', padding: '8px 16px', borderRadius: 999, fontSize: 11, textTransform: 'uppercase', letterSpacing: '1px', cursor: 'pointer', transition: 'background 200ms, border-color 200ms' }}
-                          onMouseEnter={e => { e.target.style.background = 'white'; e.target.style.color = '#18181b'; }}
-                          onMouseLeave={e => { e.target.style.background = 'transparent'; e.target.style.color = 'white'; }}>
-                          Xem chi tiết
-                        </button>
-                        <button style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.5)', color: 'white', padding: '8px 16px', borderRadius: 999, fontSize: 11, textTransform: 'uppercase', letterSpacing: '1px', cursor: 'pointer', transition: 'background 200ms, border-color 200ms' }}
-                          onMouseEnter={e => { e.target.style.background = 'white'; e.target.style.color = '#18181b'; }}
-                          onMouseLeave={e => { e.target.style.background = 'transparent'; e.target.style.color = 'white'; }}>
-                          Bản đồ
-                        </button>
-                      </div>
+                  {/* Track wrapper */}
+                  <div style={{ overflow: 'hidden' }}>
+                    <div id="dest-track" data-page="0"
+                      style={{ display: 'flex', transition: 'transform 550ms cubic-bezier(0.25,1,0.5,1)', willChange: 'transform' }}>
+                      {Array.from({ length: totalPages }).map((_, pageIdx) => {
+                        const pageCards = srcList.slice(pageIdx * CARDS_PER_PAGE, (pageIdx + 1) * CARDS_PER_PAGE);
+                        const colCount = pageCards.length;
+
+                        return (
+                          <div key={pageIdx} style={{ minWidth: '100%', display: 'grid', gridTemplateColumns: `repeat(${colCount}, 1fr)`, gap: GAP, padding: `0 ${GAP}px` }}>
+                            {pageCards.map((a, ci) => {
+                              let galleryUrls = [];
+                              try { galleryUrls = a.galleryImages ? JSON.parse(a.galleryImages).filter(Boolean) : []; } catch {}
+                              const mainImg = getPlaceholderImage(a);
+                              const fallback = 'https://res.cloudinary.com/dfvdvkssv/image/upload/v1778288591/hotel_placeholders/market_placeholder.jpg';
+                              const allImgs = [mainImg, ...galleryUrls].slice(0, 4);
+                              const totalImgs = allImgs.length;
+
+                              const ImgCell = ({ src, alt }) => (
+                                <div style={{ overflow: 'hidden', width: '100%', height: '100%' }}>
+                                  <img src={src} alt={alt} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                                    onError={ev => { ev.target.onerror = null; ev.target.src = fallback; }} />
+                                </div>
+                              );
+
+                              const renderCollage = () => {
+                                if (totalImgs === 1) return <ImgCell src={allImgs[0]} alt={a.name} />;
+                                if (totalImgs === 2) return (
+                                  <div style={{ display: 'grid', gridTemplateRows: '1fr 1fr', gap: 2, width: '100%', height: '100%' }}>
+                                    <ImgCell src={allImgs[0]} alt={a.name} />
+                                    <ImgCell src={allImgs[1]} alt={a.name + ' 2'} />
+                                  </div>
+                                );
+                                if (totalImgs === 3) return (
+                                  <div style={{ display: 'grid', gridTemplateRows: '1fr 1fr', gap: 2, width: '100%', height: '100%' }}>
+                                    <ImgCell src={allImgs[0]} alt={a.name} />
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+                                      <ImgCell src={allImgs[1]} alt={a.name + ' 2'} />
+                                      <ImgCell src={allImgs[2]} alt={a.name + ' 3'} />
+                                    </div>
+                                  </div>
+                                );
+                                return (
+                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: 2, width: '100%', height: '100%' }}>
+                                    <ImgCell src={allImgs[0]} alt={a.name} />
+                                    <ImgCell src={allImgs[1]} alt={a.name + ' 2'} />
+                                    <ImgCell src={allImgs[2]} alt={a.name + ' 3'} />
+                                    <ImgCell src={allImgs[3]} alt={a.name + ' 4'} />
+                                  </div>
+                                );
+                              };
+
+                              return (
+                                <div key={a.id + '-p' + pageIdx + '-' + ci}
+                                  style={{ position: 'relative', height: 480, overflow: 'hidden', cursor: 'pointer', borderRadius: 0, background: '#111' }}
+                                  onMouseEnter={e => {
+                                    e.currentTarget.querySelector('.ov-bg').style.background = 'rgba(0,0,0,0.55)';
+                                    e.currentTarget.querySelector('.hv-cnt').style.opacity = '1';
+                                    e.currentTarget.querySelector('.hv-cnt').style.transform = 'translateY(0)';
+                                    e.currentTarget.querySelector('.df-title').style.opacity = '0';
+                                  }}
+                                  onMouseLeave={e => {
+                                    e.currentTarget.querySelector('.ov-bg').style.background = 'linear-gradient(to top,rgba(0,0,0,0.75) 0%,transparent 50%)';
+                                    e.currentTarget.querySelector('.hv-cnt').style.opacity = '0';
+                                    e.currentTarget.querySelector('.hv-cnt').style.transform = 'translateY(20px)';
+                                    e.currentTarget.querySelector('.df-title').style.opacity = '1';
+                                  }}
+                                  onClick={() => nav('/attractions')}
+                                >
+                                  {renderCollage()}
+                                  <div className="ov-bg" style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top,rgba(0,0,0,0.75) 0%,transparent 50%)', transition: 'background 400ms', pointerEvents: 'none' }} />
+                                  <div className="df-title" style={{ position: 'absolute', bottom: 28, left: 20, right: 20, transition: 'opacity 400ms', pointerEvents: 'none' }}>
+                                    <h3 style={{ color: 'white', fontSize: 17, fontWeight: 600, margin: 0, textShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>{a.name}</h3>
+                                    {totalImgs > 1 && <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '1px' }}>📷 {totalImgs} ảnh</span>}
+                                  </div>
+                                  <div className="hv-cnt" style={{ position: 'absolute', inset: 0, padding: 24, display: 'flex', flexDirection: 'column', justifyContent: 'center', opacity: 0, transform: 'translateY(20px)', transition: 'all 400ms', pointerEvents: 'none' }}>
+                                    <h3 style={{ color: 'white', fontSize: 19, fontWeight: 600, marginBottom: 20, textAlign: 'center' }}>{a.name}</h3>
+                                    <div style={{ display: 'flex', gap: 10, justifyContent: 'center', pointerEvents: 'all' }}>
+                                      <button style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.5)', color: 'white', padding: '7px 14px', borderRadius: 999, fontSize: 11, textTransform: 'uppercase', letterSpacing: '1px', cursor: 'pointer' }}
+                                        onMouseEnter={e => { e.target.style.background = 'white'; e.target.style.color = '#18181b'; }}
+                                        onMouseLeave={e => { e.target.style.background = 'transparent'; e.target.style.color = 'white'; }}>Xem chi tiết</button>
+                                      <button style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.5)', color: 'white', padding: '7px 14px', borderRadius: 999, fontSize: 11, textTransform: 'uppercase', letterSpacing: '1px', cursor: 'pointer' }}
+                                        onMouseEnter={e => { e.target.style.background = 'white'; e.target.style.color = '#18181b'; }}
+                                        onMouseLeave={e => { e.target.style.background = 'transparent'; e.target.style.color = 'white'; }}>Bản đồ</button>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
-            ))}
-          </div>
-        </div>
+                </div>
+              );
+            })()}
       </section>
+
 
       {/* NEWS */}
       <section id="news-sec" style={{ background: '#fafafa', padding: '80px 24px' }}>

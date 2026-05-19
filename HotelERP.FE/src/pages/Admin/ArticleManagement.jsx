@@ -7,7 +7,7 @@ import {
   PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined,
   EyeOutlined, FileTextOutlined, CheckCircleOutlined,
   ClockCircleOutlined, InboxOutlined, GlobalOutlined,
-  TagOutlined, CalendarOutlined, PictureOutlined, ReloadOutlined
+  TagOutlined, CalendarOutlined, PictureOutlined
 } from '@ant-design/icons';
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
@@ -162,6 +162,12 @@ export default function ArticleManagement() {
 
   useEffect(() => { fetchArticles(); fetchCategories(); }, []);
 
+  // Real-time: tự động làm mới mỗi 30 giây
+  useEffect(() => {
+    const timer = setInterval(() => { fetchArticles(); }, 30000);
+    return () => clearInterval(timer);
+  }, [fetchArticles]);
+
   // Client-side filter
   useEffect(() => {
     let list = [...articles];
@@ -286,8 +292,13 @@ export default function ArticleManagement() {
           </h1>
           <p style={{ color: '#71717a', fontSize: 13, margin: '4px 0 0' }}>CMS nội dung khách sạn — Đăng, chỉnh sửa và quản lý bài viết</p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <Button icon={<ReloadOutlined />} onClick={fetchArticles} loading={loading}>Làm mới</Button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {/* Live indicator */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#16a34a', background: '#dcfce7', padding: '4px 10px', borderRadius: 20 }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#16a34a', display: 'inline-block', animation: 'pulse 2s infinite' }} />
+            Real-time
+          </div>
+          <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }`}</style>
           <Button type="primary" icon={<PlusOutlined />} onClick={openAdd} style={{ background: '#111', borderColor: '#111' }}>
             Viết bài mới
           </Button>

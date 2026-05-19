@@ -839,9 +839,9 @@ public partial class HotelDbContext : DbContext
                 .HasMaxLength(20)
                 .HasDefaultValue("VISIBLE", "DF_Reviews_Status")
                 .HasColumnName("status");
-            entity.Property(e => e.UpdatedAt)
-                .HasColumnType("datetime")
-                .HasColumnName("updated_at");
+            // ⚠️ FIX: Cột updated_at không tồn tại trong bảng Reviews thực tế.
+            // Bỏ qua property này để tránh "Invalid column name 'updated_at'" khi INSERT.
+            entity.Ignore(e => e.UpdatedAt);
             entity.Property(e => e.UserId).HasColumnName("user_id");
 
             entity.HasOne(d => d.RoomType).WithMany(p => p.Reviews)

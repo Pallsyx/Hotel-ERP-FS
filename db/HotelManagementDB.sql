@@ -3118,3 +3118,39 @@ CREATE NONCLUSTERED INDEX [IX_Invoices_Status] ON [dbo].[Invoices]([status]);
 CREATE NONCLUSTERED INDEX [IX_BookingDetails_BookingId] ON [dbo].[Booking_Details]([booking_id]);
 CREATE NONCLUSTERED INDEX [IX_BookingDetails_RoomId] ON [dbo].[Booking_Details]([room_id]);
 GO
+
+-- ========================================================================
+-- 7. TỐI ƯU HÓA HIỆU SUẤT (INDEXES)
+-- ========================================================================
+CREATE NONCLUSTERED INDEX [IX_Users_Email] ON [dbo].[Users]([email]);
+CREATE NONCLUSTERED INDEX [IX_Bookings_BookingCode] ON [dbo].[Bookings]([booking_code]);
+CREATE NONCLUSTERED INDEX [IX_Bookings_Status] ON [dbo].[Bookings]([status]);
+CREATE NONCLUSTERED INDEX [IX_Invoices_BookingId] ON [dbo].[Invoices]([booking_id]);
+CREATE NONCLUSTERED INDEX [IX_Invoices_Status] ON [dbo].[Invoices]([status]);
+CREATE NONCLUSTERED INDEX [IX_BookingDetails_BookingId] ON [dbo].[Booking_Details]([booking_id]);
+CREATE NONCLUSTERED INDEX [IX_BookingDetails_RoomId] ON [dbo].[Booking_Details]([room_id]);
+GO
+
+-- ============================================================
+-- 10. THÊM CỘT GALLERY ẢNH CHO BẢNG Attractions
+--     Lưu danh sách ảnh gallery dạng JSON array string
+-- ============================================================
+USE [HotelManagementDB];
+GO
+
+IF COL_LENGTH('dbo.Attractions', 'GalleryImages') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Attractions] ADD [GalleryImages] NVARCHAR(MAX) NULL;
+    PRINT N'✅ Đã thêm cột GalleryImages vào bảng Attractions.';
+END
+ELSE
+    PRINT N'ℹ️  Cột GalleryImages đã tồn tại.';
+
+IF COL_LENGTH('dbo.Attractions', 'GalleryPublicIds') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Attractions] ADD [GalleryPublicIds] NVARCHAR(MAX) NULL;
+    PRINT N'✅ Đã thêm cột GalleryPublicIds vào bảng Attractions.';
+END
+ELSE
+    PRINT N'ℹ️  Cột GalleryPublicIds đã tồn tại.';
+GO

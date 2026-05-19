@@ -185,13 +185,78 @@ export default function ArticleDetailPage() {
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to right, rgba(0,0,0,.6) 0%, rgba(0,0,0,.15) 60%, transparent 100%)' }} />
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,.75) 0%, transparent 55%)' }} />
 
-        {/* Breadcrumb */}
-        <div style={{ position: 'absolute', top: 84, left: 'clamp(24px,5vw,80px)', display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'rgba(255,255,255,.55)' }}>
-          <Link to="/" style={{ color: 'inherit', textDecoration: 'none' }} onMouseEnter={e => e.target.style.color = G} onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,.55)'}>Trang chủ</Link>
-          <span>›</span>
-          <Link to="/news" style={{ color: 'inherit', textDecoration: 'none' }} onMouseEnter={e => e.target.style.color = G} onMouseLeave={e => e.target.style.color = 'rgba(255,255,255,.55)'}>Tin Tức</Link>
-          {article.categoryName && <><span>›</span><span style={{ color: G }}>{article.categoryName}</span></>}
-        </div>
+        {/* ── Breadcrumb ─────────────────────────────────────── */}
+        <nav
+          aria-label="breadcrumb"
+          style={{
+            position: 'absolute', top: 84,
+            left: 'clamp(24px,5vw,80px)',
+            display: 'flex', flexDirection: 'column', gap: 10,
+          }}
+        >
+          {/* Row 1 — Navigation trail */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+            {/* Home */}
+            <Link
+              to="/"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+                color: 'rgba(255,255,255,.5)', textDecoration: 'none',
+                fontSize: 11, letterSpacing: '0.04em',
+                paddingBottom: 2, borderBottom: '1px solid transparent',
+                transition: 'color 200ms, border-color 200ms',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.color = 'rgba(255,255,255,.9)'; e.currentTarget.style.borderBottomColor = 'rgba(255,255,255,.3)'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,.5)'; e.currentTarget.style.borderBottomColor = 'transparent'; }}
+            >
+              {/* Home icon */}
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                <polyline points="9,22 9,12 15,12 15,22"/>
+              </svg>
+              Trang Chủ
+            </Link>
+
+            {/* Chevron separator */}
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.2)" strokeWidth="1.5" style={{ margin: '0 6px', flexShrink: 0 }}>
+              <polyline points="9,18 15,12 9,6"/>
+            </svg>
+
+            {/* Tin Tức */}
+            <Link
+              to="/news"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                color: 'rgba(255,255,255,.5)', textDecoration: 'none',
+                fontSize: 11, letterSpacing: '0.04em',
+                paddingBottom: 2, borderBottom: '1px solid transparent',
+                transition: 'color 200ms, border-color 200ms',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.color = 'rgba(255,255,255,.9)'; e.currentTarget.style.borderBottomColor = 'rgba(255,255,255,.3)'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,.5)'; e.currentTarget.style.borderBottomColor = 'transparent'; }}
+            >
+              Tin Tức
+            </Link>
+          </div>
+
+          {/* Row 2 — Category badge (only when available) */}
+          {article.categoryName && (
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5, alignSelf: 'flex-start',
+              background: `${G}22`, border: `1px solid ${G}50`,
+              color: G, fontSize: 9.5, fontWeight: 700,
+              letterSpacing: '0.22em', textTransform: 'uppercase',
+              padding: '4px 12px', borderRadius: 3,
+            }}>
+              {/* Grid/tag icon */}
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+              </svg>
+              {article.categoryName}
+            </span>
+          )}
+        </nav>
 
         {/* Title Block */}
         <div style={{ position: 'absolute', bottom: 0, left: 0, right: '40%', padding: '0 clamp(24px,5vw,80px) 52px' }}>

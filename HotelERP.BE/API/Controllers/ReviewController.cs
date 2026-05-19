@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using System.Net;
 using System.Security.Claims;
+using System.ComponentModel.DataAnnotations;
 using HotelERP.BE.Domain.Models;
 using HotelERP.BE.Services;
 using HotelERP.BE.Infrastructure.Data;
@@ -11,7 +12,17 @@ using HotelERP.BE.Utils;
 
 namespace HotelERP.BE.Controllers;
 
-public record CreateReviewDto(int? UserId, int RoomTypeId, int Rating, string? Comment, string? ImageUrl, string? ImagePublicId);
+// ✅ FIX BUG-05: Thêm [Range(1, 5)] để validate rating trước khi lưu DB.
+// Trước đây Rating=10 gây 500 error do DB/constraint; nay trả 400 đúng spec.
+public record CreateReviewDto(
+    int? UserId,
+    int RoomTypeId,
+    [Range(1, 5, ErrorMessage = "Rating phải nằm trong khoảng từ 1 đến 5.")]
+    int Rating,
+    string? Comment,
+    string? ImageUrl,
+    string? ImagePublicId
+);
 
 [Route("api/[controller]")]
 [ApiController]
@@ -103,7 +114,28 @@ public class ReviewController(HotelDbContext context, ICloudinaryService cloudin
 
         context.Reviews.Add(newReview);
         await context.SaveChangesAsync();
-        return Ok(new { message = "Gửi đánh giá thành công. Vui lòng chờ kiểm duyệt.", data = newReview });
+
+        // ✅ FIX BUG-03: Trả DTO thay vì entity EF trực tiếp.
+        // Lý do: Global Query Filter HasQueryFilter(e => e.IsApproved) tự động lọc
+        // entity có IsApproved=false khỏi mọi truy vấn. Khi JSON serializer cố
+        // lazy-load navigation property (User, RoomType) từ entity này, EF Core
+        // truy vấn lại DB với filter "WHERE is_approved = 1" → không tìm thấy → 500 error.
+        return Ok(new
+        {
+            message = "Gửi đánh giá thành công. Vui lòng chờ kiểm duyệt.",
+            data = new
+            {
+                newReview.Id,
+                newReview.UserId,
+                newReview.RoomTypeId,
+                newReview.Rating,
+                newReview.Comment,
+                newReview.ImageUrl,
+                newReview.Status,
+                newReview.IsApproved,
+                newReview.CreatedAt
+            }
+        });
     }
 
     // ==========================================
