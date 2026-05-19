@@ -8,6 +8,8 @@ using HotelERP.BE.Constants;
 using HotelERP.BE.Domain.Constants;
 using Microsoft.EntityFrameworkCore;
 using HotelERP.BE.Infrastructure.Data;
+using HotelERP.BE.DTOs.Invoices;
+using HotelERP.BE.Domain.Models;
 
 namespace HotelERP.BE.API.Controllers;
 
@@ -223,6 +225,101 @@ public class BookingEngineController : ControllerBase
     {
         return BadRequest(ex.Message);
     }
+    }
+
+
+    [HttpGet("my-birthday-vouchers")]
+    [Authorize]
+    public async Task<IActionResult> GetMyBirthdayVouchers([FromQuery] decimal subtotal = 0m)
+    {
+        var userIdClaim = User.FindFirst("UserId")?.Value ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (!int.TryParse(userIdClaim, out var userId) || userId <= 0)
+        {
+            return Unauthorized(new { success = false, message = "Không xác định được người dùng." });
+        }
+
+        var user = await _context.Users.FirstOrDefaultAsync(x => x.Id == userId && x.Status);
+        if (user is null)
+        {
+            return NotFound(new { success = false, message = "Không tìm thấy người dùng." });
+        }
+
+        var nowUtc = DateTime.UtcNow;
+        var nowVn = nowUtc.AddHours(7);
+
+        // Nếu hôm nay đúng sinh nhật thì tự sinh voucher ngay tại trang đặt phòng.
+        if (user.DateOfBirth.HasValue &&
+            user.DateOfBirth.Value.Month == nowVn.Month &&
+            user.DateOfBirth.Value.Day == nowVn.Day)
+        {
+            var birthdayCode = $"BDAY-{user.Id}-{nowVn.Year}".ToUpperInvariant();
+            var exists = await _context.Vouchers.AnyAsync(x => x.Code == birthdayCode);
+
+            if (!exists)
+            {
+                _context.Vouchers.Add(new Voucher
+                {
+                    Code = birthdayCode,
+                    UserId = user.Id,
+                    DiscountType = "FIXED_AMOUNT",
+                    DiscountValue = 500000m,
+                    MinBookingValue = 2000000m,
+                    ValidFrom = nowUtc.AddHours(-1),
+                    ValidTo = nowUtc.AddDays(30),
+                    UsageLimit = 1
+                });
+
+                user.LastBirthdayCouponYear = nowVn.Year;
+                user.UpdatedAt = nowUtc;
+                await _context.SaveChangesAsync();
+            }
+        }
+
+        var vouchers = await _context.Vouchers
+            .AsNoTracking()
+            .Where(x => x.UserId == user.Id)
+            .Where(x => x.Code.StartsWith("BDAY-"))
+            .Where(x => !x.ValidFrom.HasValue || x.ValidFrom.Value <= nowUtc.AddHours(12))
+            .Where(x => !x.ValidTo.HasValue || x.ValidTo.Value >= nowUtc)
+            .OrderByDescending(x => x.ValidTo)
+            .ToListAsync();
+
+        var voucherIds = vouchers.Select(x => x.Id).ToList();
+
+        var usedCountMap = await _context.Bookings
+            .AsNoTracking()
+            .Where(x => x.VoucherId.HasValue && voucherIds.Contains(x.VoucherId.Value))
+            .Where(x => x.Status != "Cancelled" && x.Status != "CancelledByAdmin" && x.Status != "Expired")
+            .GroupBy(x => x.VoucherId!.Value)
+            .Select(x => new { VoucherId = x.Key, UsedCount = x.Count() })
+            .ToDictionaryAsync(x => x.VoucherId, x => x.UsedCount);
+
+        var result = vouchers
+            .Where(voucher => subtotal <= 0 || subtotal >= (voucher.MinBookingValue ?? 0m))
+            .Where(voucher =>
+                !voucher.UsageLimit.HasValue ||
+                !usedCountMap.TryGetValue(voucher.Id, out var usedCount) ||
+                usedCount < voucher.UsageLimit.Value)
+            .Select(voucher => new BirthdayVoucherForBookingResponseDto
+            {
+                Id = voucher.Id,
+                Code = voucher.Code,
+                DiscountType = voucher.DiscountType,
+                DiscountValue = voucher.DiscountValue,
+                MinBookingAmount = voucher.MinBookingValue ?? 0m,
+                ValidFrom = voucher.ValidFrom,
+                ValidTo = voucher.ValidTo,
+                DisplayText = string.Equals(voucher.DiscountType, "PERCENT", StringComparison.OrdinalIgnoreCase)
+                    ? $"Giảm {voucher.DiscountValue:0.##}% cho booking từ {(voucher.MinBookingValue ?? 0m):N0}đ"
+                    : $"Giảm {voucher.DiscountValue:N0}đ cho booking từ {(voucher.MinBookingValue ?? 0m):N0}đ"
+            })
+            .ToList();
+
+        return Ok(new
+        {
+            success = true,
+            data = result
+        });
     }
 
     [HttpPost("validate-voucher")]

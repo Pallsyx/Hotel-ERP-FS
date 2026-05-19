@@ -49,12 +49,16 @@ namespace HotelERP.BE.Application.Interfaces
             CancellationToken cancellationToken = default);
 
         Task<ApiResult<object>> ApplyVoucherToBookingAsync(
-            int bookingId,
-            ApplyInvoiceVoucherRequestDto request,
-            int? performedByUserId,
-            CancellationToken cancellationToken = default);
+    int bookingId,
+    ApplyInvoiceVoucherRequestDto request,
+    int? performedByUserId,
+    CancellationToken cancellationToken = default);
 
-        Task<DraftInvoiceDto> GetDraftInvoiceAsync(
+Task<ApiResult<List<BirthdayVoucherForBookingResponseDto>>> GetBirthdayVouchersForBookingAsync(
+    int bookingId,
+    CancellationToken cancellationToken = default);
+
+Task<DraftInvoiceDto> GetDraftInvoiceAsync(
             int bookingId,
             CancellationToken cancellationToken = default);
 

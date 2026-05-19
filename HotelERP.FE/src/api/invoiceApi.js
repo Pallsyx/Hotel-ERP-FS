@@ -5,9 +5,14 @@ const invoiceApi = {
     axiosClient.get(`/invoices/bookings/${bookingId}/eligible-details`),
 
   applyVoucherToBooking: (bookingId, payload) =>
-    axiosClient.post(`/invoices/bookings/${bookingId}/voucher`, payload),
+  axiosClient.post(`/invoices/bookings/${bookingId}/voucher`, payload),
 
-  createDraftInvoice: (payload) =>
+getBirthdayVouchersForBooking: (bookingId) =>
+  axiosClient.get(`/invoices/bookings/${bookingId}/birthday-vouchers`),
+
+createDraftInvoice: (payload) =>
+
+  
     axiosClient.post('/invoices/draft', payload),
 
   getInvoiceDetail: (invoiceId) =>

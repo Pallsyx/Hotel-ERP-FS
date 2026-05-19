@@ -21,7 +21,8 @@ namespace HotelERP.BE.Application.Services
     public class InvoiceService : IInvoiceService
     {
         private const decimal VatRate = 0.10m;
-        private const string DamageOverrideTokenPrefix = "[[DAMAGE_OVERRIDE:";
+private const string DamageOverrideTokenPrefix = "[[DAMAGE_OVERRIDE:";
+private const string ExtraFeeTokenPrefix = "[[EXTRA_FEE:";
 
         private readonly HotelDbContext _dbContext;
         private readonly INotificationService _notificationService;
@@ -50,13 +51,20 @@ namespace HotelERP.BE.Application.Services
             public decimal RoomCharge { get; set; }
             public decimal ServiceCharge { get; set; }
             public decimal DamageCharge { get; set; }
+            public int ActualStayNights { get; set; }
             public decimal Subtotal => RoomCharge + ServiceCharge + DamageCharge;
         }
+        private sealed class ExtraFeeLine
+{
+    public int? BookingDetailId { get; set; }
+    public decimal Amount { get; set; }
+}
 
         private sealed class BookingSelectionPreview
         {
             public List<int> BookingDetailIds { get; set; } = new();
             public List<string> RoomNumbers { get; set; } = new();
+            public int TotalStayNights { get; set; }
             public decimal TotalRoomAmount { get; set; }
             public decimal TotalServiceAmount { get; set; }
             public decimal TotalDamageAmount { get; set; }
@@ -116,6 +124,10 @@ namespace HotelERP.BE.Application.Services
                         RoomTypeName = detail.RoomType?.Name,
                         CheckInDate = detail.CheckInDate,
                         CheckOutDate = detail.CheckOutDate,
+                        PlannedNights = detail.Nights > 0
+                            ? detail.Nights
+                            : Math.Max(1, (detail.CheckOutDate.Date - detail.CheckInDate.Date).Days),
+                        ActualStayNights = summary.ActualStayNights,
                         RoomCharge = Money(summary.RoomCharge),
                         ServiceCharge = Money(summary.ServiceCharge),
                         DamageCharge = Money(summary.DamageCharge),
@@ -124,7 +136,8 @@ namespace HotelERP.BE.Application.Services
                         CanCreateInvoice = canCreateInvoice,
                         BlockReason = blockReason,
                         OpenInvoiceId = openInvoiceLink?.InvoiceId,
-                        OpenInvoiceCode = openInvoiceLink?.Invoice?.InvoiceCode
+                        OpenInvoiceCode = openInvoiceLink?.Invoice?.InvoiceCode,
+                        ExtraFeeAmount = Money(detail.InvoiceBookingDetails.Sum(x => x.ExtraFeeAmount))
                     };
                 }).ToList();
 
@@ -208,6 +221,7 @@ namespace HotelERP.BE.Application.Services
 
             var incomingIds = detailIds.OrderBy(x => x).ToList();
             var now = DateTime.UtcNow;
+            var carriedExtraFeeByDetailId = new Dictionary<int, decimal>();
 
             var exactDraft = booking.Invoices
                 .Where(x => !IsClosedInvoice(x.Status) && x.InvoiceBookingDetails.Count > 0)
@@ -240,6 +254,14 @@ namespace HotelERP.BE.Application.Services
 
                 foreach (var link in linksToDetach)
                 {
+                    if (link.ExtraFeeAmount > 0)
+                    {
+                        carriedExtraFeeByDetailId[link.BookingDetailId] =
+                            carriedExtraFeeByDetailId.TryGetValue(link.BookingDetailId, out var currentExtraFee)
+                                ? Money(currentExtraFee + link.ExtraFeeAmount)
+                                : Money(link.ExtraFeeAmount);
+                    }
+
                     draft.InvoiceBookingDetails.Remove(link);
                 }
 
@@ -316,6 +338,16 @@ namespace HotelERP.BE.Application.Services
                 detail.UpdatedAt = now;
             }
 
+            foreach (var carriedExtraFee in carriedExtraFeeByDetailId
+                         .Where(x => incomingIds.Contains(x.Key) && x.Value > 0m))
+            {
+                invoice.Notes = AppendExtraFeeToken(invoice.Notes, carriedExtraFee.Key, carriedExtraFee.Value);
+            }
+
+            invoice.ManualAdjustmentAmount = ExtractExtraFeeLines(invoice.Notes)
+                .Where(x => !x.BookingDetailId.HasValue || incomingIds.Contains(x.BookingDetailId.Value))
+                .Sum(x => x.Amount);
+
             booking.Invoices.Add(invoice);
             _dbContext.Invoices.Add(invoice);
 
@@ -370,111 +402,129 @@ namespace HotelERP.BE.Application.Services
                 "GET_INVOICE_SUCCESS");
         }
 
-        public async Task<ApiResult<InvoiceActionResponseDto>> AddExtraFeeAsync(
-            int invoiceId,
-            AddExtraFeeRequestDto request,
-            int? performedByUserId,
-            string? performedByRole = null,
-            CancellationToken cancellationToken = default)
-        {
-            if (request.Amount <= 0)
+      public async Task<ApiResult<InvoiceActionResponseDto>> AddExtraFeeAsync(
+    int invoiceId,
+    AddExtraFeeRequestDto request,
+    int? performedByUserId,
+    string? performedByRole = null,
+    CancellationToken cancellationToken = default)
+{
+    if (request.Amount <= 0)
+    {
+        return ApiResult<InvoiceActionResponseDto>.Fail(
+            StatusCodes.Status400BadRequest,
+            "INVALID_EXTRA_FEE_AMOUNT",
+            "Số tiền phụ phí phải lớn hơn 0.");
+    }
+
+    await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+    var invoice = await LoadInvoiceGraphAsync(invoiceId, cancellationToken);
+    if (invoice is null || invoice.Booking is null)
+    {
+        return ApiResult<InvoiceActionResponseDto>.Fail(
+            StatusCodes.Status404NotFound,
+            "INVOICE_NOT_FOUND",
+            $"Không tìm thấy invoice id = {invoiceId}.");
+    }
+
+    if (invoice.InvoiceBookingDetails.Count == 0)
+    {
+        return ApiResult<InvoiceActionResponseDto>.Fail(
+            StatusCodes.Status409Conflict,
+            "INVOICE_HAS_NO_BOOKING_DETAILS",
+            "Invoice này chưa gắn với booking detail nào.");
+    }
+
+    if (IsClosedInvoice(invoice.Status))
+    {
+        return ApiResult<InvoiceActionResponseDto>.Fail(
+            StatusCodes.Status409Conflict,
+            "INVOICE_ALREADY_CLOSED",
+            $"Không thể thêm phụ phí vì hóa đơn đang ở trạng thái {invoice.Status}.",
+            new
             {
-                return ApiResult<InvoiceActionResponseDto>.Fail(
-                    StatusCodes.Status400BadRequest,
-                    "INVALID_EXTRA_FEE_AMOUNT",
-                    "Số tiền phụ phí phải lớn hơn 0.");
-            }
+                invoiceId,
+                invoiceStatus = invoice.Status
+            });
+    }
 
-            await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+    var booking = invoice.Booking;
+    var before = MapResponse(booking, invoice);
+    var now = DateTime.UtcNow;
+    var extraAmount = Money(request.Amount);
 
-            var invoice = await LoadInvoiceGraphAsync(invoiceId, cancellationToken);
-            if (invoice is null || invoice.Booking is null)
-            {
-                return ApiResult<InvoiceActionResponseDto>.Fail(
-                    StatusCodes.Status404NotFound,
-                    "INVOICE_NOT_FOUND",
-                    $"Không tìm thấy invoice id = {invoiceId}.");
-            }
+    int? targetBookingDetailId = request.BookingDetailId.HasValue && request.BookingDetailId.Value > 0
+        ? request.BookingDetailId.Value
+        : null;
 
-            if (invoice.InvoiceBookingDetails.Count == 0)
-            {
-                return ApiResult<InvoiceActionResponseDto>.Fail(
-                    StatusCodes.Status409Conflict,
-                    "INVOICE_HAS_NO_BOOKING_DETAILS",
-                    "Invoice này chưa gắn với booking detail nào.");
-            }
+    if (targetBookingDetailId.HasValue &&
+        invoice.InvoiceBookingDetails.All(x => x.BookingDetailId != targetBookingDetailId.Value))
+    {
+        return ApiResult<InvoiceActionResponseDto>.Fail(
+            StatusCodes.Status400BadRequest,
+            "BOOKING_DETAIL_NOT_IN_INVOICE",
+            $"BookingDetailId = {targetBookingDetailId.Value} không thuộc invoice #{invoiceId}.");
+    }
 
-            if (IsClosedInvoice(invoice.Status))
-            {
-                return ApiResult<InvoiceActionResponseDto>.Fail(
-                    StatusCodes.Status409Conflict,
-                    "INVOICE_ALREADY_CLOSED",
-                    $"Không thể thêm phụ phí vì hóa đơn đang ở trạng thái {invoice.Status}.",
-                    new
-                    {
-                        invoiceId,
-                        invoiceStatus = invoice.Status
-                    });
-            }
+    invoice.Notes = AppendExtraFeeToken(invoice.Notes, targetBookingDetailId, extraAmount);
+    invoice.ManualAdjustmentAmount = ExtractExtraFeeLines(invoice.Notes).Sum(x => x.Amount);
+    invoice.Status = "Draft";
+    invoice.Notes = AppendAuditText(
+        invoice.Notes,
+        $"Thêm phụ phí {(targetBookingDetailId.HasValue ? $"cho BookingDetail #{targetBookingDetailId.Value}" : "chung")}: +{extraAmount:N0} VND" +
+        (string.IsNullOrWhiteSpace(request.Reason) ? string.Empty : $" | Lý do: {request.Reason}"));
+    invoice.UpdatedAt = now;
 
-            var booking = invoice.Booking;
-            var before = MapResponse(booking, invoice);
+    RecalculateInvoice(booking, invoice);
 
-            invoice.ManualAdjustmentAmount = Money((invoice.ManualAdjustmentAmount ?? 0m) + request.Amount);
-            invoice.Status = "Draft";
-            invoice.Notes = AppendAuditText(
-                invoice.Notes,
-                $"Thêm phụ phí: +{Money(request.Amount):N0} VND" +
-                (string.IsNullOrWhiteSpace(request.Reason) ? string.Empty : $" | Lý do: {request.Reason}"));
-            invoice.UpdatedAt = DateTime.UtcNow;
+    await _dbContext.SaveChangesAsync(cancellationToken);
 
-            RecalculateInvoice(booking, invoice);
+    var after = MapResponse(booking, invoice);
 
-            await _dbContext.SaveChangesAsync(cancellationToken);
+    await AddAuditLog(
+        performedByUserId,
+        performedByRole,
+        "ADD_EXTRA_FEE_INVOICE",
+        "Invoices",
+        invoice.Id,
+        before,
+        after,
+        request.Reason);
 
-            var after = MapResponse(booking, invoice);
+    await _dbContext.SaveChangesAsync(cancellationToken);
+    await transaction.CommitAsync(cancellationToken);
 
-            await AddAuditLog(
-                performedByUserId,
-                performedByRole,
-                "ADD_EXTRA_FEE_INVOICE",
-                "Invoices",
-                invoice.Id,
-                before,
-                after,
-                request.Reason);
+    var extraFeeMsg = new NotificationMessage
+    {
+        Title = "Phụ phí mới",
+        Content = targetBookingDetailId.HasValue
+            ? $"Hóa đơn #{invoice.InvoiceCode} nhận thêm phụ phí {extraAmount:N0}đ cho BookingDetail #{targetBookingDetailId.Value}."
+            : $"Hóa đơn #{invoice.InvoiceCode} nhận thêm phụ phí chung: {extraAmount:N0}đ.",
+        Type = "Info",
+        Action = NotificationAction.AddExtraFee
+    };
 
-            await _dbContext.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
+    var dbNotif = new Notification
+    {
+        Title = extraFeeMsg.Title,
+        Content = extraFeeMsg.Content,
+        Type = extraFeeMsg.Type,
+        IsRead = false,
+        CreatedAt = DateTime.UtcNow
+    };
 
-            // Gửi Notification
-            var extraFeeMsg = new NotificationMessage
-            {
-                Title = "Phụ phí mới",
-                Content = $"Hóa đơn #{invoice.InvoiceCode} nhận thêm phụ phí: {request.Amount:N0}đ.",
-                Type = "Info",
-                Action = NotificationAction.AddExtraFee
-            };
-            var dbNotif = new Notification
-            {
-                Title = extraFeeMsg.Title,
-                Content = extraFeeMsg.Content,
-                Type = extraFeeMsg.Type,
-                IsRead = false,
-                CreatedAt = DateTime.UtcNow
-            };
-            _dbContext.Notifications.Add(dbNotif);
-            await _dbContext.SaveChangesAsync(cancellationToken);
-            
-            extraFeeMsg.Id = dbNotif.Id;
-            await _notificationService.SendToRoleAsync("Admin", extraFeeMsg);
+    _dbContext.Notifications.Add(dbNotif);
+    await _dbContext.SaveChangesAsync(cancellationToken);
 
-            return ApiResult<InvoiceActionResponseDto>.Ok(
-                after,
-                "Thêm phụ phí thành công.",
-                "ADD_EXTRA_FEE_SUCCESS");
-        }
+    extraFeeMsg.Id = dbNotif.Id;
+    await _notificationService.SendToRoleAsync("Admin", extraFeeMsg);
 
+    return ApiResult<InvoiceActionResponseDto>.Ok(
+        after,
+        "Thêm phụ phí thành công.",
+        "ADD_EXTRA_FEE_SUCCESS");
+}
         public async Task<ApiResult<InvoiceActionResponseDto>> SetDamageChargeAsync(
             int invoiceId,
             UpdateDamageChargeRequestDto request,
@@ -805,6 +855,7 @@ namespace HotelERP.BE.Application.Services
         {
             var term = searchTerm.Trim();
             invoiceQuery = invoiceQuery.Where(x =>
+                (x.BookingId.HasValue && x.BookingId.Value.ToString().Contains(term)) ||
                 (x.InvoiceCode != null && x.InvoiceCode.Contains(term)) ||
                 (x.Booking != null && x.Booking.BookingCode.Contains(term)) ||
                 (x.Booking != null && x.Booking.GuestName != null && x.Booking.GuestName.Contains(term)) ||
@@ -984,6 +1035,139 @@ namespace HotelERP.BE.Application.Services
             .ToList();
     }
 
+    public async Task<ApiResult<List<BirthdayVoucherForBookingResponseDto>>> GetBirthdayVouchersForBookingAsync(
+        int bookingId,
+        CancellationToken cancellationToken = default)
+    {
+        var booking = await _dbContext.Bookings
+            .Include(x => x.User)
+            .Include(x => x.Voucher)
+            .Include(x => x.BookingDetails)
+                .ThenInclude(x => x.OrderServices)
+                    .ThenInclude(x => x.OrderServiceDetails)
+            .Include(x => x.BookingDetails)
+                .ThenInclude(x => x.LossAndDamages)
+            .FirstOrDefaultAsync(x => x.Id == bookingId, cancellationToken);
+
+        if (booking is null)
+        {
+            return ApiResult<List<BirthdayVoucherForBookingResponseDto>>.Fail(
+                StatusCodes.Status404NotFound,
+                "BOOKING_NOT_FOUND",
+                $"Không tìm thấy booking id = {bookingId}.");
+        }
+
+        // Ưu tiên UserId trên booking. Nếu booking do lễ tân/admin tạo hộ khách,
+        // UserId thường là nhân viên, nên fallback theo GuestEmail/GuestPhone để tìm đúng tài khoản khách.
+        var birthdayUser = booking.User;
+
+        if (!string.IsNullOrWhiteSpace(booking.GuestEmail))
+        {
+            var email = booking.GuestEmail.Trim().ToLower();
+            var userByEmail = await _dbContext.Users
+                .FirstOrDefaultAsync(x => x.Email.ToLower() == email && x.Status, cancellationToken);
+
+            if (userByEmail is not null)
+            {
+                birthdayUser = userByEmail;
+            }
+        }
+
+        if (birthdayUser is null && !string.IsNullOrWhiteSpace(booking.GuestPhone))
+        {
+            var phone = booking.GuestPhone.Trim();
+            birthdayUser = await _dbContext.Users
+                .FirstOrDefaultAsync(x => x.Phone == phone && x.Status, cancellationToken);
+        }
+
+        if (birthdayUser is null)
+        {
+            return ApiResult<List<BirthdayVoucherForBookingResponseDto>>.Ok(
+                new List<BirthdayVoucherForBookingResponseDto>(),
+                "Booking không gắn được với tài khoản khách hàng nên không có voucher sinh nhật riêng.",
+                "NO_BOOKING_USER");
+        }
+
+        var nowUtc = DateTime.UtcNow;
+        var nowVn = nowUtc.AddHours(7);
+
+        if (birthdayUser.DateOfBirth.HasValue &&
+            birthdayUser.DateOfBirth.Value.Month == nowVn.Month &&
+            birthdayUser.DateOfBirth.Value.Day == nowVn.Day)
+        {
+            var birthdayCode = $"BDAY-{birthdayUser.Id}-{nowVn.Year}".ToUpperInvariant();
+            var exists = await _dbContext.Vouchers.AnyAsync(x => x.Code == birthdayCode, cancellationToken);
+
+            if (!exists)
+            {
+                _dbContext.Vouchers.Add(new Voucher
+                {
+                    Code = birthdayCode,
+                    UserId = birthdayUser.Id,
+                    DiscountType = "FIXED_AMOUNT",
+                    DiscountValue = 500000m,
+                    MinBookingValue = 2000000m,
+                    ValidFrom = nowUtc.AddHours(-1),
+                    ValidTo = nowUtc.AddDays(30),
+                    UsageLimit = 1
+                });
+
+                birthdayUser.LastBirthdayCouponYear = nowVn.Year;
+                birthdayUser.UpdatedAt = nowUtc;
+                await _dbContext.SaveChangesAsync(cancellationToken);
+            }
+        }
+
+        var summaries = booking.BookingDetails.Select(BuildDetailChargeSummary).ToList();
+        var subTotal = Money(summaries.Sum(x => x.Subtotal));
+
+        var vouchers = await _dbContext.Vouchers
+            .AsNoTracking()
+            .Where(x => x.UserId == birthdayUser.Id)
+            .Where(x => x.Code.StartsWith("BDAY-"))
+            .Where(x => !x.ValidFrom.HasValue || x.ValidFrom.Value <= nowUtc.AddHours(12))
+            .Where(x => !x.ValidTo.HasValue || x.ValidTo.Value >= nowUtc)
+            .OrderByDescending(x => x.ValidTo)
+            .ToListAsync(cancellationToken);
+
+        var voucherIds = vouchers.Select(x => x.Id).ToList();
+
+        var usedCountMap = await _dbContext.Bookings
+            .AsNoTracking()
+            .Where(x => x.VoucherId.HasValue && voucherIds.Contains(x.VoucherId.Value))
+            .Where(x => x.Id != booking.Id)
+            .Where(x => x.Status != "Cancelled" && x.Status != "CancelledByAdmin" && x.Status != "Expired")
+            .GroupBy(x => x.VoucherId!.Value)
+            .Select(x => new { VoucherId = x.Key, UsedCount = x.Count() })
+            .ToDictionaryAsync(x => x.VoucherId, x => x.UsedCount, cancellationToken);
+
+        var result = vouchers
+            .Where(voucher => subTotal >= (voucher.MinBookingValue ?? 0m))
+            .Where(voucher =>
+                !voucher.UsageLimit.HasValue ||
+                !usedCountMap.TryGetValue(voucher.Id, out var usedCount) ||
+                usedCount < voucher.UsageLimit.Value)
+            .Select(voucher => new BirthdayVoucherForBookingResponseDto
+            {
+                Id = voucher.Id,
+                Code = voucher.Code,
+                DiscountType = voucher.DiscountType,
+                DiscountValue = voucher.DiscountValue,
+                MinBookingAmount = voucher.MinBookingValue ?? 0m,
+                ValidFrom = voucher.ValidFrom,
+                ValidTo = voucher.ValidTo,
+                DisplayText = Normalize(voucher.DiscountType) == "PERCENT"
+                    ? $"Giảm {voucher.DiscountValue:0.##}% cho booking từ {(voucher.MinBookingValue ?? 0m):N0}đ"
+                    : $"Giảm {voucher.DiscountValue:N0}đ cho booking từ {(voucher.MinBookingValue ?? 0m):N0}đ"
+            })
+            .ToList();
+
+        return ApiResult<List<BirthdayVoucherForBookingResponseDto>>.Ok(
+            result,
+            "Lấy voucher sinh nhật của booking thành công.",
+            "GET_BIRTHDAY_VOUCHERS_SUCCESS");
+    }
+
         public async Task<DraftInvoiceDto> GetDraftInvoiceAsync(
             int bookingId,
             CancellationToken cancellationToken = default)
@@ -1009,6 +1193,7 @@ namespace HotelERP.BE.Application.Services
                 .Select(BuildDetailChargeSummary)
                 .ToList();
 
+            var totalStayNights = summaries.Sum(x => x.ActualStayNights);
             var totalRoom = Money(summaries.Sum(x => x.RoomCharge));
             var totalService = Money(summaries.Sum(x => x.ServiceCharge));
             var totalDamage = Money(summaries.Sum(x => x.DamageCharge));
@@ -1026,6 +1211,7 @@ namespace HotelERP.BE.Application.Services
                 CustomerName = booking.GuestName
                                ?? booking.User?.FullName
                                ?? "Khách lẻ",
+                TotalStayNights = totalStayNights,
                 TotalRoomAmount = totalRoom,
                 TotalServiceAmount = totalService,
                 TotalDamageAmount = totalDamage,
@@ -1319,10 +1505,26 @@ namespace HotelERP.BE.Application.Services
                 discountShare = Money(booking.DiscountAmount * (selectedSubtotal / wholeBookingBase));
             }
 
-            var manualAdjustment = Money(Math.Max(0m, invoice.ManualAdjustmentAmount ?? 0m));
-            var refundAmount = Money(Math.Max(0m, invoice.RefundAmount ?? 0m));
+            var extraFeeLines = ExtractExtraFeeLines(invoice.Notes);
 
-            var taxableBase = Money(Math.Max(0, selectedSubtotal + manualAdjustment - discountShare));
+if (extraFeeLines.Count == 0 && (invoice.ManualAdjustmentAmount ?? 0m) > 0m)
+{
+    extraFeeLines.Add(new ExtraFeeLine
+    {
+        BookingDetailId = null,
+        Amount = Money(invoice.ManualAdjustmentAmount ?? 0m)
+    });
+}
+
+var selectedDetailIdSetForExtraFee = selectedDetails.Select(x => x.Id).ToHashSet();
+var manualAdjustment = Money(extraFeeLines
+    .Where(x => !x.BookingDetailId.HasValue || selectedDetailIdSetForExtraFee.Contains(x.BookingDetailId.Value))
+    .Sum(x => x.Amount));
+var refundAmount = Money(Math.Max(0m, invoice.RefundAmount ?? 0m));
+
+invoice.ManualAdjustmentAmount = manualAdjustment;
+
+var taxableBase = Money(Math.Max(0, selectedSubtotal + manualAdjustment - discountShare));
             var taxAmount = Money(taxableBase * VatRate);
             var grossTotal = Money(Math.Max(0, taxableBase + taxAmount - refundAmount));
 
@@ -1334,45 +1536,58 @@ namespace HotelERP.BE.Application.Services
             invoice.TaxAmount = taxAmount;
             invoice.FinalTotal = grossTotal;
 
-            ApplyLineBreakdown(invoice, summaries, effectiveDamageLines, discountShare, manualAdjustment, taxAmount);
+         ApplyLineBreakdown(invoice, summaries, effectiveDamageLines, discountShare, extraFeeLines, taxAmount);
         }
 
-        private void ApplyLineBreakdown(
-            Invoice invoice,
-            List<DetailChargeSummary> summaries,
-            IReadOnlyList<decimal> effectiveDamageLines,
-            decimal discountShare,
-            decimal manualAdjustment,
-            decimal taxAmount)
-        {
-            if (invoice.InvoiceBookingDetails.Count == 0 || summaries.Count == 0) return;
+       private void ApplyLineBreakdown(
+    Invoice invoice,
+    List<DetailChargeSummary> summaries,
+    IReadOnlyList<decimal> effectiveDamageLines,
+    decimal discountShare,
+    IReadOnlyList<ExtraFeeLine> extraFeeLines,
+    decimal taxAmount)
+{
+    if (invoice.InvoiceBookingDetails.Count == 0 || summaries.Count == 0) return;
 
-            var lineSubtotals = summaries
-                .Select((x, index) => Money(x.RoomCharge + x.ServiceCharge + effectiveDamageLines[index]))
-                .ToList();
+    var lineSubtotals = summaries
+        .Select((x, index) => Money(x.RoomCharge + x.ServiceCharge + effectiveDamageLines[index]))
+        .ToList();
 
-            var discountDistribution = DistributeAmount(discountShare, lineSubtotals);
-            var extraFeeDistribution = DistributeAmount(manualAdjustment, lineSubtotals);
-            var taxDistribution = DistributeAmount(taxAmount, lineSubtotals);
+    var detailIds = summaries.Select(x => x.Detail.Id).ToHashSet();
 
-            for (var i = 0; i < summaries.Count; i++)
-            {
-                var summary = summaries[i];
-                var line = invoice.InvoiceBookingDetails.First(x => x.BookingDetailId == summary.Detail.Id);
+    var globalExtraFee = Money(extraFeeLines
+        .Where(x => !x.BookingDetailId.HasValue)
+        .Sum(x => x.Amount));
 
-                line.RoomCharge = Money(summary.RoomCharge);
-                line.ServiceCharge = Money(summary.ServiceCharge);
-                line.DamageCharge = Money(effectiveDamageLines[i]);
-                line.DiscountAmount = Money(discountDistribution[i]);
-                line.ExtraFeeAmount = Money(extraFeeDistribution[i]);
-                line.TaxAmount = Money(taxDistribution[i]);
-                line.LineTotal = Money(
-                    lineSubtotals[i]
-                    - line.DiscountAmount
-                    + line.ExtraFeeAmount
-                    + line.TaxAmount);
-            }
-        }
+    var roomSpecificExtraFee = extraFeeLines
+        .Where(x => x.BookingDetailId.HasValue && detailIds.Contains(x.BookingDetailId.Value))
+        .GroupBy(x => x.BookingDetailId!.Value)
+        .ToDictionary(x => x.Key, x => Money(x.Sum(y => y.Amount)));
+
+    var discountDistribution = DistributeAmount(discountShare, lineSubtotals);
+    var globalExtraFeeDistribution = DistributeAmount(globalExtraFee, lineSubtotals);
+    var taxDistribution = DistributeAmount(taxAmount, lineSubtotals);
+
+    for (var i = 0; i < summaries.Count; i++)
+    {
+        var summary = summaries[i];
+        var line = invoice.InvoiceBookingDetails.First(x => x.BookingDetailId == summary.Detail.Id);
+
+        roomSpecificExtraFee.TryGetValue(summary.Detail.Id, out var specificExtraFee);
+
+        line.RoomCharge = Money(summary.RoomCharge);
+        line.ServiceCharge = Money(summary.ServiceCharge);
+        line.DamageCharge = Money(effectiveDamageLines[i]);
+        line.DiscountAmount = Money(discountDistribution[i]);
+        line.ExtraFeeAmount = Money(globalExtraFeeDistribution[i] + specificExtraFee);
+        line.TaxAmount = Money(taxDistribution[i]);
+        line.LineTotal = Money(
+            lineSubtotals[i]
+            - line.DiscountAmount
+            + line.ExtraFeeAmount
+            + line.TaxAmount);
+    }
+}
 
         private static List<decimal> DistributeAmount(decimal total, IReadOnlyList<decimal> weights)
         {
@@ -1437,6 +1652,7 @@ namespace HotelERP.BE.Application.Services
                 Detail = detail,
                 RoomCharge = roomCharge,
                 ServiceCharge = serviceCharge,
+                ActualStayNights = CalculateActualStayNights(detail),
                 DamageCharge = damageCharge
             };
         }
@@ -1450,6 +1666,7 @@ namespace HotelERP.BE.Application.Services
 
             var summaries = selectedDetails.Select(BuildDetailChargeSummary).ToList();
 
+            var totalStayNights = summaries.Sum(x => x.ActualStayNights);
             var roomTotal = Money(summaries.Sum(x => x.RoomCharge));
             var serviceTotal = Money(summaries.Sum(x => x.ServiceCharge));
             var damageTotal = Money(summaries.Sum(x => x.DamageCharge));
@@ -1479,6 +1696,7 @@ namespace HotelERP.BE.Application.Services
                     .Distinct()
                     .OrderBy(x => x)
                     .ToList(),
+                TotalStayNights = totalStayNights,
                 TotalRoomAmount = roomTotal,
                 TotalServiceAmount = serviceTotal,
                 TotalDamageAmount = damageTotal,
@@ -1555,15 +1773,30 @@ namespace HotelERP.BE.Application.Services
             booking.UpdatedAt = now;
         }
 
+      private static int CalculateActualStayNights(BookingDetail detail)
+{
+    var checkIn = detail.ActualCheckInAt ?? detail.CheckInDate;
+    var checkOut = detail.ActualCheckOutAt ?? detail.CheckOutDate;
+
+    var days = (checkOut.Date - checkIn.Date).Days;
+
+    // Nếu nhận phòng rồi trả luôn trong ngày
+    // hoặc ở dưới 1 ngày thì vẫn tính 1 ngày
+    if (days < 1)
+    {
+        return 1;
+    }
+
+    return days;
+}
+
         private static decimal CalculateRoomLineAmount(BookingDetail detail)
         {
-            if (detail.LineTotal > 0) return Money(detail.LineTotal);
+            var actualStayNights = CalculateActualStayNights(detail);
+            var amount = (detail.PricePerNight * actualStayNights)
+                         + detail.EarlyCheckInFee
+                         + detail.LateCheckOutFee;
 
-            var nights = detail.Nights > 0
-                ? detail.Nights
-                : Math.Max(1, (detail.CheckOutDate.Date - detail.CheckInDate.Date).Days);
-
-            var amount = (detail.PricePerNight * nights) + detail.EarlyCheckInFee + detail.LateCheckOutFee;
             return Money(amount);
         }
 
@@ -1629,6 +1862,8 @@ namespace HotelERP.BE.Application.Services
                 .OrderBy(x => x)
                 .ToList();
 
+            var selectedDetailsForStay = GetSelectedDetails(booking, invoice);
+            var totalStayNights = selectedDetailsForStay.Sum(CalculateActualStayNights);
             var depositAmount = CalculateDepositApplied(booking, invoice);
             var grossTotal = Money(invoice.FinalTotal ?? 0m);
             var amountDue = Money(Math.Max(0, grossTotal - depositAmount));
@@ -1647,6 +1882,23 @@ namespace HotelERP.BE.Application.Services
                 PaymentStatus = booking.PaymentStatus,
                 BookingDetailIds = detailIds,
                 RoomNumbers = roomNumbers,
+                Lines = invoice.InvoiceBookingDetails
+                    .OrderBy(x => x.BookingDetail?.Room?.RoomNumber ?? string.Empty)
+                    .Select(x => new InvoiceLineResponseDto
+                    {
+                        BookingDetailId = x.BookingDetailId,
+                    ActualStayNights = x.BookingDetail != null ? CalculateActualStayNights(x.BookingDetail) : 1,
+                    StayNights = x.BookingDetail != null ? CalculateActualStayNights(x.BookingDetail) : 1,
+                        RoomNumber = x.BookingDetail?.Room?.RoomNumber ?? $"Detail#{x.BookingDetailId}",
+                        RoomCharge = x.RoomCharge,
+                        ServiceCharge = x.ServiceCharge,
+                        DamageCharge = x.DamageCharge,
+                        DiscountAmount = x.DiscountAmount,
+                        ExtraFeeAmount = x.ExtraFeeAmount,
+                        TaxAmount = x.TaxAmount,
+                        LineTotal = x.LineTotal
+                    })
+                    .ToList(),
                 TotalRoomAmount = invoice.TotalRoomAmount ?? 0m,
                 TotalServiceAmount = invoice.TotalServiceAmount ?? 0m,
                 TotalDamageAmount = invoice.TotalDamageAmount ?? 0m,
@@ -1734,21 +1986,102 @@ namespace HotelERP.BE.Application.Services
                 : token + Environment.NewLine + sanitized.Trim();
         }
 
-        private static string? SanitizeInvoiceNotes(string? notes)
+       private static string AppendExtraFeeToken(string? notes, int? bookingDetailId, decimal amount)
+{
+    var safeAmount = Money(Math.Max(0, amount));
+
+    var target = bookingDetailId.HasValue && bookingDetailId.Value > 0
+        ? bookingDetailId.Value.ToString()
+        : "ALL";
+
+    var token = $"{ExtraFeeTokenPrefix}{target}:{safeAmount:0.##}]]";
+
+    var tokens = ExtractSystemTokens(notes).ToList();
+    tokens.Add(token);
+
+    var visibleNotes = SanitizeInvoiceNotes(notes);
+
+    return string.IsNullOrWhiteSpace(visibleNotes)
+        ? string.Join(Environment.NewLine, tokens)
+        : string.Join(Environment.NewLine, tokens) + Environment.NewLine + visibleNotes.Trim();
+}
+
+private static List<ExtraFeeLine> ExtractExtraFeeLines(string? notes)
+{
+    var result = new List<ExtraFeeLine>();
+    if (string.IsNullOrWhiteSpace(notes)) return result;
+
+    var matches = Regex.Matches(
+        notes,
+        Regex.Escape(ExtraFeeTokenPrefix) + @"(?<target>ALL|\d+):(?<amount>\d+(?:\.\d+)?)\]\]",
+        RegexOptions.IgnoreCase);
+
+    foreach (Match match in matches)
+    {
+        if (!decimal.TryParse(match.Groups["amount"].Value, out var amount)) continue;
+
+        int? bookingDetailId = null;
+        var target = match.Groups["target"].Value;
+
+        if (!string.Equals(target, "ALL", StringComparison.OrdinalIgnoreCase) &&
+            int.TryParse(target, out var parsedId))
         {
-            if (string.IsNullOrWhiteSpace(notes)) return notes;
-
-            var cleaned = Regex.Replace(
-                notes,
-                Regex.Escape(DamageOverrideTokenPrefix) + @"\d+(?:\.\d+)?\]\]\s*",
-                string.Empty,
-                RegexOptions.Multiline);
-
-            cleaned = Regex.Replace(cleaned, @"(\r?\n){3,}", Environment.NewLine + Environment.NewLine);
-            cleaned = cleaned.Trim();
-
-            return string.IsNullOrWhiteSpace(cleaned) ? null : cleaned;
+            bookingDetailId = parsedId;
         }
+
+        result.Add(new ExtraFeeLine
+        {
+            BookingDetailId = bookingDetailId,
+            Amount = Money(Math.Max(0, amount))
+        });
+    }
+
+    return result;
+}
+
+private static List<string> ExtractSystemTokens(string? notes)
+{
+    if (string.IsNullOrWhiteSpace(notes)) return new List<string>();
+
+    var tokens = new List<string>();
+
+    var damageMatches = Regex.Matches(
+        notes,
+        Regex.Escape(DamageOverrideTokenPrefix) + @"\d+(?:\.\d+)?\]\]",
+        RegexOptions.IgnoreCase);
+
+    var extraFeeMatches = Regex.Matches(
+        notes,
+        Regex.Escape(ExtraFeeTokenPrefix) + @"(?:ALL|\d+):\d+(?:\.\d+)?\]\]",
+        RegexOptions.IgnoreCase);
+
+    tokens.AddRange(damageMatches.Select(x => x.Value));
+    tokens.AddRange(extraFeeMatches.Select(x => x.Value));
+
+    return tokens;
+}
+
+private static string? SanitizeInvoiceNotes(string? notes)
+{
+    if (string.IsNullOrWhiteSpace(notes)) return notes;
+
+    var cleaned = Regex.Replace(
+        notes,
+        Regex.Escape(DamageOverrideTokenPrefix) + @"\d+(?:\.\d+)?\]\]\s*",
+        string.Empty,
+        RegexOptions.Multiline | RegexOptions.IgnoreCase);
+
+    cleaned = Regex.Replace(
+        cleaned,
+        Regex.Escape(ExtraFeeTokenPrefix) + @"(?:ALL|\d+):\d+(?:\.\d+)?\]\]\s*",
+        string.Empty,
+        RegexOptions.Multiline | RegexOptions.IgnoreCase);
+
+    cleaned = Regex.Replace(cleaned, @"(\r?\n){3,}", Environment.NewLine + Environment.NewLine);
+    cleaned = cleaned.Trim();
+
+    return string.IsNullOrWhiteSpace(cleaned) ? null : cleaned;
+}
 
         private async Task AddAuditLog(
             int? userId,
@@ -1792,34 +2125,33 @@ namespace HotelERP.BE.Application.Services
         private static bool IsCheckedOut(BookingDetail detail)
         {
             return detail.ActualCheckOutAt.HasValue
-                   || Normalize(detail.Status) is "CHECKED_OUT" or "COMPLETED";
+                   || Normalize(detail.Status) is "CHECKEDOUT" or "CHECKED_OUT" or "COMPLETED";
         }
 
-        private static string AppendAuditText(string? current, string newLine)
-        {
-            var prefix = $"[{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC] ";
-            var tokenMatch = Regex.Match(
-                current ?? string.Empty,
-                Regex.Escape(DamageOverrideTokenPrefix) + @"\d+(?:\.\d+)?\]\]");
+       private static string AppendAuditText(string? current, string newLine)
+{
+    var prefix = $"[{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC] ";
 
-            var systemToken = tokenMatch.Success ? tokenMatch.Value : null;
-            var visibleNotes = SanitizeInvoiceNotes(current);
-            var appended = string.IsNullOrWhiteSpace(visibleNotes)
-                ? prefix + newLine.Trim()
-                : visibleNotes.Trim() + Environment.NewLine + prefix + newLine.Trim();
+    var systemTokens = ExtractSystemTokens(current);
+    var visibleNotes = SanitizeInvoiceNotes(current);
 
-            var result = string.IsNullOrWhiteSpace(systemToken)
-                ? appended
-                : systemToken + Environment.NewLine + appended;
+    var appended = string.IsNullOrWhiteSpace(visibleNotes)
+        ? prefix + newLine.Trim()
+        : visibleNotes.Trim() + Environment.NewLine + prefix + newLine.Trim();
 
-            // Giữ tối đa 8000 ký tự để an toàn với DB (cắt log cũ, giữ log mới nhất)
-            const int MaxNoteLength = 8000;
-            if (result.Length > MaxNoteLength)
-            {
-                result = "...(log cũ đã được cắt bớt)..." + Environment.NewLine + result[^(MaxNoteLength - 50)..];
-            }
-            return result;
-        }
+    var result = systemTokens.Count == 0
+        ? appended
+        : string.Join(Environment.NewLine, systemTokens) + Environment.NewLine + appended;
+
+    const int MaxNoteLength = 8000;
+
+    if (result.Length > MaxNoteLength)
+    {
+        result = "...(log cũ đã được cắt bớt)..." + Environment.NewLine + result[^(MaxNoteLength - 50)..];
+    }
+
+    return result;
+}
 
 
         private static string Normalize(string? value)

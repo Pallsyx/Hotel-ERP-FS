@@ -1,25 +1,69 @@
-import React, { useEffect, useState } from 'react';
-import { Modal, Form, Input, InputNumber, message } from 'antd';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Modal, Form, Input, InputNumber, message, Select } from 'antd';
 import invoiceApi from '../../../api/invoiceApi';
 
-const QuickActionModal = ({ open, invoiceId, onCancel, onSuccess }) => {
+const normalizeOptions = (items = []) =>
+  (Array.isArray(items) ? items : [])
+    .map((item) => ({
+      bookingDetailId: Number(item.bookingDetailId ?? item.BookingDetailId ?? item.value ?? 0),
+      roomNumber: item.roomNumber ?? item.RoomNumber ?? item.label ?? '',
+    }))
+    .filter((item) => item.bookingDetailId > 0);
+
+const QuickActionModal = ({ open, invoiceId, extraFeeTargets = [], onCancel, onSuccess }) => {
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = useState(false);
+  const [loadingTargets, setLoadingTargets] = useState(false);
+  const [targetsFromInvoice, setTargetsFromInvoice] = useState([]);
+
+  const normalizedPropTargets = useMemo(() => normalizeOptions(extraFeeTargets), [extraFeeTargets]);
+  const normalizedLoadedTargets = useMemo(() => normalizeOptions(targetsFromInvoice), [targetsFromInvoice]);
+
+  const targetOptions = normalizedPropTargets.length ? normalizedPropTargets : normalizedLoadedTargets;
 
   useEffect(() => {
-    if (open) {
-      form.resetFields();
-    }
-  }, [open, form]);
+    if (!open) return;
+
+    form.resetFields();
+    setTargetsFromInvoice([]);
+
+    const loadInvoiceTargets = async () => {
+      if (!invoiceId || normalizedPropTargets.length) return;
+
+      try {
+        setLoadingTargets(true);
+        const res = await invoiceApi.getInvoiceDetail(invoiceId);
+        const payload = res?.data?.data || res?.data || {};
+        const ids = payload.bookingDetailIds || payload.BookingDetailIds || [];
+        const rooms = payload.roomNumbers || payload.RoomNumbers || [];
+
+        setTargetsFromInvoice(
+          ids.map((id, index) => ({
+            bookingDetailId: id,
+            roomNumber: rooms[index] || `BookingDetail #${id}`,
+          }))
+        );
+      } catch (error) {
+        console.error('Load invoice targets error:', error);
+      } finally {
+        setLoadingTargets(false);
+      }
+    };
+
+    loadInvoiceTargets();
+  }, [open, invoiceId, form, normalizedPropTargets.length]);
 
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
       setSubmitting(true);
 
+      const bookingDetailId = Number(values.bookingDetailId || 0) || null;
+
       const res = await invoiceApi.addExtraFee(invoiceId, {
         amount: values.amount,
         reason: values.reason || '',
+        bookingDetailId,
       });
 
       const payload = res?.data?.data || {};
@@ -64,6 +108,21 @@ const QuickActionModal = ({ open, invoiceId, onCancel, onSuccess }) => {
             formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, '.')}
             parser={(value) => value.replace(/\./g, '')}
             addonAfter="VND"
+          />
+        </Form.Item>
+
+        <Form.Item
+          name="bookingDetailId"
+          label="Tính phụ phí cho phòng nào?"
+        >
+          <Select
+            allowClear
+            loading={loadingTargets}
+            placeholder="Không chọn: tính chung cho hóa đơn"
+            options={targetOptions.map((item) => ({
+              value: item.bookingDetailId,
+              label: `Phòng ${item.roomNumber || '-'} • BookingDetail #${item.bookingDetailId}`,
+            }))}
           />
         </Form.Item>
 

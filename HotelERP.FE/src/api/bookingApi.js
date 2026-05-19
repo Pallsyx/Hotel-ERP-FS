@@ -50,6 +50,15 @@ const bookingApi = {
     return axiosClient.post(`/bookings/${bookingId}/remove-voucher`);
   },
 
+
+
+  // Lấy voucher sinh nhật của user đang đăng nhập để dùng ngay tại màn đặt phòng
+  getMyBirthdayVouchers: (subtotal = 0) => {
+    return axiosClient.get('/BookingEngine/my-birthday-vouchers', {
+      params: { subtotal }
+    });
+  },
+
   // 8. Kiểm tra voucher trước khi đặt (Validate)
   // POST /api/BookingEngine/validate-voucher
   validateVoucher: (code, subtotal) => {

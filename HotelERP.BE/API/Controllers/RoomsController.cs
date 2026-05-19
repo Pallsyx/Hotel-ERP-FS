@@ -69,11 +69,18 @@ public class RoomsController(IRoomService roomService) : ControllerBase
     public async Task<IActionResult> UpdateRoomStatus(int id, [FromBody] UpdateRoomStatusRequest request)
     {
         var valid = new[] { "AVAILABLE", "OCCUPIED", "MAINTENANCE", "OUT_OF_ORDER" };
-        if (!valid.Contains(request.NewStatus.ToUpper())) return BadRequest("Trạng thái phòng không hợp lệ.");
+        if (!valid.Contains(request.NewStatus.ToUpper())) return BadRequest(new { success = false, message = "Trạng thái phòng không hợp lệ." });
 
-        var result = await roomService.UpdateRoomStatusAsync(id, request);
-        if (!result) return NotFound();
-        return Ok(new { success = true, message = "Đã cập nhật trạng thái kinh doanh của phòng." });
+        try
+        {
+            var result = await roomService.UpdateRoomStatusAsync(id, request);
+            if (!result) return NotFound(new { success = false, message = "Không tìm thấy phòng." });
+            return Ok(new { success = true, message = "Đã cập nhật trạng thái kinh doanh của phòng." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
     }
 
     [HttpPost("loss-damages")]

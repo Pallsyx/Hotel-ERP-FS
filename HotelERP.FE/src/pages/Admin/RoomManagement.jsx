@@ -224,7 +224,8 @@ export default function App() {
         setRooms(prevRooms => prevRooms.map(r => r.id === roomId ? { ...r, [field]: newStatus } : r));
         message.success(`Đã cập nhật trạng thái thành công!`);
       } catch (error) {
-        message.error("Lỗi kết nối Backend. Không thể cập nhật!");
+        const errorMsg = error.response?.data?.message || "Lỗi kết nối Backend. Không thể cập nhật!";
+        message.error(errorMsg);
         console.error("handleStatusChange error:", error);
       }
     };

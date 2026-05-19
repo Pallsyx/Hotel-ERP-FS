@@ -16,6 +16,12 @@ public class InvoiceActionResponseDto
     public List<int> BookingDetailIds { get; set; } = new();
     public List<string> RoomNumbers { get; set; } = new();
 
+    // Tổng số ngày/đêm thực tế đã ở
+    public int TotalStayNights { get; set; }
+
+    // Chi tiết từng dòng phòng trong invoice
+    public List<InvoiceLineResponseDto> Lines { get; set; } = new();
+
     public decimal TotalRoomAmount { get; set; }
     public decimal TotalServiceAmount { get; set; }
     public decimal TotalDamageAmount { get; set; }
@@ -37,4 +43,21 @@ public class InvoiceActionResponseDto
 
     public int? VoucherId { get; set; }
     public string? VoucherCode { get; set; }
+}
+
+public class InvoiceLineResponseDto
+{
+    public int BookingDetailId { get; set; }
+    public string RoomNumber { get; set; } = string.Empty;
+
+    public int ActualStayNights { get; set; }
+    public int StayNights { get; set; }
+
+    public decimal RoomCharge { get; set; }
+    public decimal ServiceCharge { get; set; }
+    public decimal DamageCharge { get; set; }
+    public decimal DiscountAmount { get; set; }
+    public decimal ExtraFeeAmount { get; set; }
+    public decimal TaxAmount { get; set; }
+    public decimal LineTotal { get; set; }
 }

@@ -103,17 +103,26 @@ namespace HotelERP.BE.API.Controllers
         }
 
         [HttpPost("bookings/{bookingId:int}/voucher")]
-        public async Task<IActionResult> ApplyVoucherToBooking(
-            int bookingId,
-            [FromBody] ApplyInvoiceVoucherRequestDto request,
-            CancellationToken cancellationToken)
-        {
-            var userId = ResolveCurrentUserId();
-            var result = await _invoiceService.ApplyVoucherToBookingAsync(bookingId, request, userId, cancellationToken);
-            return StatusCode(result.StatusCode, result);
-        }
+public async Task<IActionResult> ApplyVoucherToBooking(
+    int bookingId,
+    [FromBody] ApplyInvoiceVoucherRequestDto request,
+    CancellationToken cancellationToken)
+{
+    var userId = ResolveCurrentUserId();
+    var result = await _invoiceService.ApplyVoucherToBookingAsync(bookingId, request, userId, cancellationToken);
+    return StatusCode(result.StatusCode, result);
+}
 
-        [HttpPost("draft")]
+[HttpGet("bookings/{bookingId:int}/birthday-vouchers")]
+public async Task<IActionResult> GetBirthdayVouchersForBooking(
+    int bookingId,
+    CancellationToken cancellationToken)
+{
+    var result = await _invoiceService.GetBirthdayVouchersForBookingAsync(bookingId, cancellationToken);
+    return StatusCode(result.StatusCode, result);
+}
+
+[HttpPost("draft")]
         public async Task<IActionResult> CreateDraft(
             [FromBody] CreateDraftInvoiceRequestDto request,
             CancellationToken cancellationToken)

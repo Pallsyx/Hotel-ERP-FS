@@ -5,6 +5,9 @@ public class DraftInvoiceDto
     public int BookingId { get; set; }
     public string BookingCode { get; set; } = string.Empty;
     public string CustomerName { get; set; } = string.Empty;
+
+    public int TotalStayNights { get; set; }
+
     public decimal TotalRoomAmount { get; set; }
     public decimal TotalServiceAmount { get; set; }
     public decimal TotalDamageAmount { get; set; }

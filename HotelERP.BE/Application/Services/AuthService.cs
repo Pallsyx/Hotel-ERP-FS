@@ -102,6 +102,7 @@ public class AuthService : IAuthService
         // Tìm User theo ID và Join (Include) với bảng Role để lấy tên quyền
         var user = await _context.Users
             .Include(u => u.Role)
+            .Include(u => u.Membership)
             .FirstOrDefaultAsync(u => u.Id == userId && u.Status == true);
 
         if (user == null)
@@ -118,7 +119,9 @@ public class AuthService : IAuthService
             Address = user.Address,
             DateOfBirth = user.DateOfBirth,
             LoyaltyPoints = user.LoyaltyPoints,
-            RoleName = user.Role?.Name // Nếu có Role thì lấy Name, không thì để null
+            RoleName = user.Role?.Name, // Nếu có Role thì lấy Name, không thì để null
+            MembershipTier = user.Membership?.TierName,
+            MembershipDiscount = user.Membership?.DiscountPercent ?? 0
         };
     }
 

@@ -33,6 +33,37 @@ export const useSignalR = () => {
         .configureLogging(signalR.LogLevel.Warning)
         .build();
 
+      hubConnection.on('PermissionsUpdated', async () => {
+        const token = localStorage.getItem('token');
+        const refreshToken = localStorage.getItem('refreshToken');
+        if (token && refreshToken) {
+          try {
+             // Dùng fetch thay vì axiosClient để tránh vòng lặp interceptor nếu bị 401
+             const res = await fetch(`${API_ROOT}/auth/refresh-token`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ accessToken: token, refreshToken })
+             });
+             const data = await res.json();
+             if (data.success) {
+                useAuthStore.getState().login(
+                  data.data.user,
+                  data.data.accessToken,
+                  data.data.refreshToken,
+                  data.data.permissions
+                );
+                notification.info({
+                   message: 'Cập nhật hệ thống',
+                   description: 'Quyền hạn của bạn vừa được cập nhật, hệ thống đã đồng bộ thành công!',
+                   placement: 'topRight'
+                });
+             }
+          } catch (e) {
+             console.error('Failed to silently refresh permissions:', e);
+          }
+        }
+      });
+
       hubConnection.on('ReceiveNotification', (data) => {
         const title = data?.title || data?.Title || 'Thông báo mới';
         const content = data?.content || data?.Content || data?.message || data?.Message || '';
