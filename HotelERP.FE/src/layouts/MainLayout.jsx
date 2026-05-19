@@ -89,7 +89,7 @@ const MainLayout = () => {
   /* ── Menu definition ── */
   const rawMenuItems = [
     { key: '/admin/dashboard', icon: <DashboardOutlined />, label: 'Dashboard' },
-    { key: '/admin/period-dashboard', icon: <AppstoreOutlined />, label: 'Báo cáo Định kỳ' },
+    { key: '/admin/period-dashboard', icon: <AppstoreOutlined />, label: 'Báo cáo Định kỳ', adminOnly: true },
 
     {
       key: 'grp_frontdesk',
@@ -162,6 +162,7 @@ const MainLayout = () => {
   const filterMenuItems = (items) =>
     items
       .filter(item => {
+        if (item.adminOnly && !isAdmin) return false;
         if (isAdmin) return true;
         if (!item.requiredPermission) return true;
         return permissions && permissions.includes(item.requiredPermission);
@@ -173,7 +174,7 @@ const MainLayout = () => {
         return item;
       })
       .filter(item => !item.children || item.children.length > 0)
-      .map(({ requiredPermission, ...rest }) => rest);
+      .map(({ requiredPermission, adminOnly, ...rest }) => rest);
 
   const menuItems = filterMenuItems(rawMenuItems);
 
