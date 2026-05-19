@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Form, Input, Button, message, Divider, Space, Tag, Modal } from 'antd';
+import { Form, Input, Button, message, Divider, Space, Tag, Modal, Alert } from 'antd';
 import { ArrowLeftOutlined, CheckCircleOutlined, InfoCircleOutlined, TagOutlined, CloseCircleOutlined, GiftOutlined } from '@ant-design/icons';
 import { useAuthStore } from '../../store/authStore';
 import bookingApi from '../../api/bookingApi';
@@ -76,7 +76,10 @@ export default function GuestBookingPage() {
   const { state } = useLocation();
   const navigate = useNavigate();
   const [form] = Form.useForm();
-  
+
+  // Auth
+  const { user, isAuthenticated } = useAuthStore();
+
   const [loading, setLoading] = useState(false);
   const [successCode, setSuccessCode] = useState(null);
 
@@ -86,9 +89,13 @@ export default function GuestBookingPage() {
   const [appliedVoucher, setAppliedVoucher] = useState(null);
   const [discountAmount, setDiscountAmount] = useState(0);
 
-  // Birthday voucher state
+  // Birthday voucher state (single modal)
   const [birthdayVoucher, setBirthdayVoucher] = useState(null);
   const [showBirthdayModal, setShowBirthdayModal] = useState(false);
+
+  // Birthday voucher list (banner / inline section)
+  const [birthdayVouchers, setBirthdayVouchers] = useState([]);
+  const [loadingBirthdayVouchers, setLoadingBirthdayVouchers] = useState(false);
 
   // Fallback if no state
   if (!state) {
@@ -135,23 +142,32 @@ export default function GuestBookingPage() {
       .catch(() => { /* Im lặng nếu lỗi — không block flow chính */ });
   }, [isAuthenticated]);
 
-  // Áp dụng voucher sinh nhật trực tiếp từ Modal (không cần nhập mã thủ công)
-  const applyBirthdayVoucher = () => {
-    if (!birthdayVoucher) return;
-    setAppliedVoucher(birthdayVoucher);
-    setVoucherCode(birthdayVoucher.code);
+  // Áp dụng một voucher object bất kỳ (dùng chung cho modal & inline list)
+  const applyVoucherObject = (voucher) => {
+    if (!voucher) return;
+    const code = voucher.code || voucher.Code;
+    const discountType = voucher.discountType || voucher.DiscountType || 'FIXED_AMOUNT';
+    const discountValue = voucher.discountValue || voucher.DiscountValue || 0;
+
+    setAppliedVoucher({ ...voucher, code });
+    setVoucherCode(code);
 
     let discount = 0;
-    if (birthdayVoucher.discountType === 'PERCENT') {
-      discount = subtotal * (birthdayVoucher.discountValue / 100);
+    if (discountType === 'PERCENT') {
+      discount = subtotal * (discountValue / 100);
     } else {
-      discount = birthdayVoucher.discountValue;
+      discount = discountValue;
     }
     if (discount > subtotal) discount = subtotal;
     setDiscountAmount(discount);
-
     setShowBirthdayModal(false);
-    message.success(`🎂 Voucher sinh nhật ${birthdayVoucher.code} đã được áp dụng! Giảm ${formatVND(discount)}`);
+    message.success(`🎁 Voucher ${code} đã được áp dụng! Giảm ${formatVND(discount)}`);
+  };
+
+  // Áp dụng voucher sinh nhật trực tiếp từ Modal
+  const applyBirthdayVoucher = () => {
+    if (!birthdayVoucher) return;
+    applyVoucherObject(birthdayVoucher);
   };
 
   const handleApplyVoucher = async () => {

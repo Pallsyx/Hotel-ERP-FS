@@ -40,8 +40,15 @@ public class RoomTypesController : ControllerBase
     [Consumes("multipart/form-data")] 
     public async Task<IActionResult> CreateRoomType([FromForm] CreateRoomTypeRequest request)
     {
-        var id = await _roomTypeService.CreateRoomTypeAsync(request);
-        return Ok(new { success = true, message = "Tạo hạng phòng thành công.", roomTypeId = id });
+        try
+        {
+            var id = await _roomTypeService.CreateRoomTypeAsync(request);
+            return Ok(new { success = true, message = "Tạo hạng phòng thành công.", roomTypeId = id });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
     }
 
     [HttpPut("{id}")]
@@ -49,9 +56,16 @@ public class RoomTypesController : ControllerBase
     [Consumes("multipart/form-data")] 
     public async Task<IActionResult> UpdateRoomType(int id, [FromForm] UpdateRoomTypeRequest request)
     {
-        var result = await _roomTypeService.UpdateRoomTypeAsync(id, request);
-        if (!result) return NotFound();
-        return Ok(new { success = true, message = "Cập nhật hạng phòng thành công." });
+        try
+        {
+            var result = await _roomTypeService.UpdateRoomTypeAsync(id, request);
+            if (!result) return NotFound(new { success = false, message = "Không tìm thấy hạng phòng" });
+            return Ok(new { success = true, message = "Cập nhật hạng phòng thành công." });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
     }
 
     [HttpDelete("{id}")]

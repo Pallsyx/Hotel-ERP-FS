@@ -119,6 +119,8 @@ public partial class HotelDbContext : DbContext
                 .HasConstraintName("FK_EquipmentSupplierLogs_Users");
         });
 
+        modelBuilder.Entity<ArticleCategoryMapping>().HasKey(am => new { am.ArticleId, am.CategoryId });
+
         modelBuilder.Entity<ArticleCategory>().HasQueryFilter(c => c.Status == "ACTIVE");
 
         modelBuilder.Entity<Article>().HasQueryFilter(a =>

@@ -111,6 +111,9 @@ CREATE TABLE [dbo].[Amenities](
 	[name] [nvarchar](255) NOT NULL,
 	[icon_url] [nvarchar](max) NULL,
 	[is_active] [bit] NULL DEFAULT 1,
+	[status] [nvarchar](20) NOT NULL DEFAULT 'ACTIVE',
+	[created_at] [datetime] NULL DEFAULT GETDATE(),
+	[UpdatedAt] [datetime] NULL,
 	[DeletedAt] [datetime] NULL
 );
 
@@ -364,7 +367,8 @@ CREATE TABLE [dbo].[Order_Service_Details](
 	[order_service_id] [int] NULL,
 	[service_id] [int] NULL,
 	[quantity] [int] NOT NULL,
-	[unit_price] [decimal](18, 2) NOT NULL
+	[unit_price] [decimal](18, 2) NOT NULL,
+	[status] [nvarchar](20) NOT NULL DEFAULT 'Active'
 );
 
 
@@ -415,6 +419,14 @@ CREATE TABLE [dbo].[Articles](
 	[is_active] [bit] NULL DEFAULT 1,
 	[created_at] [datetime] NULL DEFAULT GETDATE(),
 	[updated_at] [datetime] NULL
+);
+
+CREATE TABLE [dbo].[ArticleCategoryMappings](
+	[ArticleId] [int] NOT NULL,
+	[CategoryId] [int] NOT NULL,
+	PRIMARY KEY CLUSTERED ([ArticleId], [CategoryId]),
+	FOREIGN KEY ([ArticleId]) REFERENCES [dbo].[Articles] ([id]) ON DELETE CASCADE,
+	FOREIGN KEY ([CategoryId]) REFERENCES [dbo].[Article_Categories] ([id]) ON DELETE CASCADE
 );
 
 CREATE TABLE [dbo].[Attractions](
@@ -1652,6 +1664,13 @@ IF COL_LENGTH('dbo.Order_Service_Details', 'notes') IS NULL
 BEGIN
     ALTER TABLE dbo.Order_Service_Details
     ADD notes NVARCHAR(500) NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.Order_Service_Details', 'status') IS NULL
+BEGIN
+    ALTER TABLE dbo.Order_Service_Details
+    ADD status NVARCHAR(20) NOT NULL CONSTRAINT DF_OrderServiceDetails_Status DEFAULT 'Active';
 END
 GO
 
