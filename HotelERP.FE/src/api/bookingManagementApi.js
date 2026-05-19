@@ -44,7 +44,43 @@ const bookingManagementApi = {
   // Nạp cọc
   addDeposit: (bookingId, amount) => {
     return axiosClient.put(`/booking-management/${bookingId}/deposit`, { amount });
-  }
+  },
+
+  // =====================================
+  // DỊCH VỤ (ORDER SERVICE)
+  // =====================================
+
+  // Lấy danh sách dịch vụ ACTIVE nhóm theo danh mục
+  getServices: () => {
+    return axiosClient.get('/booking-management/services');
+  },
+
+  // Lấy lịch sử đơn dịch vụ của một BookingDetail (phòng cụ thể)
+  getOrdersByBookingDetail: (bookingDetailId) => {
+    return axiosClient.get(`/booking-management/details/${bookingDetailId}/orders`);
+  },
+
+  // Tạo đơn dịch vụ mới
+  // - Khách in-house: { bookingDetailId, items: [{serviceId, quantity}], notes }
+  // - Khách vãng lai POS: { bookingDetailId: null, guestName (tùy chọn), items, notes }
+  createOrder: (data) => {
+    return axiosClient.post('/booking-management/orders', data);
+  },
+
+  // Cập nhật trạng thái đơn: Booked → InProgress → Completed | Cancelled
+  updateOrderStatus: (orderId, newStatus, notes = null) => {
+    return axiosClient.put(`/booking-management/orders/${orderId}/status`, { newStatus, notes });
+  },
+
+  // Cross-check khách in-house theo số phòng (xác minh trước khi tạo đơn)
+  crossCheckGuestByRoom: (roomNumber) => {
+    return axiosClient.get(`/booking-management/rooms/${encodeURIComponent(roomNumber)}/in-house-guest`);
+  },
+
+  // Ghi nợ đơn dịch vụ vào folio phòng (thanh toán khi check-out)
+  postOrderToFolio: (orderId) => {
+    return axiosClient.post(`/booking-management/orders/${orderId}/post-to-folio`);
+  },
 };
 
 export default bookingManagementApi;

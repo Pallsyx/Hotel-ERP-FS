@@ -1,4 +1,5 @@
 using HotelERP.BE.Application.DTOs.BookingManagement;
+using HotelERP.BE.Application.DTOs.OrderService;
 using HotelERP.BE.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -11,10 +12,14 @@ namespace HotelERP.BE.API.Controllers;
 public class BookingManagementController : ControllerBase
 {
     private readonly IBookingManagementService _bookingService;
+    private readonly IOrderServiceManagementService _orderService;
 
-    public BookingManagementController(IBookingManagementService bookingService)
+    public BookingManagementController(
+        IBookingManagementService bookingService,
+        IOrderServiceManagementService orderService)
     {
         _bookingService = bookingService;
+        _orderService = orderService;
     }
 
     // ==============================================================
@@ -167,5 +172,116 @@ public class BookingManagementController : ControllerBase
         if (!result.Success) return BadRequest(new { success = false, message = result.Message });
 
         return Ok(new { success = true, message = result.Message, newDeposit = result.NewDeposit });
+    }
+
+    // ==============================================================
+    // API 9: GET /api/booking-management/services
+    // Lấy danh sách dịch vụ ACTIVE, nhóm theo danh mục (cho modal đặt DV)
+    // ==============================================================
+    /// <summary>
+    /// Lấy danh sách tất cả dịch vụ đang hoạt động, nhóm theo danh mục.
+    /// Dùng để hiển thị menu chọn dịch vụ cho lễ tân.
+    /// </summary>
+    [HttpGet("services")]
+    public async Task<IActionResult> GetServices()
+    {
+        var result = await _orderService.GetAllServicesByCategoryAsync();
+        return Ok(new { success = true, data = result });
+    }
+
+    // ==============================================================
+    // API 10: GET /api/booking-management/details/{detailId}/orders
+    // Lấy lịch sử đơn dịch vụ của 1 BookingDetail (phòng đang ở)
+    // ==============================================================
+    /// <summary>
+    /// Lấy danh sách đơn dịch vụ đã đặt cho một phòng cụ thể (BookingDetail).
+    /// Dùng để hiển thị lịch sử dịch vụ trong tab In-House.
+    /// </summary>
+    [HttpGet("details/{detailId}/orders")]
+    public async Task<IActionResult> GetOrdersByBookingDetail(int detailId)
+    {
+        var result = await _orderService.GetOrdersByBookingDetailAsync(detailId);
+        return Ok(new { success = true, count = result.Count, data = result });
+    }
+
+    // ==============================================================
+    // API 11: POST /api/booking-management/orders
+    // Tạo đơn dịch vụ (khách in-house HOẶC khách vãng lai POS)
+    // ==============================================================
+    /// <summary>
+    /// Tạo đơn dịch vụ mới.
+    /// - Khách đang ở phòng: truyền BookingDetailId.
+    /// - Khách vãng lai (POS): BookingDetailId = null, GuestName tùy chọn.
+    /// </summary>
+    [HttpPost("orders")]
+    public async Task<IActionResult> CreateOrder([FromBody] CreateOrderServiceRequest request)
+    {
+        var (success, message, order) = await _orderService.CreateOrderAsync(request);
+
+        if (!success)
+            return BadRequest(new { success = false, message });
+
+        return Ok(new { success = true, message, data = order });
+    }
+
+    // ==============================================================
+    // API 12: PUT /api/booking-management/orders/{id}/status
+    // Cập nhật trạng thái đơn dịch vụ theo workflow
+    // Booked → InProgress → Completed | Cancelled
+    // ==============================================================
+    /// <summary>
+    /// Cập nhật trạng thái đơn dịch vụ.
+    /// Luồng hợp lệ: Booked → InProgress → Completed. Có thể Cancelled từ Booked/InProgress.
+    /// </summary>
+    [HttpPut("orders/{orderId}/status")]
+    public async Task<IActionResult> UpdateOrderStatus(int orderId, [FromBody] UpdateOrderStatusRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.NewStatus))
+            return BadRequest(new { success = false, message = "Trạng thái mới không được để trống." });
+
+        var (success, message) = await _orderService.UpdateOrderStatusAsync(orderId, request);
+
+        if (!success)
+            return BadRequest(new { success = false, message });
+
+        return Ok(new { success = true, message });
+    }
+
+    // ==============================================================
+    // API 13: GET /api/booking-management/rooms/{roomNumber}/in-house-guest
+    // Cross-check khách đang lưu trú theo số phòng
+    // ==============================================================
+    /// <summary>
+    /// Xác minh khách đang ở phòng theo số phòng.
+    /// Dùng trước khi tạo đơn dịch vụ cho khách in-house để tránh gian lận.
+    /// </summary>
+    [HttpGet("rooms/{roomNumber}/in-house-guest")]
+    public async Task<IActionResult> CrossCheckGuestByRoom(string roomNumber)
+    {
+        if (string.IsNullOrWhiteSpace(roomNumber))
+            return BadRequest(new { success = false, message = "Số phòng không hợp lệ." });
+
+        var result = await _orderService.CrossCheckGuestByRoomAsync(roomNumber);
+        return Ok(new { success = true, data = result });
+    }
+
+    // ==============================================================
+    // API 14: POST /api/booking-management/orders/{id}/post-to-folio
+    // Ghi nợ tiền dịch vụ vào hóa đơn tổng của phòng (Folio)
+    // ==============================================================
+    /// <summary>
+    /// Ghi nợ tổng tiền đơn dịch vụ đã Completed vào Folio (Invoice Draft) của phòng.
+    /// Khách sẽ thanh toán cùng tiền phòng khi Check-out.
+    /// Có bảo vệ chống ghi nợ 2 lần.
+    /// </summary>
+    [HttpPost("orders/{orderId}/post-to-folio")]
+    public async Task<IActionResult> PostOrderToFolio(int orderId)
+    {
+        var result = await _orderService.PostChargeToFolioAsync(orderId);
+
+        if (!result.Success)
+            return BadRequest(new { success = false, message = result.Message });
+
+        return Ok(new { success = true, message = result.Message, data = result });
     }
 }
