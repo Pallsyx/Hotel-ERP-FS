@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import {
   Layout, Menu, Table, Button, Input, Select,
   Space, Form, Upload, message, Tabs, Checkbox,
-  Modal, InputNumber, Row, Col, Card, Steps
+  Modal, InputNumber, Row, Col, Card, Steps, Popconfirm
 } from 'antd';
 const { Step } = Steps;
 import {
   AppstoreOutlined, PlusOutlined, UploadOutlined,
   CopyOutlined, SearchOutlined, EditOutlined, DeleteOutlined,
-  EyeOutlined, TableOutlined, ToolOutlined, SettingOutlined
+  EyeOutlined, TableOutlined, ToolOutlined, SettingOutlined,
+  WifiOutlined, CoffeeOutlined
 } from '@ant-design/icons';
 import axios from 'axios';
 import axiosClient from '../../api/axiosClient';
@@ -18,6 +19,15 @@ const { Option } = Select;
 const { TabPane } = Tabs;
 
 const API_URL = 'http://localhost:5080/api';
+
+const isAbsoluteImageUrl = (value = '') =>
+  /^https?:\/\//i.test(value) || value.startsWith('data:') || value.startsWith('blob:');
+
+const resolveImageSrc = (value, fallbackFolder = '') => {
+  if (!value) return '';
+  if (isAbsoluteImageUrl(value) || value.startsWith('/')) return value;
+  return fallbackFolder ? `/${fallbackFolder}/${value}` : value;
+};
 
 // --- COMPONENT CHÍNH ---
 export default function App() {
@@ -34,12 +44,71 @@ export default function App() {
   const [filterCleaningStatus, setFilterCleaningStatus] = useState(null);
   const [isAmenitiesModalVisible, setIsAmenitiesModalVisible] = useState(false);
   const [isInventoryModalVisible, setIsInventoryModalVisible] = useState(false);
+  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [isCreateMultipleVisible, setIsCreateMultipleVisible] = useState(false);
   const [multipleForm] = Form.useForm();
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [currentRoomInventory, setCurrentRoomInventory] = useState([]);
   const [roomAmenities, setRoomAmenities] = useState([]);
   const [equipments, setEquipments] = useState([]);
+  const [isCloneModalVisible, setIsCloneModalVisible] = useState(false);
+  const [isAddSupplyModalVisible, setIsAddSupplyModalVisible] = useState(false);
+  const [selectedItems, setSelectedItems] = useState([]);
+  const [supplySearchText, setSupplySearchText] = useState('');
+  const [supplyCategoryFilter, setSupplyCategoryFilter] = useState(null);
+  const [inventoryData, setInventoryData] = useState([]);
+  const [inventorySearchText, setInventorySearchText] = useState('');
+  const [inventoryCategoryFilter, setInventoryCategoryFilter] = useState(null);
+
+  // States and hooks for Room Form
+  const [roomForm] = Form.useForm();
+  const [roomFormImageUrl, setRoomFormImageUrl] = useState("");
+  const [roomFormSubmitting, setRoomFormSubmitting] = useState(false);
+  const [roomFormCurrentStep, setRoomFormCurrentStep] = useState(0);
+  useEffect(() => {
+    if (isEditModalVisible && selectedRoom) {
+      roomForm.setFieldsValue({
+        roomNumber: selectedRoom.roomNumber,
+        floor: selectedRoom.floor,
+        typeId: selectedRoom.roomTypeId
+      });
+      
+      const type = roomTypes.find(t => t.id === selectedRoom.roomTypeId);
+      setRoomFormImageUrl(type?.imageUrl || "");
+    }
+  }, [isEditModalVisible, selectedRoom, roomTypes]);
+
+  useEffect(() => {
+    if (currentView === 'create') {
+      roomForm.resetFields();
+      setRoomFormImageUrl("");
+      setRoomFormCurrentStep(0);
+      setInventoryData([]);
+    }
+  }, [currentView]);
+
+  const handleEditSubmit = async () => {
+    try {
+      setRoomFormSubmitting(true);
+      const values = await roomForm.validateFields(['typeId']);
+      
+      await axiosClient.put(`/Rooms/${selectedRoom.id}`, {
+        roomNumber: selectedRoom.roomNumber,
+        floor: selectedRoom.floor,
+        roomTypeId: values.typeId
+      });
+      
+      message.success("Cập nhật hạng phòng thành công!");
+      setIsEditModalVisible(false);
+      fetchRooms();
+    } catch (error) {
+      const errorMsg = error.response?.data?.message || "Lỗi khi cập nhật hạng phòng!";
+      message.error(errorMsg);
+      console.error("handleEditSubmit error:", error);
+    } finally {
+      setRoomFormSubmitting(false);
+    }
+  };
 
   // GỌI API KHI COMPONENT ĐƯỢC RENDER LẦN ĐẦU
   useEffect(() => {
@@ -115,12 +184,65 @@ export default function App() {
 
   const fetchRoomTypeAmenities = async (typeId) => {
     if (!typeId) return;
+    const typeObj = roomTypes.find(t => t.id === typeId);
+    if (typeObj && (typeObj.amenities || typeObj.Amenities)) {
+      setRoomAmenities(typeObj.amenities || typeObj.Amenities);
+    } else {
+      try {
+        const response = await axiosClient.get(`/RoomTypes/${typeId}/amenities`);
+        setRoomAmenities(response.data.data || []);
+      } catch (error) {
+         console.error("fetchRoomTypeAmenities error:", error);
+         setRoomAmenities([]);
+      }
+    }
+  };
+
+  const handleCloneRoom = async (sampleRoomId) => {
     try {
-      // Thử endpoint chuẩn của project
-      const response = await axiosClient.get(`/RoomTypes/${typeId}/amenities`);
-      setRoomAmenities(response.data.data || []);
+      message.loading({ content: 'Đang sao chép vật tư từ phòng mẫu...', key: 'clone' });
+
+      const response = await axiosClient.get(`/rooms/${sampleRoomId}/inventories`);
+      const sampleItems = response.data.data || [];
+
+      if (sampleItems.length === 0) {
+        message.warning({ content: 'Phòng mẫu không có vật tư nào!', key: 'clone' });
+        setIsCloneModalVisible(false);
+        return;
+      }
+
+      if (currentView === 'list') {
+        // Clone trực tiếp vào Database cho phòng đang chọn!
+        for (const item of sampleItems) {
+          await axiosClient.post(`/rooms/${selectedRoom.id}/inventories`, {
+            equipmentId: item.equipmentId,
+            quantity: item.quantity,
+            condition: item.condition || "Tốt",
+            isMinibar: item.itemName.toLowerCase().includes("minibar"),
+            priceIfLost: item.priceIfLost || 0
+          });
+        }
+        message.success({ content: `Đã sao chép thành công ${sampleItems.length} vật tư từ phòng mẫu`, key: 'clone' });
+        fetchRoomInventory(selectedRoom.id);
+        fetchEquipments();
+      } else {
+        // Clone vào form tạo phòng mới
+        const mappedInventories = sampleItems.map((item, idx) => ({
+          id: item.id || Date.now() + idx,
+          equipmentId: item.equipmentId,
+          name: item.itemName,
+          unit: item.unit || 'Cái',
+          quantity: item.quantity,
+          penaltyPrice: item.priceIfLost
+        }));
+        setInventoryData(mappedInventories);
+        message.success({ content: `Đã sao chép tiện ích và vật tư vào form`, key: 'clone' });
+      }
     } catch (error) {
-       console.error("fetchRoomTypeAmenities error:", error);
+      message.error({ content: `Lỗi khi sao chép vật tư!`, key: 'clone' });
+      console.error("handleCloneRoom error:", error);
+    } finally {
+      setIsCloneModalVisible(false);
     }
   };
 
@@ -216,6 +338,10 @@ export default function App() {
     const handleStatusChange = async (roomId, field, newStatus) => {
       try {
         if (field === 'status') {
+          if (newStatus === 'OCCUPIED') {
+            message.warning("Trạng thái 'Đang có khách' chỉ được cập nhật tự động khi có khách Check-in vào phòng!");
+            return;
+          }
           await axiosClient.patch(`/Rooms/${roomId}/status`, { newStatus });
         } else {
           await axiosClient.patch(`/Rooms/${roomId}/cleaning-status`, { newCleaningStatus: newStatus });
@@ -244,15 +370,15 @@ export default function App() {
     };
     const statusColor = (val) => {
       const upper = (val || '').toUpperCase();
-      if (upper === 'AVAILABLE') return 'text-green-600';
-      if (upper === 'OCCUPIED') return 'text-blue-600';
-      return 'text-red-600';
+      if (upper === 'AVAILABLE') return '[&_.ant-select-selection-item]:!text-green-600';
+      if (upper === 'OCCUPIED') return '[&_.ant-select-selection-item]:!text-blue-600';
+      return '[&_.ant-select-selection-item]:!text-red-600';
     };
     const cleaningColor = (val) => {
       const upper = (val || '').toUpperCase();
-      if (upper === 'CLEAN') return 'text-green-600';
-      if (upper === 'INSPECTING') return 'text-purple-600';
-      return 'text-orange-500';
+      if (upper === 'CLEAN') return '[&_.ant-select-selection-item]:!text-green-600';
+      if (upper === 'INSPECTING') return '[&_.ant-select-selection-item]:!text-purple-600';
+      return '[&_.ant-select-selection-item]:!text-orange-500';
     };
 
     const columns = [
@@ -266,36 +392,48 @@ export default function App() {
       {
         title: 'Kinh doanh',
         key: 'status',
-        render: (_, record) => (
-          <Select
-            value={statusLabels[record.status] || record.status}
-            onChange={(val) => handleStatusChange(record.id, 'status', val)}
-            style={{ width: 160 }}
-            variant="borderless"
-            className={`font-semibold ${statusColor(record.status)}`}
-          >
-            <Option value="AVAILABLE"><span className="text-green-600">Sẵn sàng</span></Option>
-            <Option value="OCCUPIED"><span className="text-blue-600">Đang có khách</span></Option>
-            <Option value="MAINTENANCE"><span className="text-red-600">Bảo trì</span></Option>
-          </Select>
-        )
+        render: (_, record) => {
+          const currentStatus = (record.status || '').toUpperCase();
+
+          return (
+            <Select
+              value={currentStatus}
+              onChange={(val) => handleStatusChange(record.id, 'status', val)}
+              style={{ width: 160 }}
+              variant="borderless"
+              className={`font-semibold ${statusColor(record.status)}`}
+            >
+              <Option value="AVAILABLE"><span className="text-green-600">Sẵn sàng</span></Option>
+              <Option value="OCCUPIED" disabled={currentStatus !== 'OCCUPIED'}>
+                <span className="text-blue-600">Đang có khách</span>
+              </Option>
+              <Option value="MAINTENANCE"><span className="text-red-600">Bảo trì</span></Option>
+            </Select>
+          );
+        }
       },
       {
         title: 'Trạng thái phòng',
         key: 'cleaningStatus',
-        render: (_, record) => (
-          <Select
-            value={cleaningLabels[record.cleaningStatus] || record.cleaningStatus}
-            onChange={(val) => handleStatusChange(record.id, 'cleaningStatus', val)}
-            style={{ width: 160 }}
-            variant="borderless"
-            className={`font-semibold ${cleaningColor(record.cleaningStatus)}`}
-          >
-            <Option value="CLEAN"><span className="text-green-600">Đã dọn</span></Option>
-            <Option value="DIRTY"><span className="text-orange-500">Chưa dọn</span></Option>
-            <Option value="INSPECTING"><span className="text-purple-600">Đang kiểm tra</span></Option>
-          </Select>
-        )
+        render: (_, record) => {
+          const currentCleaning = (record.cleaningStatus || '').toUpperCase();
+
+          return (
+            <Select
+              value={currentCleaning}
+              onChange={(val) => handleStatusChange(record.id, 'cleaningStatus', val)}
+              style={{ width: 160 }}
+              variant="borderless"
+              className={`font-semibold ${cleaningColor(record.cleaningStatus)}`}
+            >
+              <Option value="CLEAN"><span className="text-green-600">Đã dọn</span></Option>
+              <Option value="DIRTY"><span className="text-orange-500">Chưa dọn</span></Option>
+              <Option value="INSPECTING" disabled={currentCleaning !== 'INSPECTING'}>
+                <span className="text-purple-600">Đang kiểm tra</span>
+              </Option>
+            </Select>
+          );
+        }
       },
       {
         title: 'Thao tác',
@@ -305,7 +443,7 @@ export default function App() {
             <Button
               type="text"
               className="text-purple-600 hover:text-purple-800"
-              icon={<AppstoreOutlined />}
+              icon={<WifiOutlined />}
               title="Xem tiện ích"
               onClick={() => {
                 setSelectedRoom(record);
@@ -316,10 +454,12 @@ export default function App() {
             <Button
               type="text"
               className="text-orange-600 hover:text-orange-800"
-              icon={<TableOutlined />}
+              icon={<CoffeeOutlined />}
               title="Quản lý vật tư"
               onClick={() => {
                 setSelectedRoom(record);
+                setInventorySearchText('');
+                setInventoryCategoryFilter(null);
                 fetchRoomInventory(record.id);
                 setIsInventoryModalVisible(true);
               }}
@@ -331,7 +471,14 @@ export default function App() {
               title="Sửa phòng"
               onClick={() => {
                 setSelectedRoom(record);
-                setCurrentView('edit');
+                roomForm.setFieldsValue({
+                  roomNumber: record.roomNumber,
+                  floor: record.floor,
+                  typeId: record.roomTypeId
+                });
+                const type = roomTypes.find(t => t.id === record.roomTypeId);
+                setRoomFormImageUrl(type?.imageUrl || "");
+                setIsEditModalVisible(true);
               }}
             />
           </Space>
@@ -414,19 +561,7 @@ export default function App() {
   };
 
   // MÀN HÌNH 2: FORM THÊM/SỬA PHÒNG
-  const RoomForm = () => {
-    const [form] = Form.useForm();
-    const [inventoryData, setInventoryData] = useState([]);
-    
-
-    const [selectedEquipment, setSelectedEquipment] = useState(null);
-    const [imageUrl, setImageUrl] = useState("");
-    const [isCloneModalVisible, setIsCloneModalVisible] = useState(false);
-    const [isAddSupplyModalVisible, setIsAddSupplyModalVisible] = useState(false);
-    const [supplyForm] = Form.useForm();
-    const [supplySearchText, setSupplySearchText] = useState('');
-    const [supplyCategoryFilter, setSupplyCategoryFilter] = useState(null);
-
+  const renderRoomForm = () => {
     const supplyCategories = [...new Set(equipments.map(e => e.category || e.Category).filter(Boolean))];
     const filteredEquipments = equipments.filter(e => {
         const name = (e.name || e.Name || '').toLowerCase();
@@ -438,71 +573,8 @@ export default function App() {
         return matchesSearch && matchesCat;
     });
 
-    const [submitting, setSubmitting] = useState(false);
-    const [currentStep, setCurrentStep] = useState(0);
-    const isEdit = currentView === 'edit';
-
-    useEffect(() => {
-      if (isEdit && selectedRoom) {
-        form.setFieldsValue({
-          roomNumber: selectedRoom.roomNumber,
-          floor: selectedRoom.floor,
-          typeId: selectedRoom.roomTypeId
-        });
-        
-        // Find and set initial image from room type
-        const type = roomTypes.find(t => t.id === selectedRoom.roomTypeId);
-        setImageUrl(type?.imageUrl || "");
-        
-        // Load inventory for the room
-        (async () => {
-          try {
-            const res = await axiosClient.get(`/rooms/${selectedRoom.id}/inventories`);
-            const mappedInventories = (res.data.data || []).map((item, idx) => ({
-              id: item.id || Date.now() + idx,
-              equipmentId: item.equipmentId,
-              name: item.itemName,
-              unit: item.unit || 'Cái',
-              quantity: item.quantity,
-              penaltyPrice: item.priceIfLost
-            }));
-            setInventoryData(mappedInventories);
-          } catch (e) {
-            console.error("fetch inventories for edit error:", e);
-          }
-        })();
-      }
-    }, [isEdit, selectedRoom]);
 
 
-    // Tính năng: Clone từ phòng mẫu gọi API Backend
-    const handleCloneRoom = async (sampleRoomId) => {
-      try {
-        message.loading({ content: 'Đang tải dữ liệu phòng mẫu...', key: 'clone' });
-
-        const response = await axiosClient.get(`/rooms/${sampleRoomId}/inventories`);
-
-        const allAmenityNames = amenitiesList.map(a => a.name || a);
-        form.setFieldsValue({ amenities: allAmenityNames });
-
-        const mappedInventories = (response.data.data || []).map((item, idx) => ({
-          id: item.id || Date.now() + idx,
-          equipmentId: item.equipmentId,
-          name: item.itemName,
-          unit: item.unit || 'Cái',
-          quantity: item.quantity,
-          penaltyPrice: item.priceIfLost
-        }));
-        setInventoryData(mappedInventories);
-
-        message.success({ content: `Đã sao chép tiện ích và vật tư từ phòng mẫu`, key: 'clone' });
-      } catch (error) {
-        message.error({ content: `Lỗi kết nối! Không thể lấy dữ liệu vật tư mẫu từ API.`, key: 'clone' });
-        console.error("handleCloneRoom error:", error);
-      } finally {
-        setIsCloneModalVisible(false);
-      }
-    };
 
     // Tính năng: Upload ảnh trực tiếp lên Cloudinary bằng Axios
     const customUpload = async ({ file, onSuccess, onError }) => {
@@ -516,8 +588,8 @@ export default function App() {
       message.loading({ content: 'Đang tải ảnh lên Cloudinary...', key: 'upload' });
       try {
         const res = await axios.post(`https://api.cloudinary.com/v1_1/${cloudinaryName}/image/upload`, formData);
-        setImageUrl(res.data.secure_url);
-        form.setFieldsValue({ imageUrl: res.data.secure_url });
+        setRoomFormImageUrl(res.data.secure_url);
+        roomForm.setFieldsValue({ imageUrl: res.data.secure_url });
         message.success({ content: 'Tải ảnh thành công!', key: 'upload' });
         onSuccess("ok");
       } catch (err) {
@@ -527,11 +599,11 @@ export default function App() {
     };
 
     const onFinish = async (values) => {
-      setSubmitting(true);
+      setRoomFormSubmitting(true);
       try {
         if (!isEdit && rooms.find(r => String(r.roomNumber) === String(values.roomNumber))) {
             message.warning(`Phòng ${values.roomNumber} đã tồn tại vui lòng tạo phòng mới`);
-            setSubmitting(false);
+            setRoomFormSubmitting(false);
             return;
         }
 
@@ -577,7 +649,7 @@ export default function App() {
         message.error(errorMsg);
         console.error("onFinish error:", error);
       } finally {
-        setSubmitting(false);
+        setRoomFormSubmitting(false);
       }
     };
 
@@ -631,19 +703,21 @@ export default function App() {
 
     return (
       <div className="m-4">
-        <Button type="link" onClick={() => setCurrentView('list')} className="mb-2">
+        <Button type="link" onClick={() => { setCurrentView('list'); roomForm.resetFields(); }} className="mb-2">
           &larr; Quay lại danh sách
         </Button>
-        <Card title="Quy trình thiết lập phòng" variant="borderless">
-          <Form form={form} layout="vertical" onFinish={onFinish}>
+        <Card title={isEdit ? "Sửa phòng" : "Quy trình thiết lập phòng"} variant="borderless">
+          <Form form={roomForm} layout="vertical" onFinish={onFinish}>
 
-            {/* 3 Tabs */}
-            <Steps current={currentStep} className="mb-8">
-              <Step title="Thông tin chính" />
-              <Step title="Vật tư & Minibar" />
-            </Steps>
+            {/* Steps only shown for new room creation */}
+            {!isEdit && (
+              <Steps current={roomFormCurrentStep} className="mb-8">
+                <Step title="Thông tin chính" />
+                <Step title="Vật tư & Minibar" />
+              </Steps>
+            )}
 
-            <div style={{ display: currentStep === 0 ? 'block' : 'none' }}>
+            <div style={{ display: isEdit || roomFormCurrentStep === 0 ? 'block' : 'none' }}>
               <Row gutter={24} align="middle">
                 <Col span={12}>
                   {!isEdit && (
@@ -666,7 +740,7 @@ export default function App() {
                       placeholder="Chọn hạng phòng"
                       onChange={(id) => {
                         const type = roomTypes.find(t => t.id === id);
-                        setImageUrl(type?.imageUrl || "");
+                        setRoomFormImageUrl(type?.imageUrl || "");
                       }}
                     >
                       {roomTypes.map(type => (
@@ -677,8 +751,8 @@ export default function App() {
                 </Col>
                 <Col span={12}>
                   <div className="border rounded bg-gray-50 flex items-center justify-center h-40 overflow-hidden">
-                    {imageUrl ? (
-                      <img src={imageUrl} alt="Hạng phòng" className="h-full w-full object-contain" />
+                    {roomFormImageUrl ? (
+                      <img src={resolveImageSrc(roomFormImageUrl)} alt="Hạng phòng" className="h-full w-full object-contain" />
                     ) : (
                       <div className="text-gray-400 italic text-sm text-center">
                         <AppstoreOutlined className="text-2xl mb-1 block" />
@@ -693,7 +767,7 @@ export default function App() {
 
 
 
-            <div style={{ display: currentStep === 1 ? 'block' : 'none' }}>
+            <div style={{ display: !isEdit && roomFormCurrentStep === 1 ? 'block' : 'none' }}>
               <div className="mb-4 space-x-2">
                 <Button type="primary" ghost onClick={() => setIsAddSupplyModalVisible(true)}>+ Thêm vật tư</Button>
                 <Button icon={<CopyOutlined />} onClick={() => setIsCloneModalVisible(true)}>
@@ -704,187 +778,30 @@ export default function App() {
             </div>
 
             <div className="mt-6 border-t pt-4 flex space-x-4">
-              {currentStep > 0 && (
-                <Button onClick={() => setCurrentStep(c => c - 1)}>Quay lại</Button>
-              )}
-              {currentStep === 0 && (
-                <Button type="primary" onClick={async () => {
-                  await form.validateFields(['roomNumber', 'floor', 'typeId']);
-                  setCurrentStep(1);
-                }}>Tiếp tục</Button>
-              )}
-              {currentStep === 1 && (
-                <Button type="primary" htmlType="submit" loading={submitting}>Lưu & Tạo phòng</Button>
+              {isEdit ? (
+                <>
+                  <Button type="default" onClick={() => { setCurrentView('list'); roomForm.resetFields(); }}>Hủy</Button>
+                  <Button type="primary" htmlType="submit" loading={roomFormSubmitting}>Lưu thay đổi</Button>
+                </>
+              ) : (
+                <>
+                  {roomFormCurrentStep > 0 && (
+                    <Button onClick={() => setRoomFormCurrentStep(c => c - 1)}>Quay lại</Button>
+                  )}
+                  {roomFormCurrentStep === 0 && (
+                    <Button type="primary" onClick={async () => {
+                      await roomForm.validateFields(['roomNumber', 'floor', 'typeId']);
+                      setRoomFormCurrentStep(1);
+                    }}>Tiếp tục</Button>
+                  )}
+                  {roomFormCurrentStep === 1 && (
+                    <Button type="primary" htmlType="submit" loading={roomFormSubmitting}>Lưu & Tạo phòng</Button>
+                  )}
+                </>
               )}
             </div>
           </Form>
         </Card>
-
-        {/* Modal chọn phòng mẫu để sao chép */}
-        <Modal
-          title="Sao chép từ phòng mẫu"
-          open={isCloneModalVisible}
-          onCancel={() => setIsCloneModalVisible(false)}
-          footer={null}
-        >
-          <p className="mb-4 text-gray-600">
-            Tính năng này sẽ tự động điền <b>Tiện ích mặc định</b> và toàn bộ <b>Vật tư/Minibar</b> từ phòng mẫu bạn chọn.
-          </p>
-          <ul className="space-y-2 max-h-96 overflow-y-auto">
-            {rooms.length > 0 ? rooms.map(room => (
-              <li key={room.id} className="flex justify-between items-center bg-gray-50 p-2 rounded border">
-                <span>Phòng mẫu: <b>{room.roomNumber}</b></span>
-                <Button size="small" type="primary" onClick={() => handleCloneRoom(room.id)}>Sao chép</Button>
-              </li>
-            )) : <p className="text-gray-500 italic">Chưa có dữ liệu phòng nào để sao chép.</p>}
-          </ul>
-        </Modal>
-
-        {/* Modal Thêm Vật tư */}
-        <Modal
-          title="Thêm Vật tư/Minibar"
-          open={isAddSupplyModalVisible}
-          onCancel={() => setIsAddSupplyModalVisible(false)}
-          onOk={() => supplyForm.submit()}
-          width={800}
-        >
-          <Form form={supplyForm} layout="vertical" onFinish={async (vals) => {
-            const eq = equipments.find(e => (e.id || e.Id) === vals.equipmentId);
-            
-            if (isEdit) {
-              try {
-                const res = await axiosClient.post(`/rooms/${selectedRoom.id}/inventories`, {
-                  equipmentId: vals.equipmentId,
-                  quantity: vals.quantity,
-                  condition: vals.condition || "Tốt",
-                  isMinibar: (eq?.name || eq?.Name || '').toLowerCase().includes("minibar"),
-                  priceIfLost: vals.penaltyPrice || 0
-                });
-                
-                const newItem = {
-                  ...vals,
-                  id: res.data.inventoryId || Date.now(),
-                  name: eq?.name || eq?.Name || 'Unknown',
-                  code: eq?.itemCode || eq?.ItemCode || 'N/A'
-                };
-                setInventoryData(prev => [...prev, newItem]);
-                message.success(`Đã thêm ${newItem.name} vào phòng.`);
-              } catch (e) {
-                message.error(e.response?.data?.message || "Lỗi khi thêm vật tư vào phòng.");
-                return;
-              }
-            } else {
-              setInventoryData(prev => [...prev, { 
-                ...vals, 
-                name: eq?.name || eq?.Name || 'Unknown', 
-                id: Date.now(), 
-                code: eq?.itemCode || eq?.ItemCode || 'N/A' 
-              }]);
-            }
-            
-            setIsAddSupplyModalVisible(false);
-            supplyForm.resetFields();
-            setSelectedEquipment(null);
-          }}>
-            <div className="flex space-x-2 mb-4">
-              <Input 
-                placeholder="Tìm theo tên, mã sản phẩm..." 
-                prefix={<SearchOutlined />} 
-                value={supplySearchText}
-                onChange={(e) => setSupplySearchText(e.target.value)}
-                style={{ flex: 1 }}
-              />
-              <Select 
-                allowClear 
-                placeholder="Lọc theo Danh mục" 
-                style={{ width: 220 }}
-                value={supplyCategoryFilter}
-                onChange={setSupplyCategoryFilter}
-              >
-                {supplyCategories.map(c => <Option key={c} value={c}>{c}</Option>)}
-              </Select>
-            </div>
-
-            <Table 
-              size="small"
-              dataSource={filteredEquipments}
-              columns={[
-                { title: 'Mã SP', dataIndex: 'itemCode', render: (_, r) => r.itemCode || r.ItemCode },
-                { title: 'Tên vật tư', dataIndex: 'name', render: (_, r) => r.name || r.Name },
-                { title: 'Danh mục', dataIndex: 'category', render: (_, r) => r.category || r.Category },
-                { title: 'Tồn kho', render: (_, r) => r.inStockQuantity || r.InStockQuantity || 0 },
-                { 
-                   title: 'Thao tác', 
-                   render: (_, record) => {
-                     const stock = record.inStockQuantity || record.InStockQuantity || 0;
-                     return (
-                       <Button 
-                         type="primary" 
-                         size="small" 
-                         disabled={stock <= 0}
-                         ghost={selectedEquipment?.id !== (record.id || record.Id)}
-                         onClick={() => {
-                          const eq = equipments.find(e => (e.id || e.Id) === (record.id || record.Id));
-                          setSelectedEquipment(eq);
-                          supplyForm.setFieldsValue({
-                             equipmentId: eq.id || eq.Id,
-                             unit: eq.unit || eq.Unit,
-                             penaltyPrice: eq.defaultPriceIfLost || eq.DefaultPriceIfLost,
-                             quantity: 1
-                          });
-                       }}>Chọn</Button>
-                     )
-                   }
-                }
-              ]}
-              pagination={{ pageSize: 5 }}
-              rowKey={(r) => r.id || r.Id}
-              className="mb-4"
-            />
-
-            <Form.Item name="equipmentId" hidden rules={[{ required: true, message: 'Vui lòng chọn vật tư từ bảng trên' }]}>
-              <Input />
-            </Form.Item>
-
-            {selectedEquipment && (
-              <div className="p-4 border rounded bg-blue-50 mb-4">
-                <p className="font-semibold text-blue-800 mb-2">Đã chọn: {selectedEquipment.name || selectedEquipment.Name}</p>
-                <Row gutter={16}>
-                  <Col span={8}>
-                    <Form.Item name="unit" label="ĐVT" rules={[{ required: true }]}>
-                      <Input disabled />
-                    </Form.Item>
-                  </Col>
-                  <Col span={8}>
-                    <Form.Item 
-                      name="quantity" 
-                      label={`Số lượng (Max: ${selectedEquipment.inStockQuantity || selectedEquipment.InStockQuantity || 0})`} 
-                      rules={[
-                        { required: true },
-                        { 
-                          validator: (_, value) => {
-                            const max = selectedEquipment.inStockQuantity || selectedEquipment.InStockQuantity || 0;
-                            if (value > max) {
-                              return Promise.reject(new Error(`Không đủ số lượng (${max})`));
-                            }
-                            return Promise.resolve();
-                          }
-                        }
-                      ]}
-                    >
-                      <InputNumber min={1} className="w-full" />
-                    </Form.Item>
-                  </Col>
-                  <Col span={8}>
-                    <Form.Item name="penaltyPrice" label="Giá đền bù mặc định (VNĐ)">
-                      <InputNumber min={0} className="w-full" formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} parser={value => value.replace(/\$\s?|(,*)/g, '')} />
-                    </Form.Item>
-                  </Col>
-                </Row>
-              </div>
-            )}
-          </Form>
-        </Modal>
       </div>
     );
   };
@@ -892,91 +809,329 @@ export default function App() {
   return (
     <div className="font-sans">
       {currentView === 'list' && renderRoomList()}
-      {currentView !== 'list' && <RoomForm />}
+      {currentView !== 'list' && renderRoomForm()}
+
+      {/* Modal Sửa Phòng */}
+      <Modal
+        title={
+          <div className="flex items-center space-x-2 pb-2 border-b border-gray-100">
+            <span className="text-lg font-bold text-gray-800">
+              ✏️ Sửa thông tin phòng: <span className="text-blue-600 font-extrabold">{selectedRoom?.roomNumber}</span>
+            </span>
+          </div>
+        }
+        open={isEditModalVisible}
+        onCancel={() => {
+          setIsEditModalVisible(false);
+          roomForm.resetFields();
+          setRoomFormImageUrl("");
+        }}
+        footer={[
+          <Button 
+            key="cancel" 
+            onClick={() => {
+              setIsEditModalVisible(false);
+              roomForm.resetFields();
+              setRoomFormImageUrl("");
+            }}
+          >
+            Hủy
+          </Button>,
+          <Button 
+            key="submit" 
+            type="primary" 
+            loading={roomFormSubmitting} 
+            onClick={handleEditSubmit}
+            className="bg-blue-600 hover:bg-blue-700 border-none font-semibold px-6 rounded-lg"
+          >
+            Lưu thay đổi
+          </Button>
+        ]}
+        width={600}
+        centered
+        className="rounded-2xl overflow-hidden"
+      >
+        <div className="py-4">
+          <Form form={roomForm} layout="vertical">
+            <Row gutter={24} align="middle">
+              <Col span={12}>
+                <Form.Item name="roomNumber" label="Số phòng">
+                  <Input disabled className="bg-gray-50 text-gray-500 font-medium" />
+                </Form.Item>
+                <Form.Item name="floor" label="Tầng">
+                  <InputNumber disabled className="w-full bg-gray-50 text-gray-500 font-medium" />
+                </Form.Item>
+                <Form.Item name="typeId" label="Hạng phòng" rules={[{ required: true, message: 'Vui lòng chọn hạng phòng!' }]}>
+                  <Select 
+                    placeholder="Chọn hạng phòng"
+                    onChange={(id) => {
+                      const type = roomTypes.find(t => t.id === id);
+                      setRoomFormImageUrl(type?.imageUrl || "");
+                    }}
+                  >
+                    {roomTypes.map(type => (
+                      <Option key={type.id} value={type.id}>{type.name}</Option>
+                    ))}
+                  </Select>
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <div className="border rounded-xl bg-gray-50 flex flex-col items-center justify-center h-52 overflow-hidden border-dashed border-gray-200 p-2 shadow-inner">
+                  {roomFormImageUrl ? (
+                    <img src={resolveImageSrc(roomFormImageUrl)} alt="Hạng phòng" className="h-full w-full object-contain rounded-lg" />
+                  ) : (
+                    <div className="text-gray-400 italic text-sm text-center">
+                      <AppstoreOutlined className="text-3xl mb-2 text-gray-300 block" />
+                      Hạng phòng chưa có ảnh minh họa
+                    </div>
+                  )}
+                </div>
+              </Col>
+            </Row>
+          </Form>
+        </div>
+      </Modal>
+
       {/* Modal Xem Tiện ích */}
       <Modal
-        title={selectedRoom ? `Tiện ích hạng phòng: ${selectedRoom.roomTypeName}` : "Tiện ích"}
+        title={
+          <div className="flex items-center space-x-2 pb-2 border-b border-gray-100">
+            <span className="text-lg font-bold text-gray-800">
+              🎁 Tiện ích hạng phòng: <span className="text-purple-600 font-extrabold">{selectedRoom?.roomTypeName}</span>
+            </span>
+          </div>
+        }
         open={isAmenitiesModalVisible}
         onCancel={() => setIsAmenitiesModalVisible(false)}
-        footer={[<Button key="close" onClick={() => setIsAmenitiesModalVisible(false)}>Đóng</Button>]}
+        footer={[
+          <Button 
+            key="close" 
+            type="primary" 
+            className="bg-purple-600 hover:bg-purple-700 border-none px-6 rounded-lg font-semibold"
+            onClick={() => setIsAmenitiesModalVisible(false)}
+          >
+            Đóng
+          </Button>
+        ]}
+        width={540}
+        centered
+        className="rounded-2xl overflow-hidden"
       >
-        <div className="grid grid-cols-2 gap-2">
-          {roomAmenities.length > 0 ? roomAmenities.map(am => (
-            <div key={am.id} className="p-2 bg-purple-50 rounded border border-purple-100 flex items-center">
-              <PlusOutlined className="mr-2 text-purple-400 text-xs" /> {am.name}
+        <div className="py-4">
+          {roomAmenities.length > 0 ? (
+            <div className="grid grid-cols-2 gap-3">
+              {roomAmenities.map(am => {
+                const iconSrc = am.iconUrl || am.IconUrl;
+                const finalSrc = iconSrc 
+                  ? (/^https?:\/\//i.test(iconSrc) || iconSrc.startsWith('/') || iconSrc.startsWith('data:') ? iconSrc : `/amenities/${iconSrc}`)
+                  : null;
+
+                return (
+                  <div 
+                    key={am.id} 
+                    className="p-3 bg-gradient-to-r from-purple-50 to-indigo-50/80 rounded-xl border border-purple-100/60 shadow-sm hover:shadow-md hover:scale-[1.02] transition-all duration-300 flex items-center space-x-3 cursor-default"
+                  >
+                    <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-white shadow-inner flex items-center justify-center overflow-hidden border border-purple-100">
+                      {finalSrc ? (
+                        <img 
+                          src={finalSrc} 
+                          alt={am.name} 
+                          className="w-8 h-8 object-contain"
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 24 24' fill='none' stroke='%238b5cf6' stroke-width='2'><circle cx='12' cy='12' r='10'/><path d='m9 12 2 2 4-4'/></svg>";
+                          }}
+                        />
+                      ) : (
+                        <span className="text-purple-600 text-xl font-bold">✨</span>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-800 truncate mb-0">{am.name}</p>
+                      <p className="text-[10px] text-purple-400 font-medium tracking-wide uppercase mb-0">Tiêu chuẩn</p>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          )) : <p className="text-gray-500 italic">Hạng phòng chưa được thiết lập tiện ích.</p>}
+          ) : (
+            <div className="text-center py-8">
+              <div className="text-5xl mb-2">🏝️</div>
+              <p className="text-gray-400 font-medium italic">Hạng phòng chưa được thiết lập tiện ích.</p>
+            </div>
+          )}
         </div>
       </Modal>
 
       {/* Modal Quản lý Vật tư nhanh */}
       <Modal
-        title={selectedRoom ? `Vật tư trong phòng: ${selectedRoom.roomNumber}` : "Vật tư"}
+        title={
+          <div className="flex items-center space-x-2 pb-2 border-b border-gray-100">
+            <span className="text-lg font-bold text-gray-800">
+              🛠️ Quản lý vật tư & Minibar: <span className="text-blue-600 font-extrabold">{selectedRoom?.roomNumber}</span>
+            </span>
+          </div>
+        }
         open={isInventoryModalVisible}
-        width={800}
+        width={850}
         onCancel={() => setIsInventoryModalVisible(false)}
         footer={[
-          <Button key="close" onClick={() => setIsInventoryModalVisible(false)}>Đóng</Button>
+          <Button key="close" type="primary" onClick={() => setIsInventoryModalVisible(false)}>Đóng</Button>
         ]}
       >
-        <Table 
-          dataSource={currentRoomInventory} 
-          rowKey="id"
-          size="small"
-          pagination={false}
-          columns={[
-            { title: 'Tên vật tư', dataIndex: 'itemName' },
-            { 
-              title: 'Số lượng', 
-              dataIndex: 'quantity', 
-              render: (val, record) => {
-                const eq = equipments.find(e => e.id === record.equipmentId);
-                const stock = eq ? (eq.inStockQuantity || 0) : 0;
-                const maxAllowed = val + stock;
+        <div className="py-2">
+          <div className="flex justify-between items-center mb-4 gap-4">
+            {/* Search & Filter Controls on the left */}
+            <div className="flex items-center space-x-2 flex-1 max-w-lg">
+              <Input 
+                placeholder="🔍 Tìm vật tư trong phòng theo tên..." 
+                prefix={<SearchOutlined />} 
+                value={inventorySearchText}
+                onChange={(e) => setInventorySearchText(e.target.value)}
+                className="flex-1 rounded-md border-gray-200"
+                allowClear
+              />
+              <Select 
+                allowClear 
+                placeholder="🏷️ Lọc theo Danh mục" 
+                className="w-48"
+                value={inventoryCategoryFilter}
+                onChange={setInventoryCategoryFilter}
+              >
+                {([...new Set(equipments.map(e => e.category || e.Category).filter(Boolean))]).map(c => <Option key={c} value={c}>{c}</Option>)}
+              </Select>
+            </div>
 
-                return (
-                  <InputNumber 
-                    min={1} 
-                    defaultValue={val} 
-                    onChange={async (newVal) => {
-                      if (newVal > maxAllowed) {
-                        message.error(`${record.itemName} không đủ số lượng`);
-                        return;
-                      }
+            {/* Action buttons on the right */}
+            <Space>
+              <Button 
+                type="primary" 
+                icon={<PlusOutlined />} 
+                onClick={() => setIsAddSupplyModalVisible(true)}
+                className="bg-blue-600 hover:bg-blue-700 border-none font-semibold rounded-md"
+              >
+                Thêm vật tư
+              </Button>
+              <Button 
+                icon={<CopyOutlined />} 
+                onClick={() => setIsCloneModalVisible(true)}
+                className="font-medium rounded-md"
+              >
+                Clone từ phòng mẫu
+              </Button>
+            </Space>
+          </div>
+
+          <Table 
+            dataSource={currentRoomInventory.filter(item => {
+              const name = (item.itemName || '').toLowerCase();
+              const matchesSearch = name.includes(inventorySearchText.toLowerCase());
+              
+              // Find category from equipments list
+              const eq = equipments.find(e => e.id === item.equipmentId);
+              const category = eq ? (eq.category || eq.Category || '') : '';
+              const matchesCat = inventoryCategoryFilter ? category === inventoryCategoryFilter : true;
+              
+              return matchesSearch && matchesCat;
+            })} 
+            rowKey="id"
+            size="middle"
+            pagination={{ pageSize: 6, showSizeChanger: false }}
+            columns={[
+              { 
+                title: 'Tên vật tư', 
+                dataIndex: 'itemName',
+                className: 'font-semibold text-gray-700'
+              },
+              { 
+                title: 'Số lượng', 
+                dataIndex: 'quantity', 
+                width: 130,
+                render: (val, record) => {
+                  const eq = equipments.find(e => e.id === record.equipmentId);
+                  const stock = eq ? (eq.inStockQuantity || 0) : 0;
+                  const maxAllowed = val + stock;
+
+                  return (
+                    <InputNumber 
+                      min={1} 
+                      max={maxAllowed}
+                      defaultValue={val} 
+                      className="w-24 rounded-md border-gray-200"
+                      onChange={async (newVal) => {
+                        if (newVal > maxAllowed) {
+                          message.error(`${record.itemName} không đủ số lượng tồn kho khả dụng`);
+                          return;
+                        }
+                        try {
+                          await axiosClient.put(`/rooms/${selectedRoom.id}/inventories/${record.id}`, {
+                            equipmentId: record.equipmentId,
+                            quantity: newVal,
+                            condition: record.status || "Tốt",
+                            isMinibar: record.itemName.toLowerCase().includes("minibar"),
+                            priceIfLost: record.priceIfLost
+                          });
+                          message.success(`Đã cập nhật ${record.itemName} thành ${newVal}`);
+                          fetchRoomInventory(selectedRoom.id);
+                          fetchEquipments(); // Refresh stock info
+                        } catch (e) {
+                          message.error(e.response?.data?.message || "Lỗi khi cập nhật số lượng.");
+                        }
+                      }} 
+                    />
+                  );
+                }
+              },
+              { 
+                title: 'Tồn kho khả dụng', 
+                key: 'stock',
+                width: 150,
+                render: (_, record) => {
+                  const eq = equipments.find(e => e.id === record.equipmentId);
+                  const stock = eq ? (eq.inStockQuantity || 0) : 0;
+                  return (
+                    <span className={`font-semibold px-2 py-0.5 rounded text-xs ${stock > 0 ? "bg-green-50 text-green-600" : "bg-red-50 text-red-500"}`}>
+                      {stock} {record.unit}
+                    </span>
+                  );
+                }
+              },
+              { title: 'ĐVT', dataIndex: 'unit', width: 80 },
+              { 
+                title: 'Giá đền bù', 
+                dataIndex: 'priceIfLost', 
+                width: 140,
+                render: (val) => <span className="font-semibold text-amber-600">{val?.toLocaleString()} đ</span> 
+              },
+              {
+                title: 'Thao tác',
+                key: 'action',
+                width: 100,
+                align: 'center',
+                render: (_, record) => (
+                  <Popconfirm
+                    title="Xóa vật tư"
+                    description={`Bạn có chắc chắn muốn xóa ${record.itemName} khỏi phòng này không?`}
+                    onConfirm={async () => {
                       try {
-                        await axiosClient.put(`/rooms/${selectedRoom.id}/inventories/${record.id}`, {
-                          equipmentId: record.equipmentId,
-                          quantity: newVal,
-                          condition: record.status || "Tốt",
-                          isMinibar: record.itemName.toLowerCase().includes("minibar"),
-                          priceIfLost: record.priceIfLost
-                        });
-                        message.success(`Đã cập nhật ${record.itemName}`);
+                        await axiosClient.delete(`/rooms/${selectedRoom.id}/inventories/${record.id}`);
+                        message.success(`Đã xóa ${record.itemName} khỏi phòng.`);
                         fetchRoomInventory(selectedRoom.id);
-                        fetchEquipments(); // Refresh stock info
+                        fetchEquipments();
                       } catch (e) {
-                        message.error(e.response?.data?.message || "Lỗi khi cập nhật số lượng.");
+                        message.error(e.response?.data?.message || "Lỗi khi xóa vật tư.");
                       }
-                    }} 
-                  />
-                );
+                    }}
+                    okText="Xóa"
+                    cancelText="Hủy"
+                    okButtonProps={{ danger: true }}
+                  >
+                    <Button type="text" danger icon={<DeleteOutlined />} className="hover:bg-red-50 rounded-md" />
+                  </Popconfirm>
+                )
               }
-            },
-            { 
-              title: 'Tồn kho khả dụng', 
-              key: 'stock',
-              render: (_, record) => {
-                const eq = equipments.find(e => e.id === record.equipmentId);
-                const stock = eq ? (eq.inStockQuantity || 0) : 0;
-                return <span className={stock > 0 ? "text-green-600" : "text-red-500"}>{stock} {record.unit}</span>;
-              }
-            },
-            { title: 'ĐVT', dataIndex: 'unit' },
-            { title: 'Giá đền bù', dataIndex: 'priceIfLost', render: (val) => val?.toLocaleString() + ' đ' },
-          ]}
-        />
-        <div className="mt-4 p-3 bg-blue-50 text-blue-700 rounded text-xs">
-          💡 Bạn có thể thay đổi số lượng trực tiếp trên bảng. Để thêm vật tư mới hoặc xóa, hãy sử dụng chức năng <b>Sửa phòng</b>.
+            ]}
+          />
         </div>
       </Modal>
 
@@ -1025,6 +1180,227 @@ export default function App() {
             </Col>
           </Row>
         </Form>
+      </Modal>
+
+      {/* Modal chọn phòng mẫu để sao chép */}
+      <Modal
+        title="Sao chép từ phòng mẫu"
+        open={isCloneModalVisible}
+        onCancel={() => setIsCloneModalVisible(false)}
+        footer={null}
+      >
+        <p className="mb-4 text-gray-600">
+          Tính năng này sẽ tự động điền <b>Tiện ích mặc định</b> và toàn bộ <b>Vật tư/Minibar</b> từ phòng mẫu bạn chọn.
+        </p>
+        <ul className="space-y-2 max-h-96 overflow-y-auto">
+          {rooms.length > 0 ? rooms.map(room => (
+            <li key={room.id} className="flex justify-between items-center bg-gray-50 p-2 rounded border">
+              <span>Phòng mẫu: <b>{room.roomNumber}</b></span>
+              <Button size="small" type="primary" onClick={() => handleCloneRoom(room.id)}>Sao chép</Button>
+            </li>
+          )) : <p className="text-gray-500 italic">Chưa có dữ liệu phòng nào để sao chép.</p>}
+        </ul>
+      </Modal>
+
+      {/* Modal Thêm Vật tư */}
+      <Modal
+        title="Thêm Vật tư/Minibar"
+        open={isAddSupplyModalVisible}
+        onCancel={() => {
+          setIsAddSupplyModalVisible(false);
+          setSelectedItems([]);
+          setSupplySearchText('');
+          setSupplyCategoryFilter(null);
+        }}
+        onOk={async () => {
+          if (selectedItems.length === 0) {
+            message.warning("Vui lòng chọn ít nhất một vật tư!");
+            return;
+          }
+          for (const item of selectedItems) {
+            const stock = item.inStockQuantity || item.InStockQuantity || 0;
+            if (!item.quantity || item.quantity <= 0) {
+              message.error(`Số lượng cho ${item.name || item.Name} không hợp lệ!`);
+              return;
+            }
+            if (item.quantity > stock) {
+              message.error(`Số lượng cho ${item.name || item.Name} vượt quá tồn kho khả dụng (${stock})!`);
+              return;
+            }
+          }
+
+          if (currentView === 'list') {
+            try {
+              for (const item of selectedItems) {
+                await axiosClient.post(`/rooms/${selectedRoom.id}/inventories`, {
+                  equipmentId: item.id,
+                  quantity: item.quantity,
+                  condition: "Tốt",
+                  isMinibar: (item.name || item.Name || '').toLowerCase().includes("minibar"),
+                  priceIfLost: item.defaultPriceIfLost || item.DefaultPriceIfLost || 0
+                });
+              }
+              message.success(`Đã thêm thành công ${selectedItems.length} vật tư vào phòng.`);
+              fetchRoomInventory(selectedRoom.id);
+              fetchEquipments();
+            } catch (e) {
+              message.error(e.response?.data?.message || "Lỗi khi thêm vật tư vào phòng.");
+              return;
+            }
+          } else {
+            const newItems = selectedItems.map((item, idx) => ({
+              id: Date.now() + idx + Math.random(),
+              equipmentId: item.id,
+              name: item.name || item.Name,
+              code: item.itemCode || item.ItemCode || 'N/A',
+              unit: item.unit || item.Unit || 'Cái',
+              quantity: item.quantity,
+              penaltyPrice: item.defaultPriceIfLost || item.DefaultPriceIfLost || 0
+            }));
+            setInventoryData(prev => [...prev, ...newItems]);
+            message.success(`Đã chọn ${newItems.length} vật tư.`);
+          }
+          
+          setIsAddSupplyModalVisible(false);
+          setSelectedItems([]);
+          setSupplySearchText('');
+          setSupplyCategoryFilter(null);
+        }}
+        width={800}
+      >
+        <div className="flex space-x-2 mb-4">
+          <Input 
+            placeholder="Tìm theo tên, mã sản phẩm..." 
+            prefix={<SearchOutlined />} 
+            value={supplySearchText}
+            onChange={(e) => setSupplySearchText(e.target.value)}
+            style={{ flex: 1 }}
+          />
+          <Select 
+            allowClear 
+            placeholder="Lọc theo Danh mục" 
+            style={{ width: 220 }}
+            value={supplyCategoryFilter}
+            onChange={setSupplyCategoryFilter}
+          >
+            {([...new Set(equipments.map(e => e.category || e.Category).filter(Boolean))]).map(c => <Option key={c} value={c}>{c}</Option>)}
+          </Select>
+        </div>
+
+        <Table 
+          size="small"
+          dataSource={equipments.filter(e => {
+              const name = (e.name || e.Name || '').toLowerCase();
+              const code = (e.itemCode || e.ItemCode || '').toLowerCase();
+              const cat = e.category || e.Category || '';
+              const search = supplySearchText.toLowerCase();
+              const matchesSearch = name.includes(search) || code.includes(search);
+              const matchesCat = supplyCategoryFilter ? cat === supplyCategoryFilter : true;
+              return matchesSearch && matchesCat;
+          })}
+          columns={[
+            { title: 'Mã SP', dataIndex: 'itemCode', render: (_, r) => r.itemCode || r.ItemCode },
+            { title: 'Tên vật tư', dataIndex: 'name', render: (_, r) => r.name || r.Name },
+            { title: 'Danh mục', dataIndex: 'category', render: (_, r) => r.category || r.Category },
+            { title: 'Tồn kho', render: (_, r) => r.inStockQuantity || r.InStockQuantity || 0 },
+            { 
+               title: 'Thao tác', 
+               render: (_, record) => {
+                 const stock = record.inStockQuantity || record.InStockQuantity || 0;
+                 const isSelected = selectedItems.some(si => si.id === (record.id || record.Id));
+                 return (
+                   <Button 
+                     type={isSelected ? "default" : "primary"} 
+                     size="small" 
+                     danger={isSelected}
+                     disabled={!isSelected && stock <= 0}
+                     onClick={() => {
+                       if (isSelected) {
+                         setSelectedItems(prev => prev.filter(si => si.id !== (record.id || record.Id)));
+                       } else {
+                         const eq = equipments.find(e => (e.id || e.Id) === (record.id || record.Id));
+                         setSelectedItems(prev => [...prev, {
+                           ...eq,
+                           id: eq.id || eq.Id,
+                           name: eq.name || eq.Name,
+                           itemCode: eq.itemCode || eq.ItemCode,
+                           unit: eq.unit || eq.Unit,
+                           quantity: 1,
+                           defaultPriceIfLost: eq.defaultPriceIfLost || eq.DefaultPriceIfLost || 0
+                         }]);
+                       }
+                     }}
+                   >
+                     {isSelected ? "Hủy" : "Chọn"}
+                   </Button>
+                 );
+               }
+            }
+          ]}
+          pagination={{ pageSize: 5 }}
+          rowKey={(r) => r.id || r.Id}
+          className="mb-4"
+        />
+
+        {selectedItems.length > 0 && (
+          <div className="p-4 border rounded bg-blue-50 mb-4">
+            <p className="font-semibold text-blue-800 mb-3">Vật tư đã chọn ({selectedItems.length}):</p>
+            <div className="space-y-4 max-h-60 overflow-y-auto pr-1">
+              {selectedItems.map((item, index) => {
+                const stock = item.inStockQuantity || item.InStockQuantity || 0;
+                return (
+                  <Row gutter={16} key={item.id} align="middle" className="pb-3 border-b border-blue-100 last:border-b-0 last:pb-0 last:mb-0">
+                    <Col span={8}>
+                      <div className="font-medium text-gray-800">{item.name || item.Name}</div>
+                      <div className="text-xs text-gray-500">Mã: {item.itemCode || item.ItemCode} | Tồn kho: {stock}</div>
+                    </Col>
+                    <Col span={4}>
+                      <div className="text-xs text-gray-500 mb-1">ĐVT</div>
+                      <Input value={item.unit || item.Unit} disabled size="small" />
+                    </Col>
+                    <Col span={5}>
+                      <div className="text-xs text-gray-500 mb-1">Số lượng</div>
+                      <InputNumber 
+                        min={1} 
+                        max={stock}
+                        value={item.quantity} 
+                        className="w-full"
+                        size="small"
+                        onChange={(val) => {
+                          setSelectedItems(prev => prev.map(si => si.id === item.id ? { ...si, quantity: val } : si));
+                        }}
+                      />
+                    </Col>
+                    <Col span={5}>
+                      <div className="text-xs text-gray-500 mb-1">Giá đền bù (VNĐ)</div>
+                      <InputNumber 
+                        disabled 
+                        min={0} 
+                        value={item.defaultPriceIfLost || item.DefaultPriceIfLost || 0}
+                        className="w-full" 
+                        size="small"
+                        formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} 
+                        parser={value => value.replace(/\$\s?|(,*)/g, '')} 
+                      />
+                    </Col>
+                    <Col span={2} className="text-right">
+                      <Button 
+                        type="text" 
+                        danger 
+                        size="small"
+                        icon={<DeleteOutlined />} 
+                        style={{ marginTop: 16 }}
+                        onClick={() => {
+                          setSelectedItems(prev => prev.filter(si => si.id !== item.id));
+                        }}
+                      />
+                    </Col>
+                  </Row>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );
