@@ -218,7 +218,7 @@ export default function App() {
             equipmentId: item.equipmentId,
             quantity: item.quantity,
             condition: item.condition || "Tốt",
-            isMinibar: item.itemName.toLowerCase().includes("minibar"),
+            isMinibar: (item.itemName || '').toLowerCase().includes("minibar"),
             priceIfLost: item.priceIfLost || 0
           });
         }
@@ -303,7 +303,7 @@ export default function App() {
                     equipmentId: item.equipmentId,
                     quantity: item.quantity,
                     condition: item.condition || "Tốt",
-                    isMinibar: item.itemName?.toLowerCase().includes("minibar") || false,
+                    isMinibar: (item.itemName || '').toLowerCase().includes("minibar"),
                     priceIfLost: item.priceIfLost || 0
                   });
                 }
@@ -635,7 +635,7 @@ export default function App() {
                 equipmentId: item.equipmentId,
                 quantity: item.quantity,
                 condition: item.condition || "Tốt",
-                isMinibar: item.name.toLowerCase().includes("minibar"),
+                isMinibar: (item.name || '').toLowerCase().includes("minibar"),
                 priceIfLost: item.penaltyPrice || 0
               });
             }

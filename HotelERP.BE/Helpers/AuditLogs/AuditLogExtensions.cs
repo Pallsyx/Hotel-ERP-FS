@@ -73,36 +73,53 @@ public static class AuditLogExtensions
         }
         else
         {
-            // ĐÃ CÓ → Parse JSON cũ, nối thêm event, update lại
-            var parsed = JsonSerializer.Deserialize<JsonElement>(existingLog.LogData);
-            
-            // Xử lý đọc key không phân biệt hoa thường (vì SP ghi PascalCase, C# ghi camelCase)
-            JsonElement eventsElement;
-            if (!parsed.TryGetProperty("events", out eventsElement))
-                parsed.TryGetProperty("Events", out eventsElement);
-
-            JsonElement totalEventsElement;
-            if (!parsed.TryGetProperty("totalEvents", out totalEventsElement))
-                parsed.TryGetProperty("TotalEvents", out totalEventsElement);
-
-            var currentEvents = eventsElement.EnumerateArray().ToList();
-            var totalEvents   = totalEventsElement.GetInt32();
-
-            // Thêm event mới vào cuối danh sách
-            var allEventsJson = new System.Collections.Generic.List<object>();
-            foreach (var ev in currentEvents)
+            try 
             {
-                allEventsJson.Add(ev);
+                // ĐÃ CÓ → Parse JSON cũ, nối thêm event, update lại
+                var parsed = JsonSerializer.Deserialize<JsonElement>(existingLog.LogData);
+                
+                // Xử lý đọc key không phân biệt hoa thường (vì SP ghi PascalCase, C# ghi camelCase)
+                JsonElement eventsElement;
+                if (!parsed.TryGetProperty("events", out eventsElement))
+                    parsed.TryGetProperty("Events", out eventsElement);
+
+                JsonElement totalEventsElement;
+                if (!parsed.TryGetProperty("totalEvents", out totalEventsElement))
+                    parsed.TryGetProperty("TotalEvents", out totalEventsElement);
+
+                var currentEvents = (eventsElement.ValueKind == JsonValueKind.Array) 
+                                        ? eventsElement.EnumerateArray().ToList() 
+                                        : new System.Collections.Generic.List<JsonElement>();
+                var totalEvents   = (totalEventsElement.ValueKind == JsonValueKind.Number) 
+                                        ? totalEventsElement.GetInt32() 
+                                        : 0;
+
+                // Thêm event mới vào cuối danh sách
+                var allEventsJson = new System.Collections.Generic.List<object>();
+                foreach (var ev in currentEvents)
+                {
+                    allEventsJson.Add(ev);
+                }
+                allEventsJson.Add(newEvent);
+
+                var updatedLogData = new
+                {
+                    TotalEvents = totalEvents + 1,
+                    Events = allEventsJson
+                };
+
+                existingLog.LogData = JsonSerializer.Serialize(updatedLogData, JsonOpts);
             }
-            allEventsJson.Add(newEvent);
-
-            var updatedLogData = new
+            catch (Exception)
             {
-                TotalEvents = totalEvents + 1,
-                Events = allEventsJson
-            };
-
-            existingLog.LogData = JsonSerializer.Serialize(updatedLogData, JsonOpts);
+                // Nếu JSON cũ lỗi, ghi đè lại dòng mới tinh để tránh crash
+                var logData = new
+                {
+                    TotalEvents = 1,
+                    Events = new[] { newEvent }
+                };
+                existingLog.LogData = JsonSerializer.Serialize(logData, JsonOpts);
+            }
         }
 
         await context.SaveChangesAsync();

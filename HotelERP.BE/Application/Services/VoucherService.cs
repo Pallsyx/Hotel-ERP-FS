@@ -136,24 +136,34 @@ public class VoucherService : IVoucherService
             Reason = request.Reason
         };
 
-        _dbContext.Vouchers.Add(voucher);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            _dbContext.Vouchers.Add(voucher);
+            await _dbContext.SaveChangesAsync(cancellationToken);
 
         var usedCountMap = await GetUsedCountMapAsync(cancellationToken);
         var response = MapToResponse(voucher, usedCountMap);
 
-        // Ghi audit log
-        await _auditLogHelper.WriteAsync(
-            userId: performedByUserId,
-            roleName: "System",
-            action: "CREATE",
-            recordId: voucher.Id,
-            oldValue: null,
-            newValue: _auditLogHelper.BuildSnapshot(voucher),
-            reason: request.Reason ?? "Tạo voucher mới",
-            cancellationToken: cancellationToken);
+            // Ghi audit log
+            await _auditLogHelper.WriteAsync(
+                userId: performedByUserId,
+                roleName: "System",
+                action: "CREATE",
+                recordId: voucher.Id,
+                oldValue: null,
+                newValue: _auditLogHelper.BuildSnapshot(voucher),
+                reason: request.Reason ?? "Tạo voucher mới",
+                cancellationToken: cancellationToken);
 
-        return ApiResult<VoucherResponseDto>.Created(response, "Tạo voucher thành công.", "CREATE_VOUCHER_SUCCESS");
+            await transaction.CommitAsync(cancellationToken);
+            return ApiResult<VoucherResponseDto>.Created(response, "Tạo voucher thành công.", "CREATE_VOUCHER_SUCCESS");
+        }
+        catch (Exception)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
     }
 
     public async Task<ApiResult<VoucherResponseDto>> UpdateAsync(int id, UpdateVoucherRequestDto request, int? performedByUserId, CancellationToken cancellationToken = default)
@@ -198,23 +208,33 @@ public class VoucherService : IVoucherService
         voucher.UsageLimit = request.UsageLimit;
         voucher.Reason = request.Reason;
 
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
 
         var usedCountMap = await GetUsedCountMapAsync(cancellationToken);
         var response = MapToResponse(voucher, usedCountMap);
 
-        // Ghi audit log
-        await _auditLogHelper.WriteAsync(
-            userId: performedByUserId,
-            roleName: "System",
-            action: "UPDATE",
-            recordId: voucher.Id,
-            oldValue: null,
-            newValue: _auditLogHelper.BuildSnapshot(voucher),
-            reason: request.Reason ?? "Cập nhật voucher",
-            cancellationToken: cancellationToken);
+            // Ghi audit log
+            await _auditLogHelper.WriteAsync(
+                userId: performedByUserId,
+                roleName: "System",
+                action: "UPDATE",
+                recordId: voucher.Id,
+                oldValue: null,
+                newValue: _auditLogHelper.BuildSnapshot(voucher),
+                reason: request.Reason ?? "Cập nhật voucher",
+                cancellationToken: cancellationToken);
 
-        return ApiResult<VoucherResponseDto>.Ok(response, "Cập nhật voucher thành công.", "UPDATE_VOUCHER_SUCCESS");
+            await transaction.CommitAsync(cancellationToken);
+            return ApiResult<VoucherResponseDto>.Ok(response, "Cập nhật voucher thành công.", "UPDATE_VOUCHER_SUCCESS");
+        }
+        catch (Exception)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
     }
 
     public async Task<ApiResult<object>> DisableAsync(int id, DisableVoucherRequestDto request, int? performedByUserId, CancellationToken cancellationToken = default)
@@ -245,26 +265,37 @@ public class VoucherService : IVoucherService
                 "Voucher đã ở trạng thái INACTIVE.");
         }
 
-        voucher.ValidTo = now.AddSeconds(-1);
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
-        // Ghi audit log
-        await _auditLogHelper.WriteAsync(
-            userId: performedByUserId,
-            roleName: "System",
-            action: "DELETE",
-            recordId: voucher.Id,
-            oldValue: _auditLogHelper.BuildSnapshot(voucher),
-            newValue: null,
-            reason: request.Reason ?? "Vô hiệu hóa voucher",
-            cancellationToken: cancellationToken);
-
-        return ApiResult<object>.Ok(new
+        using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+        try
         {
-            voucherId = voucher.Id,
-            status = StatusInactive,
-            updatedAt = now
-        }, "Vô hiệu hóa voucher thành công.", "DISABLE_VOUCHER_SUCCESS");
+            voucher.ValidTo = now.AddSeconds(-1);
+            await _dbContext.SaveChangesAsync(cancellationToken);
+
+            // Ghi audit log
+            await _auditLogHelper.WriteAsync(
+                userId: performedByUserId,
+                roleName: "System",
+                action: "DELETE",
+                recordId: voucher.Id,
+                oldValue: _auditLogHelper.BuildSnapshot(voucher),
+                newValue: null,
+                reason: request.Reason ?? "Vô hiệu hóa voucher",
+                cancellationToken: cancellationToken);
+
+            await transaction.CommitAsync(cancellationToken);
+
+            return ApiResult<object>.Ok(new
+            {
+                voucherId = voucher.Id,
+                status = StatusInactive,
+                updatedAt = now
+            }, "Vô hiệu hóa voucher thành công.", "DISABLE_VOUCHER_SUCCESS");
+        }
+        catch (Exception)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
     }
 
     private async Task<ApiResult<VoucherResponseDto>?> ValidateUpsertRequestAsync(
