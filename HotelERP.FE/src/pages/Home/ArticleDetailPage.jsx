@@ -78,7 +78,7 @@ function Header({ category }) {
         {[['Trang Chủ', '/'], ['Tin Tức', '/news'], ['Điểm Đến', '/attractions']].map(([l, h]) => (
           <a key={l} href={h} style={{ fontSize: 11, fontWeight: 500, letterSpacing: '1.5px', textTransform: 'uppercase', color: h === '/news' ? G : 'rgba(255,255,255,.75)', textDecoration: 'none', padding: '4px 14px', borderBottom: h === '/news' ? `2px solid ${G}` : '2px solid transparent' }}>{l}</a>
         ))}
-        <a href="/" style={{ marginLeft: 8, fontSize: 10, fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'white', background: `linear-gradient(135deg,${G},#9a7b52)`, padding: '9px 18px', borderRadius: 2, textDecoration: 'none' }}>Đặt Phòng</a>
+
       </nav>
     </header>
   );

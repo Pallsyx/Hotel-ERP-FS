@@ -204,9 +204,7 @@ export default function CategoryManagement() {
           </p>
         </div>
         <Space>
-          <Button icon={<ReloadOutlined />} onClick={load} loading={loading}>
-            Làm mới
-          </Button>
+
           <Button
             type="primary" icon={<PlusOutlined />} onClick={openCreate}
             style={{ background: GOLD, borderColor: GOLD }}
