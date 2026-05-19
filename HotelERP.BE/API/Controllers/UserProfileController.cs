@@ -186,6 +186,27 @@ public class UserProfileController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Kiểm tra xem hôm nay có phải sinh nhật của user không.
+    /// Nếu có → tự sinh (hoặc lấy lại) voucher sinh nhật và trả về cho FE hiển thị gợi ý.
+    /// Nếu không phải sinh nhật → trả về { success: true, data: null }
+    /// </summary>
+    [HttpGet("birthday-voucher")]
+    public async Task<IActionResult> GetBirthdayVoucher(CancellationToken cancellationToken)
+    {
+        try
+        {
+            int userId = GetCurrentUserId();
+            var voucher = await _voucherService.GetBirthdayVoucherAsync(userId, cancellationToken);
+            // Trả về null data (không phải sinh nhật) hoặc voucher object
+            return Ok(new { success = true, data = voucher });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+    }
+
     [HttpGet("my-notifications")]
     public async Task<IActionResult> GetMyNotifications()
     {

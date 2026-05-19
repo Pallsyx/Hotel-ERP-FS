@@ -499,4 +499,74 @@ public class VoucherService : IVoucherService
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
     }
-}
+
+    /// <summary>
+    /// Kiểm tra xem hôm nay có phải sinh nhật của user không.
+    /// Nếu có và chưa cấp voucher sinh nhật trong năm nay → tự tạo mới và trả về.
+    /// Nếu đã cấp rồi → trả về voucher hiện có (nếu còn hiệu lực).
+    /// Nếu hôm nay không phải sinh nhật → trả về null.
+    /// </summary>
+    public async Task<VoucherResponseDto?> GetBirthdayVoucherAsync(int userId, CancellationToken cancellationToken = default)
+    {
+        var user = await _dbContext.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+
+        if (user == null || !user.DateOfBirth.HasValue)
+            return null;
+
+        // So sánh ngày & tháng với ngày hôm nay (theo giờ UTC+7 để sát thực tế người dùng VN)
+        var todayVN = DateTime.UtcNow.AddHours(7).Date;
+        var dob = user.DateOfBirth.Value;
+
+        bool isBirthday = dob.Month == todayVN.Month && dob.Day == todayVN.Day;
+        if (!isBirthday)
+            return null;
+
+        int currentYear = todayVN.Year;
+
+        // Kiểm tra đã cấp voucher sinh nhật năm nay chưa (qua cờ LastBirthdayCouponYear)
+        // Tìm voucher sinh nhật đang gắn với userId này trong năm nay
+        var birthdayVoucherCodePrefix = $"BDAY-{userId}-{currentYear}";
+        var existingVoucher = await _dbContext.Vouchers
+            .AsNoTracking()
+            .FirstOrDefaultAsync(v => v.UserId == userId && v.Code.StartsWith(birthdayVoucherCodePrefix), cancellationToken);
+
+        if (existingVoucher != null)
+        {
+            // Voucher đã tồn tại — trả về nếu còn hiệu lực
+            var usedCountMap = await GetUsedCountMapAsync(cancellationToken);
+            return MapToResponse(existingVoucher, usedCountMap);
+        }
+
+        // Chưa có → Tự động tạo voucher sinh nhật mới
+        var birthdayVoucherCode = $"{birthdayVoucherCodePrefix}-{Guid.NewGuid().ToString()[..4].ToUpper()}";
+        var validFrom = todayVN.ToUniversalTime();       // Hiệu lực từ đầu ngày sinh nhật
+        var validTo   = validFrom.AddDays(7);             // Hết hạn sau 7 ngày
+
+        var newVoucher = new Voucher
+        {
+            Code          = birthdayVoucherCode,
+            UserId        = userId,                       // Voucher riêng của user này
+            DiscountType  = DiscountTypePercent,
+            DiscountValue = 10m,                          // Giảm 10% cho voucher sinh nhật
+            MinBookingValue = 0m,
+            ValidFrom     = validFrom,
+            ValidTo       = validTo,
+            UsageLimit    = 1,                            // Chỉ dùng 1 lần
+            Reason        = $"Voucher sinh nhật tự động — chúc mừng sinh nhật {user.FullName}!"
+        };
+
+        _dbContext.Vouchers.Add(newVoucher);
+
+        // Cập nhật cờ LastBirthdayCouponYear để tránh tạo trùng nếu gọi lại
+        var trackedUser = await _dbContext.Users.FindAsync([userId], cancellationToken);
+        if (trackedUser != null)
+            trackedUser.LastBirthdayCouponYear = currentYear;
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        var usedMap = await GetUsedCountMapAsync(cancellationToken);
+        return MapToResponse(newVoucher, usedMap);
+    }
+}

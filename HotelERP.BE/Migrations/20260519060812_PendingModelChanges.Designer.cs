@@ -4,6 +4,7 @@ using HotelERP.BE.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace HotelERP.BE.Migrations
 {
     [DbContext(typeof(HotelDbContext))]
-    partial class HotelDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260519060812_PendingModelChanges")]
+    partial class PendingModelChanges
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -67,7 +70,7 @@ namespace HotelERP.BE.Migrations
                     b.HasIndex(new[] { "Name" }, "UQ_Amenities_Name")
                         .IsUnique();
 
-                    b.ToTable("Amenities", (string)null);
+                    b.ToTable("Amenities");
                 });
 
             modelBuilder.Entity("HotelERP.BE.Domain.Models.Article", b =>
@@ -165,7 +168,7 @@ namespace HotelERP.BE.Migrations
                     b.HasIndex(new[] { "Slug" }, "UQ_Articles_Slug")
                         .IsUnique();
 
-                    b.ToTable("Articles", (string)null);
+                    b.ToTable("Articles");
                 });
 
             modelBuilder.Entity("HotelERP.BE.Domain.Models.ArticleCategory", b =>
@@ -278,7 +281,7 @@ namespace HotelERP.BE.Migrations
                     b.HasKey("Id")
                         .HasName("PK__Attracti__3213E83F6D39421C");
 
-                    b.ToTable("Attractions", (string)null);
+                    b.ToTable("Attractions");
                 });
 
             modelBuilder.Entity("HotelERP.BE.Domain.Models.AuditLog", b =>
@@ -437,7 +440,7 @@ namespace HotelERP.BE.Migrations
                     b.HasIndex(new[] { "BookingCode" }, "UQ_Bookings_Code")
                         .IsUnique();
 
-                    b.ToTable("Bookings", (string)null);
+                    b.ToTable("Bookings");
                 });
 
             modelBuilder.Entity("HotelERP.BE.Domain.Models.BookingDetail", b =>
@@ -645,21 +648,27 @@ namespace HotelERP.BE.Migrations
                     b.Property<int>("EquipmentId")
                         .HasColumnType("int");
 
-                    b.Property<string>("LogData")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("LogDate")
+                    b.Property<DateTime>("ImportedAt")
                         .HasColumnType("datetime");
 
-                    b.Property<int?>("UserId")
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("Quantity")
                         .HasColumnType("int");
+
+                    b.Property<string>("SupplierName")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasColumnType("decimal(18,2)");
 
                     b.HasKey("Id");
 
                     b.HasIndex("EquipmentId");
-
-                    b.HasIndex("UserId");
 
                     b.ToTable("EquipmentSupplierLogs");
                 });
@@ -752,7 +761,7 @@ namespace HotelERP.BE.Migrations
                         .IsUnique()
                         .HasFilter("[invoice_code] IS NOT NULL");
 
-                    b.ToTable("Invoices", (string)null);
+                    b.ToTable("Invoices");
                 });
 
             modelBuilder.Entity("HotelERP.BE.Domain.Models.InvoiceBookingDetail", b =>
@@ -1006,7 +1015,7 @@ namespace HotelERP.BE.Migrations
                     b.HasIndex(new[] { "TierName" }, "UQ_Memberships_TierName")
                         .IsUnique();
 
-                    b.ToTable("Memberships", (string)null);
+                    b.ToTable("Memberships");
                 });
 
             modelBuilder.Entity("HotelERP.BE.Domain.Models.OrderService", b =>
@@ -1185,7 +1194,7 @@ namespace HotelERP.BE.Migrations
 
                     b.HasIndex("InvoiceId");
 
-                    b.ToTable("Payments", (string)null);
+                    b.ToTable("Payments");
                 });
 
             modelBuilder.Entity("HotelERP.BE.Domain.Models.Permission", b =>
@@ -1225,7 +1234,7 @@ namespace HotelERP.BE.Migrations
                     b.HasIndex(new[] { "Name" }, "UQ_Permissions_Name")
                         .IsUnique();
 
-                    b.ToTable("Permissions", (string)null);
+                    b.ToTable("Permissions");
                 });
 
             modelBuilder.Entity("HotelERP.BE.Domain.Models.RefreshToken", b =>
@@ -1359,7 +1368,7 @@ namespace HotelERP.BE.Migrations
 
                     b.HasIndex(new[] { "RoomTypeId", "IsApproved", "Status" }, "IX_Reviews_Moderation");
 
-                    b.ToTable("Reviews", (string)null);
+                    b.ToTable("Reviews");
                 });
 
             modelBuilder.Entity("HotelERP.BE.Domain.Models.Role", b =>
@@ -1406,7 +1415,7 @@ namespace HotelERP.BE.Migrations
                     b.HasIndex(new[] { "Name" }, "UQ_Roles_Name")
                         .IsUnique();
 
-                    b.ToTable("Roles", (string)null);
+                    b.ToTable("Roles");
                 });
 
             modelBuilder.Entity("HotelERP.BE.Domain.Models.RoleDashboardPeriodState", b =>
@@ -1602,7 +1611,7 @@ namespace HotelERP.BE.Migrations
                     b.HasIndex(new[] { "RoomNumber" }, "UQ_Rooms_Number")
                         .IsUnique();
 
-                    b.ToTable("Rooms", (string)null);
+                    b.ToTable("Rooms");
                 });
 
             modelBuilder.Entity("HotelERP.BE.Domain.Models.RoomImage", b =>
@@ -1875,7 +1884,7 @@ namespace HotelERP.BE.Migrations
 
                     b.HasIndex("CategoryId");
 
-                    b.ToTable("Services", (string)null);
+                    b.ToTable("Services");
                 });
 
             modelBuilder.Entity("HotelERP.BE.Domain.Models.ServiceCategory", b =>
@@ -2012,7 +2021,7 @@ namespace HotelERP.BE.Migrations
                     b.HasIndex(new[] { "Email" }, "UQ_Users_Email")
                         .IsUnique();
 
-                    b.ToTable("Users", (string)null);
+                    b.ToTable("Users");
                 });
 
             modelBuilder.Entity("HotelERP.BE.Domain.Models.Voucher", b =>
@@ -2066,7 +2075,7 @@ namespace HotelERP.BE.Migrations
                     b.HasIndex(new[] { "Code" }, "UQ_Vouchers_Code")
                         .IsUnique();
 
-                    b.ToTable("Vouchers", (string)null);
+                    b.ToTable("Vouchers");
                 });
 
             modelBuilder.Entity("HotelERP.BE.Models.Notification", b =>
@@ -2136,7 +2145,7 @@ namespace HotelERP.BE.Migrations
 
                     b.HasIndex("PermissionId");
 
-                    b.ToTable("User_Permissions", (string)null);
+                    b.ToTable("User_Permissions");
                 });
 
             modelBuilder.Entity("HotelERP.BE.Domain.Models.Article", b =>
@@ -2218,14 +2227,7 @@ namespace HotelERP.BE.Migrations
                         .IsRequired()
                         .HasConstraintName("FK_EquipmentSupplierLogs_Equipments");
 
-                    b.HasOne("HotelERP.BE.Domain.Models.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .HasConstraintName("FK_EquipmentSupplierLogs_Users");
-
                     b.Navigation("Equipment");
-
-                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("HotelERP.BE.Domain.Models.Invoice", b =>

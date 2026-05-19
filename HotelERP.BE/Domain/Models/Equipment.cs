@@ -35,4 +35,6 @@ public partial class Equipment
     public DateTime? UpdatedAt { get; set; }
 
     public string? ImageUrl { get; set; }
+
+    public virtual ICollection<EquipmentSupplierLog> SupplierLogs { get; set; } = new List<EquipmentSupplierLog>();
 }

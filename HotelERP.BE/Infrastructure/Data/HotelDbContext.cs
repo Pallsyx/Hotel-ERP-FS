@@ -71,6 +71,8 @@ public partial class HotelDbContext : DbContext
 
     public virtual DbSet<Equipment> Equipments { get; set; }
 
+    public virtual DbSet<EquipmentSupplierLog> EquipmentSupplierLogs { get; set; }
+
     public virtual DbSet<RoomType> RoomTypes { get; set; }
 
     public virtual DbSet<RoomTypeAmenity> RoomTypeAmenities { get; set; }
@@ -98,23 +100,23 @@ public partial class HotelDbContext : DbContext
     {
         modelBuilder.Entity<UserPermission>().HasKey(up => new { up.UserId, up.PermissionId });
 
-        // Cấu hình bảng pivot nhiều-nhiều: Article ↔ ArticleCategory
-        modelBuilder.Entity<ArticleCategoryMapping>(entity =>
+        // EquipmentSupplierLog — theo pattern AuditLog: lưu JSON vào LogData
+        modelBuilder.Entity<EquipmentSupplierLog>(entity =>
         {
-            entity.HasKey(e => new { e.ArticleId, e.CategoryId });
-            entity.ToTable("Article_Category_Mappings");
-            entity.Property(e => e.ArticleId).HasColumnName("article_id");
-            entity.Property(e => e.CategoryId).HasColumnName("category_id");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.LogData).IsRequired();
+            entity.Property(e => e.LogDate).HasColumnType("datetime");
 
-            entity.HasOne(e => e.Article)
-                .WithMany(a => a.CategoryMappings)
-                .HasForeignKey(e => e.ArticleId)
-                .HasConstraintName("FK_ACM_Articles");
+            entity.HasOne(e => e.Equipment)
+                .WithMany(eq => eq.SupplierLogs)
+                .HasForeignKey(e => e.EquipmentId)
+                .HasConstraintName("FK_EquipmentSupplierLogs_Equipments");
 
-            entity.HasOne(e => e.Category)
-                .WithMany(c => c.CategoryMappings)
-                .HasForeignKey(e => e.CategoryId)
-                .HasConstraintName("FK_ACM_Categories");
+            entity.HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .IsRequired(false)
+                .HasConstraintName("FK_EquipmentSupplierLogs_Users");
         });
 
         modelBuilder.Entity<ArticleCategory>().HasQueryFilter(c => c.Status == "ACTIVE");

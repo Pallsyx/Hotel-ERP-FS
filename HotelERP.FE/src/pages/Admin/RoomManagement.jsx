@@ -562,6 +562,7 @@ export default function App() {
 
   // MÀN HÌNH 2: FORM THÊM/SỬA PHÒNG
   const renderRoomForm = () => {
+    const isEdit = currentView === 'edit';
     const supplyCategories = [...new Set(equipments.map(e => e.category || e.Category).filter(Boolean))];
     const filteredEquipments = equipments.filter(e => {
         const name = (e.name || e.Name || '').toLowerCase();
