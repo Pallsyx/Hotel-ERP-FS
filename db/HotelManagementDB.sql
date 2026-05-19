@@ -191,6 +191,27 @@ CREATE TABLE [dbo].[Equipments](
 	[DeletedAt] [datetime] NULL
 );
 
+CREATE TABLE [dbo].[EquipmentSupplierLogs] (
+    [Id]          INT            IDENTITY (1, 1) NOT NULL,
+    [EquipmentId] INT            NOT NULL,
+    [UserId]      INT            NULL,           -- Cho phép NULL nếu là hệ thống tự chạy
+    [LogDate]     DATETIME       NOT NULL,       -- Gom nhóm theo ngày
+    [LogData]     NVARCHAR (MAX) NOT NULL,       -- Chuỗi JSON chứa mảng các đợt nhập
+    CONSTRAINT [PK_EquipmentSupplierLogs] PRIMARY KEY CLUSTERED ([Id] ASC),
+    CONSTRAINT [FK_EquipmentSupplierLogs_Equipments] FOREIGN KEY ([EquipmentId]) REFERENCES [dbo].[Equipments] ([Id]) ON DELETE CASCADE,
+    CONSTRAINT [FK_EquipmentSupplierLogs_Users] FOREIGN KEY ([UserId]) REFERENCES [dbo].[Users] ([Id])
+);
+GO
+
+-- Tạo index cho khóa ngoại để tối ưu truy vấn
+CREATE NONCLUSTERED INDEX [IX_EquipmentSupplierLogs_EquipmentId]
+    ON [dbo].[EquipmentSupplierLogs]([EquipmentId] ASC);
+GO
+
+CREATE NONCLUSTERED INDEX [IX_EquipmentSupplierLogs_UserId]
+    ON [dbo].[EquipmentSupplierLogs]([UserId] ASC);
+GO
+
 CREATE TABLE [dbo].[Room_Inventory](
 	[id] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
 	[room_id] [int] NULL,
