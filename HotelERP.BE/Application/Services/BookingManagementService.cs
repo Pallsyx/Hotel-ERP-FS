@@ -103,7 +103,7 @@ public class BookingManagementService : IBookingManagementService
 
         // --- Phân trang + sắp xếp (mới nhất trước) ---
         var bookings = await query
-            .OrderByDescending(b => b.CreatedAt)
+            .OrderByDescending(b => b.Id)
             .Skip((request.Page - 1) * request.PageSize)
             .Take(request.PageSize)
             .ToListAsync();

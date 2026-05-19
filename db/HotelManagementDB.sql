@@ -311,15 +311,22 @@ CREATE TABLE [dbo].[Loss_And_Damages](
 
 CREATE TABLE [dbo].[Service_Categories](
 	[id] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
-	[name] [nvarchar](255) NOT NULL
+	[name] [nvarchar](255) NOT NULL,
+	[status] [nvarchar](50) NOT NULL DEFAULT 'ACTIVE',
+	[created_at] [datetime] NULL DEFAULT GETDATE()
 );
 
 CREATE TABLE [dbo].[Services](
 	[id] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
 	[category_id] [int] NULL,
 	[name] [nvarchar](255) NOT NULL,
+	[description] [nvarchar](max) NULL,
 	[price] [decimal](18, 2) NOT NULL,
 	[unit] [nvarchar](50) NULL,
+	[image_url] [nvarchar](max) NULL,
+	[status] [nvarchar](50) NOT NULL DEFAULT 'ACTIVE',
+	[created_at] [datetime] NULL DEFAULT GETDATE(),
+	[updated_at] [datetime] NULL,
 	[DeletedAt] [datetime] NULL
 );
 
@@ -3098,4 +3105,16 @@ UPDATE [Articles] SET [thumbnail_url]=@cdn+N'lang_chai_co.jpg',          [thumbn
 GO
 
 PRINT N'✅ Seed data Thumbnails Articles hoàn tất!';
+GO
+
+-- ========================================================================
+-- 6. TỐI ƯU HÓA HIỆU SUẤT (INDEXES)
+-- ========================================================================
+CREATE NONCLUSTERED INDEX [IX_Users_Email] ON [dbo].[Users]([email]);
+CREATE NONCLUSTERED INDEX [IX_Bookings_BookingCode] ON [dbo].[Bookings]([booking_code]);
+CREATE NONCLUSTERED INDEX [IX_Bookings_Status] ON [dbo].[Bookings]([status]);
+CREATE NONCLUSTERED INDEX [IX_Invoices_BookingId] ON [dbo].[Invoices]([booking_id]);
+CREATE NONCLUSTERED INDEX [IX_Invoices_Status] ON [dbo].[Invoices]([status]);
+CREATE NONCLUSTERED INDEX [IX_BookingDetails_BookingId] ON [dbo].[Booking_Details]([booking_id]);
+CREATE NONCLUSTERED INDEX [IX_BookingDetails_RoomId] ON [dbo].[Booking_Details]([room_id]);
 GO
