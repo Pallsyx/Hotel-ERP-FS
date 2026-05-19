@@ -8,15 +8,16 @@ public class EquipmentSupplierLog
 
     public virtual Equipment Equipment { get; set; } = null!;
 
-    public string SupplierName { get; set; } = string.Empty;
+    /// <summary>Người thực hiện nhập kho (UserId, nullable nếu import hệ thống)</summary>
+    public int? UserId { get; set; }
 
-    /// <summary>Số lượng nhập từ NCC này trong lần này</summary>
-    public int Quantity { get; set; }
+    public virtual User? User { get; set; }
 
-    /// <summary>Giá nhập từ NCC này</summary>
-    public decimal UnitPrice { get; set; }
+    public DateTime LogDate { get; set; } = DateTime.UtcNow;
 
-    public DateTime ImportedAt { get; set; } = DateTime.UtcNow;
-
-    public string? Notes { get; set; }
+    /// <summary>
+    /// JSON chứa toàn bộ thông tin lần nhập:
+    /// { supplierName, quantity, unitPrice, notes, source }
+    /// </summary>
+    public string LogData { get; set; } = "{}";
 }

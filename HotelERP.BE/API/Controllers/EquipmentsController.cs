@@ -4,6 +4,8 @@ using HotelERP.BE.Infrastructure.Data;
 using HotelERP.BE.Application.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using HotelERP.BE.Constants;
+using System.Security.Claims;
+using HotelERP.BE.Helpers.AuditLogs;
 
 namespace HotelERP.API.Controllers;
 
@@ -103,7 +105,23 @@ public class EquipmentsController(HotelDbContext context) : ControllerBase
         equipment.BasePrice = req.BasePrice;
         equipment.DefaultPriceIfLost = req.DefaultPriceIfLost;
         equipment.ImageUrl = req.ImageUrl;
-        equipment.Supplier = req.Supplier;
+
+        // Dedup supplier string (phòng trường hợp UI trả về chuỗi bị lặp như "A | B | A | B")
+        if (!string.IsNullOrWhiteSpace(req.Supplier))
+        {
+            var dedupedSuppliers = req.Supplier
+                .Split(new[] { " | " }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => s.Trim())
+                .Where(s => !string.IsNullOrEmpty(s))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            equipment.Supplier = string.Join(" | ", dedupedSuppliers);
+        }
+        else
+        {
+            equipment.Supplier = req.Supplier;
+        }
+
         equipment.UpdatedAt = DateTime.UtcNow;
 
         await context.SaveChangesAsync();
@@ -165,19 +183,42 @@ public class EquipmentsController(HotelDbContext context) : ControllerBase
         if (equipment == null)
             return NotFound(new { success = false, message = "Không tìm thấy vật tư!" });
 
-        var logs = await context.EquipmentSupplierLogs
+        var rawLogs = await context.EquipmentSupplierLogs
             .Where(l => l.EquipmentId == id)
-            .OrderByDescending(l => l.ImportedAt)
-            .Select(l => new
-            {
-                l.Id,
-                l.SupplierName,
-                l.Quantity,
-                l.UnitPrice,
-                l.ImportedAt,
-                l.Notes
-            })
+            .OrderByDescending(l => l.LogDate)
             .ToListAsync();
+
+        var flatEvents = new List<dynamic>();
+        var jsonOptions = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+
+        foreach (var log in rawLogs)
+        {
+            if (string.IsNullOrEmpty(log.LogData)) continue;
+            try
+            {
+                var parsedData = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(log.LogData, jsonOptions);
+                if (parsedData.TryGetProperty("events", out var eventsArray))
+                {
+                    foreach (var ev in eventsArray.EnumerateArray())
+                    {
+                        var timestampStr = ev.GetProperty("timestamp").GetString();
+                        var dt = DateTime.TryParse(timestampStr, out var d) ? d : log.LogDate;
+                        flatEvents.Add(new
+                        {
+                            SupplierName = ev.TryGetProperty("supplierName", out var sn) ? sn.GetString() : "N/A",
+                            Quantity = ev.TryGetProperty("quantity", out var q) ? q.GetInt32() : 0,
+                            UnitPrice = ev.TryGetProperty("unitPrice", out var u) ? u.GetDecimal() : 0,
+                            ImportedAt = dt,
+                            Notes = ev.TryGetProperty("notes", out var n) ? n.GetString() : null,
+                            Source = ev.TryGetProperty("source", out var s) ? s.GetString() : null
+                        });
+                    }
+                }
+            }
+            catch { /* ignore invalid json */ }
+        }
+
+        var logs = flatEvents.OrderByDescending(e => e.ImportedAt).ToList();
 
         // Tổng hợp theo từng NCC
         var summary = logs
@@ -210,42 +251,59 @@ public class EquipmentsController(HotelDbContext context) : ControllerBase
         var equipments = await query.OrderBy(e => e.ItemCode).ToListAsync();
         
         using var workbook = new ClosedXML.Excel.XLWorkbook();
-        var worksheet = workbook.Worksheets.Add("VatTu");
-        
-        worksheet.Cell(1, 1).Value = "Mã Vật Tư";
-        worksheet.Cell(1, 2).Value = "Tên Vật Tư";
-        worksheet.Cell(1, 3).Value = "Danh Mục";
-        worksheet.Cell(1, 4).Value = "Đơn Vị Tính";
-        worksheet.Cell(1, 5).Value = "Tổng Số Lượng";
-        worksheet.Cell(1, 6).Value = "Giá Nhập";
-        worksheet.Cell(1, 7).Value = "Giá Bồi Thường";
-        worksheet.Cell(1, 8).Value = "Nhà Cung Cấp";
-        
-        var headerRow = worksheet.Row(1);
-        headerRow.Style.Font.Bold = true;
-        headerRow.Style.Fill.BackgroundColor = ClosedXML.Excel.XLColor.LightGray;
+        var ws = workbook.Worksheets.Add("VatTu");
 
-        for (int i = 0; i < equipments.Count; i++)
+        // Header
+        ws.Cell(1, 1).Value = "Mã Vật Tư";
+        ws.Cell(1, 2).Value = "Tên Vật Tư";
+        ws.Cell(1, 3).Value = "Danh Mục";
+        ws.Cell(1, 4).Value = "Đơn Vị Tính";
+        ws.Cell(1, 5).Value = "Số Lượng Nhập";  // mỗi dòng = số lượng nhập từ 1 NCC
+        ws.Cell(1, 6).Value = "Giá Nhập";
+        ws.Cell(1, 7).Value = "Giá Bồi Thường";
+        ws.Cell(1, 8).Value = "Nhà Cung Cấp";   // 1 NCC mỗi dòng
+
+        var header = ws.Row(1);
+        header.Style.Font.Bold = true;
+        header.Style.Fill.BackgroundColor = ClosedXML.Excel.XLColor.LightGray;
+        header.Style.Alignment.Horizontal = ClosedXML.Excel.XLAlignmentHorizontalValues.Center;
+
+        int dataRow = 2;
+        foreach (var e in equipments)
         {
-            var row = i + 2;
-            var e = equipments[i];
-            worksheet.Cell(row, 1).Value = e.ItemCode;
-            worksheet.Cell(row, 2).Value = e.Name;
-            worksheet.Cell(row, 3).Value = e.Category;
-            worksheet.Cell(row, 4).Value = e.Unit;
-            worksheet.Cell(row, 5).Value = e.TotalQuantity;
-            worksheet.Cell(row, 6).Value = e.BasePrice;
-            worksheet.Cell(row, 7).Value = e.DefaultPriceIfLost;
-            worksheet.Cell(row, 8).Value = e.Supplier;
+            // Tách từng NCC → mỗi NCC 1 dòng riêng (cùng Mã VT, khác NCC)
+            var suppliers = (e.Supplier ?? "")
+                .Split(new[] { " | " }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => s.Trim())
+                .Where(s => !string.IsNullOrEmpty(s))
+                .ToList();
+
+            if (suppliers.Count == 0) suppliers.Add(""); // chưa có NCC → 1 dòng trống
+
+            foreach (var sup in suppliers)
+            {
+                ws.Cell(dataRow, 1).Value = e.ItemCode;
+                ws.Cell(dataRow, 2).Value = e.Name;
+                ws.Cell(dataRow, 3).Value = e.Category;
+                ws.Cell(dataRow, 4).Value = e.Unit;
+                ws.Cell(dataRow, 5).Value = 0;              // người dùng điền số lượng nhập
+                ws.Cell(dataRow, 6).Value = (double)e.BasePrice;
+                ws.Cell(dataRow, 7).Value = (double)e.DefaultPriceIfLost;
+                ws.Cell(dataRow, 8).Value = sup;
+                dataRow++;
+            }
         }
 
-        worksheet.Columns().AdjustToContents();
+        // Tô vàng cột "Số Lượng Nhập" để dễ nhận biết cần điền
+        if (dataRow > 2)
+            ws.Range(2, 5, dataRow - 1, 5).Style.Fill.BackgroundColor = ClosedXML.Excel.XLColor.LightYellow;
+
+        ws.Columns().AdjustToContents();
+        ws.Column(5).Width = 18;
 
         using var stream = new System.IO.MemoryStream();
         workbook.SaveAs(stream);
-        var content = stream.ToArray();
-
-        return File(content, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "DanhSachVatTu.xlsx");
+        return File(stream.ToArray(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "DanhSachVatTu.xlsx");
     }
 
     [HttpPost("import-excel")]
@@ -283,6 +341,13 @@ public class EquipmentsController(HotelDbContext context) : ControllerBase
         // FIX #5b: Separator cho danh sách NCC — dùng " | " thay vì ", " tránh conflict tên NCC có dấu phẩy
         const string SupplierSep = " | ";
 
+        int? currentUserId = null;
+        if (User?.Identity?.IsAuthenticated == true)
+        {
+            var userIdClaim = User.FindFirst("UserId")?.Value ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (int.TryParse(userIdClaim, out var id)) currentUserId = id;
+        }
+
         try
         {
             using var stream = new System.IO.MemoryStream();
@@ -297,31 +362,57 @@ public class EquipmentsController(HotelDbContext context) : ControllerBase
             }
             using (workbook)
             {
-            // FIX #8: Tìm sheet "VatTu" trước, fallback sheet đầu tiên
+            // Tìm sheet "VatTu", fallback sheet đầu tiên. Header luôn ở dòng 1.
             var worksheet = workbook.Worksheets.FirstOrDefault(ws =>
                 ws.Name.Equals("VatTu", StringComparison.OrdinalIgnoreCase))
                 ?? workbook.Worksheet(1);
-            var rows = worksheet.RowsUsed().Skip(1); // Skip header
+            int headerRowNumber = 1;
+
+            // Helper đọc cell an toàn (formula cells, null cells, cached values)
+            static string SafeCell(ClosedXML.Excel.IXLCell? cell)
+                => cell == null ? "" : (cell.CachedValue.ToString()?.Trim() ?? cell.Value.ToString()?.Trim() ?? "");
+
+            // Đọc header row theo số thứ tự đúng (NhapKho = row 2, VatTu = row 1)
+            var headerRow = worksheet.Row(headerRowNumber).IsEmpty() ? null : worksheet.Row(headerRowNumber);
+            int colItemCode = 1, colName = 2, colCategory = 3, colUnit = 4, colQty = 5;
+            int colBasePrice = 6, colDefaultPrice = 7, colSupplier = 8; // mặc định
+
+            if (headerRow != null)
+            {
+                var lastCol = headerRow.LastCellUsed()?.Address.ColumnNumber ?? 8;
+                for (int c = 1; c <= lastCol; c++)
+                {
+                    var h = SafeCell(headerRow.Cell(c)).ToLowerInvariant().Replace(" ", "");
+                    if (h.Contains("mãvậttư") || h.Contains("mavatu")) colItemCode = c;
+                    else if (h.Contains("tênvậttư") || h.Contains("tenvatu")) colName = c;
+                    else if (h.Contains("danhmục") || h.Contains("danhmuc")) colCategory = c;
+                    else if (h.Contains("đơnvịtính") || h.Contains("donvitinh") || h.Contains("đvt")) colUnit = c;
+                    else if (h.Contains("sốlượngnhập") || h.Contains("soluongnhap") ||
+                             h.Contains("tổngsốlượng") || h.Contains("tongsoluong")) colQty = c;
+                    else if (h.Contains("giánhập") || h.Contains("gianhap")) colBasePrice = c;
+                    else if (h.Contains("giábồithường") || h.Contains("giaboi")) colDefaultPrice = c;
+                    else if (h.Contains("nhàcungcấp") || h.Contains("nhacungcap")) colSupplier = c;
+                }
+            }
+
+            // Bỏ qua tất cả các dòng từ đầu đến header (gồm cả dòng mô tả của NhapKho)
+            var rows = worksheet.RowsUsed().Where(r => r.RowNumber() > headerRowNumber);
 
             foreach (var row in rows)
             {
                 if (row == null) continue;
 
-                // FIX #7: Safe read (formula cells, null cells)
-                static string SafeCell(ClosedXML.Excel.IXLCell? cell)
-                    => cell == null ? "" : (cell.CachedValue.ToString()?.Trim() ?? cell.Value.ToString()?.Trim() ?? "");
-
-                var itemCode = SafeCell(row.Cell(1));
-                var name     = SafeCell(row.Cell(2));
+                var itemCode = SafeCell(row.Cell(colItemCode));
+                var name     = SafeCell(row.Cell(colName));
 
                 if (string.IsNullOrEmpty(itemCode) && string.IsNullOrEmpty(name)) continue;
 
-                var category = SafeCell(row.Cell(3));
-                var unit     = SafeCell(row.Cell(4));
-                var totalQuantityStr = SafeCell(row.Cell(5));
-                var basePriceStr     = SafeCell(row.Cell(6));
-                var defaultPriceStr  = SafeCell(row.Cell(7));
-                var supplier         = SafeCell(row.Cell(8));
+                var category         = SafeCell(row.Cell(colCategory));
+                var unit             = SafeCell(row.Cell(colUnit));
+                var totalQuantityStr = SafeCell(row.Cell(colQty));
+                var basePriceStr     = SafeCell(row.Cell(colBasePrice));
+                var defaultPriceStr  = SafeCell(row.Cell(colDefaultPrice));
+                var supplier         = SafeCell(row.Cell(colSupplier));
 
                 HotelERP.BE.Domain.Models.Equipment? existing = null;
                 if (!string.IsNullOrEmpty(itemCode))
@@ -433,22 +524,43 @@ public class EquipmentsController(HotelDbContext context) : ControllerBase
                     if (!string.IsNullOrEmpty(unit)) existing.Unit = unit;
 
                     // Gộp NCC vào danh sách nếu chưa có (tránh trùng lặp)
+                    // Supplier từ Excel có thể là chuỗi kết hợp "A | B" — cần split ra từng NCC rồi gộp
                     if (!string.IsNullOrEmpty(supplier))
                     {
                         var currentSuppliers = (existing.Supplier ?? "")
                             .Split(new[] { " | " }, StringSplitOptions.RemoveEmptyEntries)
                             .Select(s => s.Trim())
+                            .Where(s => !string.IsNullOrEmpty(s))
                             .ToList();
 
-                        if (!currentSuppliers.Any(s => s.Equals(supplier, StringComparison.OrdinalIgnoreCase)))
-                            currentSuppliers.Add(supplier.Trim());
+                        // Split incoming supplier string (may be "A | B" from exported Excel)
+                        var incomingSuppliers = supplier
+                            .Split(new[] { " | " }, StringSplitOptions.RemoveEmptyEntries)
+                            .Select(s => s.Trim())
+                            .Where(s => !string.IsNullOrEmpty(s));
+
+                        foreach (var s in incomingSuppliers)
+                        {
+                            if (!currentSuppliers.Any(c => c.Equals(s, StringComparison.OrdinalIgnoreCase)))
+                                currentSuppliers.Add(s);
+                        }
 
                         existing.Supplier = string.Join(SupplierSep, currentSuppliers);
                     }
 
-                    // FIX #1: SET số lượng (không cộng thêm) — tránh double khi import lại
+                    // CỘNG thêm số lượng vào kho (import = nhập thêm hàng)
+                    // Nếu qty = 0 (user chưa điền trong sheet NhapKho) → bỏ qua dòng này
                     var qty = ParseQty(totalQuantityStr);
-                    if (qty > 0) existing.TotalQuantity = qty;
+                    if (qty == 0)
+                    {
+                        // Vẫn cập nhật thông tin sản phẩm (tên, NCC...) nhưng không nhập kho
+                        existing.IsActive  = true;
+                        existing.UpdatedAt = DateTime.UtcNow;
+                        successCount++;
+                        continue;
+                    }
+
+                    existing.TotalQuantity += qty;
 
                     var bp = ParsePrice(basePriceStr);
                     if (bp > 0) existing.BasePrice = bp;
@@ -459,29 +571,57 @@ public class EquipmentsController(HotelDbContext context) : ControllerBase
                     existing.IsActive  = true;
                     existing.UpdatedAt = DateTime.UtcNow;
 
-                    // Ghi log NCC nếu có supplier
+                    // Ghi log NCC — tách từng NCC riêng lẻ (supplier có thể là "A | B")
                     if (!string.IsNullOrEmpty(supplier))
                     {
-                        context.EquipmentSupplierLogs.Add(new HotelERP.BE.Domain.Models.EquipmentSupplierLog
+                        var logSuppliers = supplier
+                            .Split(new[] { " | " }, StringSplitOptions.RemoveEmptyEntries)
+                            .Select(s => s.Trim())
+                            .Where(s => !string.IsNullOrEmpty(s));
+                        foreach (var logSup in logSuppliers)
                         {
-                            EquipmentId  = existing.Id,
-                            SupplierName = supplier,
-                            Quantity     = qty,
-                            UnitPrice    = bp,
-                            ImportedAt   = DateTime.UtcNow
-                        });
+                            await context.AddEquipmentSupplierLogAsync(
+                                equipmentId: existing.Id,
+                                userId: currentUserId,
+                                supplierName: logSup,
+                                quantity: qty,
+                                unitPrice: bp,
+                                source: "Excel"
+                            );
+                        }
                     }
                 }
                 else
                 {
-                    var newCode = !string.IsNullOrEmpty(itemCode) ? itemCode : $"VT-{Guid.NewGuid().ToString().Substring(0, 6).ToUpper()}";
+                    // Tự động tạo mã vật tư nếu thiếu: lấy 2 ký tự đầu của tên + 4 số ngẫu nhiên
+                    string newCode;
+                    if (!string.IsNullOrEmpty(itemCode))
+                    {
+                        newCode = itemCode;
+                    }
+                    else
+                    {
+                        var nameForCode = !string.IsNullOrEmpty(name) ? name : "VT";
+                        // Bỏ dấu và ký tự đặc biệt, lấy chữ cái đầu của từng từ (tối đa 4 từ)
+                        var words = nameForCode.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                        var prefix = new string(words.Take(4)
+                            .Select(w => char.ToUpperInvariant(w[0]))
+                            .ToArray());
+                        // Đảm bảo không trùng với mã đã có
+                        var suffix = new Random().Next(1000, 9999).ToString();
+                        newCode = $"{prefix}-{suffix}";
+                        // Kiểm tra trùng, nếu trùng thì sinh lại
+                        while (await context.Equipments.AnyAsync(e => e.ItemCode == newCode))
+                            newCode = $"{prefix}-{new Random().Next(1000, 9999)}";
+                        warnings.Add($"Sản phẩm '{nameForCode}' thiếu mã vật tư — đã tự động tạo mã: {newCode}");
+                    }
                     var newName = !string.IsNullOrEmpty(name) ? name : newCode;
                     var newCategory = !string.IsNullOrEmpty(category) ? category : "Khác";
                     var newUnit = !string.IsNullOrEmpty(unit) ? unit : "Cái";
                     
-                    int.TryParse(totalQuantityStr ?? "0", out int totalQuantity);
-                    decimal.TryParse(basePriceStr    ?? "0", out decimal basePrice);
-                    decimal.TryParse(defaultPriceStr ?? "0", out decimal defaultPrice);
+                    var totalQuantity = ParseQty(totalQuantityStr);
+                    var basePrice     = ParsePrice(basePriceStr);
+                    var defaultPrice  = ParsePrice(defaultPriceStr);
 
                     var newEquipment = new HotelERP.BE.Domain.Models.Equipment
                     {
@@ -499,17 +639,24 @@ public class EquipmentsController(HotelDbContext context) : ControllerBase
                     context.Equipments.Add(newEquipment);
                     await context.SaveChangesAsync(); // cần Id của newEquipment để log NCC
 
-                    // Ghi log NCC nếu có supplier
-                    if (!string.IsNullOrEmpty(supplier))
+                    // Ghi log NCC cho sản phẩm mới — tách từng NCC riêng lẻ
+                    if (!string.IsNullOrEmpty(supplier) && totalQuantity > 0)
                     {
-                        context.EquipmentSupplierLogs.Add(new HotelERP.BE.Domain.Models.EquipmentSupplierLog
+                        var newLogSuppliers = supplier
+                            .Split(new[] { " | " }, StringSplitOptions.RemoveEmptyEntries)
+                            .Select(s => s.Trim())
+                            .Where(s => !string.IsNullOrEmpty(s));
+                        foreach (var logSup in newLogSuppliers)
                         {
-                            EquipmentId  = newEquipment.Id,
-                            SupplierName = supplier,
-                            Quantity     = totalQuantity,
-                            UnitPrice    = basePrice,
-                            ImportedAt   = DateTime.UtcNow
-                        });
+                            await context.AddEquipmentSupplierLogAsync(
+                                equipmentId: newEquipment.Id,
+                                userId: currentUserId,
+                                supplierName: logSup,
+                                quantity: totalQuantity,
+                                unitPrice: basePrice,
+                                source: "Excel"
+                            );
+                        }
                     }
                 } // end else (CREATE)
                 successCount++;

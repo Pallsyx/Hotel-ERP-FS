@@ -98,19 +98,23 @@ public partial class HotelDbContext : DbContext
     {
         modelBuilder.Entity<UserPermission>().HasKey(up => new { up.UserId, up.PermissionId });
 
-        // EquipmentSupplierLog configuration
+        // EquipmentSupplierLog — theo pattern AuditLog: lưu JSON vào LogData
         modelBuilder.Entity<EquipmentSupplierLog>(entity =>
         {
             entity.HasKey(e => e.Id);
-            entity.Property(e => e.UnitPrice).HasColumnType("decimal(18,2)");
-            entity.Property(e => e.ImportedAt).HasColumnType("datetime");
-            entity.Property(e => e.SupplierName).HasMaxLength(500);
-            entity.Property(e => e.Notes).HasMaxLength(1000);
+            entity.Property(e => e.LogData).IsRequired();
+            entity.Property(e => e.LogDate).HasColumnType("datetime");
 
             entity.HasOne(e => e.Equipment)
                 .WithMany(eq => eq.SupplierLogs)
                 .HasForeignKey(e => e.EquipmentId)
                 .HasConstraintName("FK_EquipmentSupplierLogs_Equipments");
+
+            entity.HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .IsRequired(false)
+                .HasConstraintName("FK_EquipmentSupplierLogs_Users");
         });
 
         modelBuilder.Entity<ArticleCategory>().HasQueryFilter(c => c.Status == "ACTIVE");
