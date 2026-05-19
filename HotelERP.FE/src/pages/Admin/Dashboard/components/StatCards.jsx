@@ -126,7 +126,7 @@ const StatCards = ({
             <Col xs={24} sm={12}>
               <Card hoverable variant="borderless">
                 <Statistic
-                  title="Doanh thu hôm nay (VND)"
+                  title="Tổng doanh thu (VND)"
                   value={invoiceStats.todayRevenue}
                   precision={0}
                   styles={{ content: { color: '#52c41a' } }}

@@ -441,7 +441,7 @@ export default function UserProfile() {
           </div>
           <div style={{ display: 'flex', gap: 48, paddingRight: 20 }}>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ ...SF, fontSize: 24, color: G, fontWeight: 600 }}>{profileData?.membershipTier || 'SILVER'}</div>
+              <div style={{ ...SF, fontSize: 24, color: G, fontWeight: 600 }}>{profileData?.membershipTier || 'Khách Mới'}</div>
               <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', letterSpacing: '1px', marginTop: 4 }}>HẠNG THẺ</div>
             </div>
             <div style={{ textAlign: 'center' }}>
@@ -496,7 +496,7 @@ export default function UserProfile() {
           </div>
           <div style={{ display: 'flex', gap: 48 }}>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ ...SF, fontSize: 26, color: G, fontWeight: 500 }}>{profileData?.membershipTier || 'SILVER'}</div>
+              <div style={{ ...SF, fontSize: 26, color: G, fontWeight: 500 }}>{profileData?.membershipTier || 'Khách Mới'}</div>
               <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', letterSpacing: '1px', marginTop: 6, textTransform: 'uppercase' }}>Hạng thẻ</div>
             </div>
             <div style={{ textAlign: 'center' }}>

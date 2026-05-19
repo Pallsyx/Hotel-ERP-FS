@@ -61,6 +61,15 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
+// Chỉ Admin mới được vào — các role khác redirect về dashboard
+const AdminOnlyRoute = ({ children }) => {
+  const { user } = useAuthStore((state) => state);
+  if (user?.roleName !== 'Admin') {
+    message.warning('Chức năng này chỉ dành cho Quản trị viên!');
+    return <Navigate to='/admin/dashboard' replace />;
+  }
+  return children;
+};
 
 const AdminRoutes = () => {
   return (
@@ -75,7 +84,7 @@ const AdminRoutes = () => {
       <Route path='/' element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
         <Route index element={<Navigate to='dashboard' replace />} />
         <Route path='dashboard' element={<Dashboard />} />
-        <Route path='period-dashboard' element={<PeriodDashboard />} />
+        <Route path='period-dashboard' element={<AdminOnlyRoute><PeriodDashboard /></AdminOnlyRoute>} />
 
         <Route path='users' element={<UserManagement />} />
         <Route path='roles' element={<RoleManagement />} />

@@ -21,6 +21,9 @@ export default function MainHeader({ transparent = true }) {
   const [activeSection, setActiveSection] = useState('');
 
   const isAdmin = isAuthenticated && (user?.roleName === 'Admin' || user?.role?.name === 'Admin' || user?.role === 'Admin' || user?.roleId === 1);
+  // Tất cả nhân viên có role trong hệ thống (trừ Guest/Customer) đều thấy nút vào khu vực quản trị
+  const STAFF_ROLES = ['Admin', 'Manager', 'Receptionist', 'Housekeeping', 'Accountant', 'WarehouseStaff', 'Marketing', 'MarketingStaff'];
+  const isStaff = isAuthenticated && STAFF_ROLES.includes(user?.roleName);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 50);
@@ -132,7 +135,7 @@ export default function MainHeader({ transparent = true }) {
     },
     { type: 'divider' },
     { key: 'profile', label: 'Trang cá nhân', icon: <UserOutlined />, onClick: () => navigate('/profile') },
-    ...(isAdmin ? [{ key: 'admin', label: 'Quản trị hệ thống', icon: <DashboardOutlined />, onClick: () => navigate('/admin') }] : []),
+    ...(isStaff ? [{ key: 'admin', label: 'Quản trị hệ thống', icon: <DashboardOutlined />, onClick: () => navigate('/admin') }] : []),
     { type: 'divider' },
     { key: 'logout', label: 'Đăng xuất', icon: <LogoutOutlined />, danger: true, onClick: () => { logout(); navigate('/'); } },
   ];
