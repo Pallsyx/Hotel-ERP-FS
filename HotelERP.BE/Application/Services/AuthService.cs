@@ -156,7 +156,13 @@ public class AuthService : IAuthService
         _context.RefreshTokens.Update(storedRefreshToken);
         await _context.SaveChangesAsync();
 
-        var user = await _context.Users.Include(u => u.Role).FirstAsync(u => u.Id == userId);
+        var user = await _context.Users
+            .Include(u => u.Role)
+                .ThenInclude(r => r!.RolePermissions)
+                    .ThenInclude(rp => rp.Permission)
+            .Include(u => u.UserPermissions)
+                .ThenInclude(up => up.Permission)
+            .FirstAsync(u => u.Id == userId);
         
         // Cấp cặp Token mới
         return await GenerateTokensAsync(user);

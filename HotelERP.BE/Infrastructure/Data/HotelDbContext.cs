@@ -119,7 +119,24 @@ public partial class HotelDbContext : DbContext
                 .HasConstraintName("FK_EquipmentSupplierLogs_Users");
         });
 
-        modelBuilder.Entity<ArticleCategoryMapping>().HasKey(am => new { am.ArticleId, am.CategoryId });
+        modelBuilder.Entity<ArticleCategoryMapping>(entity =>
+        {
+            entity.ToTable("Article_Category_Mappings");
+            entity.HasKey(am => new { am.ArticleId, am.CategoryId });
+
+            entity.Property(am => am.ArticleId).HasColumnName("article_id");
+            entity.Property(am => am.CategoryId).HasColumnName("category_id");
+
+            entity.HasOne(am => am.Article)
+                .WithMany(a => a.CategoryMappings)
+                .HasForeignKey(am => am.ArticleId)
+                .HasConstraintName("FK_ArticleCategoryMappings_Articles");
+
+            entity.HasOne(am => am.Category)
+                .WithMany(c => c.CategoryMappings)
+                .HasForeignKey(am => am.CategoryId)
+                .HasConstraintName("FK_ArticleCategoryMappings_Categories");
+        });
 
         modelBuilder.Entity<ArticleCategory>().HasQueryFilter(c => c.Status == "ACTIVE");
 

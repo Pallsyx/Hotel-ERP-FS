@@ -256,7 +256,12 @@ public class ArticleService
             query = query.Where(a => a.CategoryMappings.Any(m => m.Category != null && m.Category.Name == categoryName && m.Category.Status == "ACTIVE"));
 
         if (status != "ALL" && !string.IsNullOrWhiteSpace(status))
-            query = query.Where(a => a.Status == status);
+        {
+            // SQL Server with default CI collation handles == case-insensitively.
+            // Normalize common variants: "published" → "Published"
+            var normalizedStatus = status.Trim();
+            query = query.Where(a => a.Status == normalizedStatus);
+        }
 
         var articles = await query
             .OrderByDescending(a => a.PublishedAt)
