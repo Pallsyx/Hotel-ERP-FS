@@ -19,6 +19,23 @@ const SLIDES = [
 const G = '#b8956a', D = '#111111';
 const SF = { fontFamily: "'Playfair Display',serif" };
 
+// Chuyển tên danh mục → URL slug
+function toCatSlug(name) {
+  if (!name) return '';
+  return name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/gi, 'd')
+    .replace(/[^a-zA-Z0-9\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .toLowerCase();
+}
+function articlePath(categoryName, slug) {
+  const catSlug = toCatSlug(categoryName);
+  return catSlug ? `/news/${catSlug}/${slug}` : `/news/${slug}`;
+}
+
 /* ═══════════════════════════════════════════════════════════ */
 /*  HELPERS                                                     */
 /* ═══════════════════════════════════════════════════════════ */
@@ -281,23 +298,30 @@ export default function HomePage() {
         onMouseDown={handleDragStart} onMouseMove={handleDragMove} onMouseUp={handleDragEnd} onMouseLeave={handleDragEnd}
         onTouchStart={handleDragStart} onTouchMove={handleDragMove} onTouchEnd={handleDragEnd}
       >
+        {/* ── Sliding image track — CHỈ ảnh di chuyển ── */}
         <div style={{ display: 'flex', height: '100%', width: `${SLIDES.length * 100}%`, transform: `translateX(calc(-${cur * (100 / SLIDES.length)}% + ${dragOffset}px))`, transition: dragStartX === null ? 'transform 600ms cubic-bezier(0.25, 1, 0.5, 1)' : 'none', willChange: 'transform' }}>
           {SLIDES.map((s, i) => (
             <div key={s.id} style={{ width: `${100 / SLIDES.length}%`, height: '100%', position: 'relative' }}>
-              <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to right,rgba(0,0,0,.85) 0%,rgba(0,0,0,.4) 50%,rgba(0,0,0,.1) 100%)', zIndex: 1 }} />
               <img src={s.img} alt="slide" style={{ width: '100%', height: '100%', objectFit: 'cover', transform: i === cur ? 'scale(1.05)' : 'scale(1)', transition: 'transform 10s ease-out', pointerEvents: 'none' }} />
-              <div style={{ position: 'absolute', zIndex: 2, top: '50%', left: 'clamp(40px,8vw,160px)', transform: 'translateY(-50%)', color: 'white', maxWidth: 700 }}>
-                <h1 style={{ fontFamily: "'Inter',sans-serif", fontSize: 'clamp(48px,6vw,84px)', fontWeight: 700, letterSpacing: '-1px', whiteSpace: 'pre-line', lineHeight: 1.1, marginBottom: 32 }}>
-                  {`NGHỈ DƯỠNG\nĐẲNG CẤP THẾ GIỚI`}
-                </h1>
-                <p style={{ fontSize: 16, color: 'rgba(255,255,255,.8)', lineHeight: 1.8, marginBottom: 48, maxWidth: 520 }}>
-                  Asteria Resort — nơi hội tụ tinh hoa ẩm thực, spa thư giãn và những trải nghiệm độc đáo dành riêng cho những vị khách tinh tế nhất.
-                </p>
-
-              </div>
             </div>
           ))}
         </div>
+
+        {/* ── Gradient overlay cố định ── */}
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to right,rgba(0,0,0,.82) 0%,rgba(0,0,0,.45) 55%,rgba(0,0,0,.1) 100%)', zIndex: 2, pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top,rgba(0,0,0,.5) 0%,transparent 50%)', zIndex: 2, pointerEvents: 'none' }} />
+
+        {/* ── Text overlay CỐ ĐỊNH — không di chuyển theo ảnh ── */}
+        <div style={{ position: 'absolute', zIndex: 10, top: '50%', left: 'clamp(40px,8vw,160px)', transform: 'translateY(-50%)', color: 'white', maxWidth: 580 }}>
+          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.35em', textTransform: 'uppercase', color: G, display: 'block', marginBottom: 20, opacity: 0.9 }}>Asteria Resort</span>
+          <h1 style={{ fontFamily: "'Inter',sans-serif", fontSize: 'clamp(30px,3.6vw,52px)', fontWeight: 700, letterSpacing: '-0.5px', whiteSpace: 'pre-line', lineHeight: 1.15, marginBottom: 24, margin: '0 0 24px' }}>
+            {`NGHỈ DƯỠNG\nĐẲNG CẤP THẾ GIỚI`}
+          </h1>
+          <p style={{ fontSize: 14, color: 'rgba(255,255,255,.75)', lineHeight: 1.85, marginBottom: 40, maxWidth: 460 }}>
+            Asteria Resort — nơi hội tụ tinh hoa ẩm thực, spa thư giãn và những trải nghiệm độc đáo dành riêng cho những vị khách tinh tế nhất.
+          </p>
+        </div>
+
         {/* Controls */}
         <div style={{ position: 'absolute', bottom: 64, left: 'clamp(40px,8vw,160px)', zIndex: 30, display: 'flex', alignItems: 'center', gap: 32, color: 'white' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
@@ -315,6 +339,7 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
 
 
       {/* INTRO + ROOM CARDS */}
@@ -502,7 +527,7 @@ export default function HomePage() {
 
 
       {/* NEWS */}
-      <section id="news-sec" style={{ background: '#fafafa', padding: '80px 24px' }}>
+      <section id="news-sec" style={{ background: '#fafafa', padding: '80px 24px 80px', scrollMarginTop: '64px' }}>
         <div style={{ maxWidth: 1200, margin: '0 auto' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 48, flexWrap: 'wrap', gap: 16 }}>
             <div>
@@ -512,9 +537,10 @@ export default function HomePage() {
             <button onClick={() => nav('/news')} style={{ fontSize: 11, fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', background: 'none', border: 'none', cursor: 'pointer', color: '#71717a', paddingBottom: 8 }}
               onMouseEnter={e => e.target.style.color = G} onMouseLeave={e => e.target.style.color = '#71717a'}>Xem tất cả</button>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(350px,1fr))', gap: 32 }}>
+          {/* 3 cột cố định — row 1 (3 bài) vừa viewport khi scroll tới #news-sec, row 2 buộc phải kéo thêm */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 32 }}>
             {articles.length === 0 ? <p style={{ color: '#71717a', fontSize: 14, fontStyle: 'italic' }}>Đang tải bài viết...</p> : articles.map(item => (
-              <div key={item.id} onClick={() => nav(`/news/${item.slug}`)} style={{ background: 'white', cursor: 'pointer', border: '1px solid #eaeaea', transition: 'box-shadow 300ms' }}
+              <div key={item.id} onClick={() => nav(articlePath(item.categoryNames?.[0] || item.categoryName, item.slug))} style={{ background: 'white', cursor: 'pointer', border: '1px solid #eaeaea', transition: 'box-shadow 300ms' }}
                 onMouseEnter={e => {
                   e.currentTarget.style.boxShadow = '0 10px 40px rgba(0,0,0,.08)';
                   e.currentTarget.querySelector('img').style.transform = 'scale(1.05)';
@@ -527,10 +553,13 @@ export default function HomePage() {
                   <img src={item.thumbnailUrl || 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?q=80&w=600'} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 700ms ease' }} />
                 </div>
                 <div style={{ padding: '24px 24px 32px' }}>
-                  {item.categoryName && (
-                    <span style={{ fontSize: 9, color: G, letterSpacing: '.2em', textTransform: 'uppercase', fontWeight: 700, display: 'block', marginBottom: 8 }}>{item.categoryName}</span>
-                  )}
-                  <p style={{ fontSize: 10, color: '#9ca3af', marginBottom: 10, fontWeight: 500 }}>{new Date(item.publishedAt || new Date()).toLocaleDateString('vi-VN', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+                    {(item.categoryNames || (item.categoryName ? [item.categoryName] : [])).map(c => (
+                      <span key={c} style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#b8956a' }}>
+                        {c}
+                      </span>
+                    ))}
+                  </div><p style={{ fontSize: 10, color: '#9ca3af', marginBottom: 10, fontWeight: 500 }}>{new Date(item.publishedAt || new Date()).toLocaleDateString('vi-VN', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                   <h3 style={{ ...SF, fontSize: 20, color: '#18181b', lineHeight: 1.4, margin: 0, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', fontWeight: 500 }}>{item.title}</h3>
                   <div style={{ marginTop: 16, display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: G, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>Đọc thêm →</div>
                 </div>
@@ -539,6 +568,7 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
 
       {/* MEMBERSHIP */}
       <div id="member">

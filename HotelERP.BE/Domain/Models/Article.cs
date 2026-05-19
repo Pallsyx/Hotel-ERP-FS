@@ -39,5 +39,9 @@ public partial class Article
 
     public virtual User? Author { get; set; }
 
+    // Quan hệ cũ (giữ lại để tương thích ngược)
     public virtual ArticleCategory? Category { get; set; }
+
+    // Quan hệ mới: 1 bài viết có nhiều chuyên mục
+    public virtual ICollection<ArticleCategoryMapping> CategoryMappings { get; set; } = new List<ArticleCategoryMapping>();
 }

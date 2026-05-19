@@ -10,8 +10,10 @@ const articleApi = {
   },
 
   // GET /api/Articles/{slug}
-  getBySlug: (slug) => {
-    return axiosClient.get(`/Articles/${slug}`);
+  getBySlug: (slug, categorySlug) => {
+    return axiosClient.get(`/Articles/${slug}`, {
+      params: { categorySlug }
+    });
   },
 
   // GET /api/Articles/admin?keyword=&categoryName=&status=ALL

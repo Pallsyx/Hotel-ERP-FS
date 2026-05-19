@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import React, { useEffect, useState, useRef } from 'react';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { setAntdStatic } from './utils/antdGlobal';
 import { App as AntdApp, ConfigProvider, theme } from 'antd';
 import AdminRoutes from './routes/AdminRoutes.jsx';
@@ -26,6 +26,61 @@ const StaticSetter = () => {
   return null;
 };
 
+/* ── Page transition: fade-in + instant scroll reset ── */
+const GOLD = '#b8956a';
+
+function PageTransition({ children }) {
+  const location = useLocation();
+  const [visible, setVisible] = useState(true);
+  const [barWidth, setBarWidth] = useState(0);
+  const prevKey = useRef(location.key);
+
+  useEffect(() => {
+    if (location.key === prevKey.current) return;
+    prevKey.current = location.key;
+
+    // Reset scroll instantly before fade
+    window.scrollTo(0, 0);
+
+    // Loading bar
+    setBarWidth(0);
+    setVisible(false);
+    const t1 = setTimeout(() => setBarWidth(70), 10);
+    const t2 = setTimeout(() => { setBarWidth(100); setVisible(true); }, 120);
+    const t3 = setTimeout(() => setBarWidth(0), 420);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [location.key]);
+
+  return (
+    <>
+      {/* Top loading bar */}
+      <div style={{
+        position: 'fixed', top: 0, left: 0, right: 0, height: 2, zIndex: 9999,
+        pointerEvents: 'none',
+      }}>
+        <div style={{
+          height: '100%',
+          width: `${barWidth}%`,
+          background: `linear-gradient(to right, ${GOLD}, #e8c58a)`,
+          transition: barWidth === 0 ? 'none' : barWidth < 100 ? 'width 300ms ease' : 'width 200ms ease',
+          boxShadow: barWidth > 0 ? `0 0 8px ${GOLD}88` : 'none',
+        }} />
+      </div>
+      {/* Page content with fade */}
+      <div
+        key={location.key}
+        style={{
+          opacity: visible ? 1 : 0,
+          transition: 'opacity 180ms ease',
+          willChange: 'opacity',
+        }}
+      >
+        {children}
+      </div>
+    </>
+  );
+}
+
 function App() {
   return (
     <BrowserRouter>
@@ -44,20 +99,23 @@ function App() {
           >
             <AntdApp>
               <StaticSetter />
-              <Routes>
-                <Route path="/" element={<HomePage />} />
-                <Route path="/news" element={<NewsPage />} />
-                <Route path="/news/:slug" element={<ArticleDetailPage />} />
-                <Route path="/attractions" element={<AttractionsPage />} />
-                <Route path="/reviews" element={<CustomerReviewsPage />} />
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/register" element={<RegisterPage />} />
-                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-                <Route path="/profile" element={<UserProfile />} />
-                <Route path="/rooms/search-results" element={<SearchResultsPage />} />
-                <Route path="/booking/new" element={<GuestBookingPage />} />
-                <Route path="/booking/:bookingId/review" element={<SubmitReview />} />
-              </Routes>
+              <PageTransition>
+                <Routes>
+                  <Route path="/" element={<HomePage />} />
+                  <Route path="/news" element={<NewsPage />} />
+                  <Route path="/news/:categorySlug/:slug" element={<ArticleDetailPage />} />
+                  <Route path="/news/:slug" element={<ArticleDetailPage />} />
+                  <Route path="/attractions" element={<AttractionsPage />} />
+                  <Route path="/reviews" element={<CustomerReviewsPage />} />
+                  <Route path="/login" element={<LoginPage />} />
+                  <Route path="/register" element={<RegisterPage />} />
+                  <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                  <Route path="/profile" element={<UserProfile />} />
+                  <Route path="/rooms/search-results" element={<SearchResultsPage />} />
+                  <Route path="/booking/new" element={<GuestBookingPage />} />
+                  <Route path="/booking/:bookingId/review" element={<SubmitReview />} />
+                </Routes>
+              </PageTransition>
             </AntdApp>
           </ConfigProvider>
         } />

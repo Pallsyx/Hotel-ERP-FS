@@ -5,7 +5,8 @@ using HotelERP.BE.Services;
 using HotelERP.BE.Application.DTOs.Article;
 using HotelERP.BE.Application.Interfaces;
 using HotelERP.BE.Infrastructure.Data;
-using Microsoft.AspNetCore.Http; // Sửa lỗi thiếu dấu chấm phẩy ở đây
+using HotelERP.BE.Utils;
+using Microsoft.AspNetCore.Http;
 
 namespace HotelERP.BE.Controllers;
 
@@ -54,34 +55,51 @@ public class ArticlesController : ControllerBase
     // ==========================================
     [HttpGet("{slug}")]
     [AllowAnonymous]
-    public async Task<IActionResult> GetArticleBySlug(string slug)
+    public async Task<IActionResult> GetArticleBySlug(string slug, [FromQuery] string? categorySlug)
     {
         var article = await _context.Articles
-            .Include(a => a.Category)
+            .Include(a => a.CategoryMappings)
+                .ThenInclude(m => m.Category)
             .Include(a => a.Author)
-            .Select(a => new ArticleResponseDto
-            {
-                Id = a.Id,
-                Title = a.Title,
-                Slug = a.Slug,
-                Summary = a.Summary,
-                Content = a.Content,
-                ThumbnailUrl = a.ThumbnailUrl,
-                PublishedAt = a.PublishedAt,
-                CategoryName = a.Category != null ? a.Category.Name : null,
-                Tags = a.Tags,
-                MetaTitle = a.MetaTitle,
-                MetaDescription = a.MetaDescription,
-                Status = a.Status
-            })
             .FirstOrDefaultAsync(a => a.Slug == slug);
 
         if (article == null)
-        {
             return NotFound(new { message = "Bài viết không tồn tại." });
+
+        // User requirement: nếu truyền categorySlug, bài viết phải nằm trong chuyên mục đó và chuyên mục phải ACTIVE
+        if (!string.IsNullOrEmpty(categorySlug))
+        {
+            var matchedCategory = article.CategoryMappings
+                .Select(m => m.Category)
+                .FirstOrDefault(c => c != null && SlugHelper.GenerateSlug(c.Name) == categorySlug);
+
+            if (matchedCategory == null || matchedCategory.Status != "ACTIVE")
+            {
+                return NotFound(new { message = "Bài viết không khả dụng trong chuyên mục này (chuyên mục có thể đã bị ẩn)." });
+            }
         }
 
-        return Ok(article);
+        var dto = new ArticleResponseDto
+        {
+            Id = article.Id,
+            Title = article.Title,
+            Slug = article.Slug,
+            Summary = article.Summary,
+            Content = article.Content,
+            ThumbnailUrl = article.ThumbnailUrl,
+            PublishedAt = article.PublishedAt,
+            // Chỉ hiển thị các chuyên mục đang ACTIVE
+            CategoryNames = article.CategoryMappings
+                .Where(m => m.Category != null && m.Category.Status == "ACTIVE")
+                .Select(m => m.Category.Name)
+                .ToList(),
+            Tags = article.Tags,
+            MetaTitle = article.MetaTitle,
+            MetaDescription = article.MetaDescription,
+            Status = article.Status
+        };
+
+        return Ok(dto);
     }
 
     // ==========================================

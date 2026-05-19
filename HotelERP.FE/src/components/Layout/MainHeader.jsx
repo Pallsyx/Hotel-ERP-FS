@@ -171,7 +171,9 @@ export default function MainHeader({ transparent = true }) {
                   </span>
                 )}
               </div>
-              <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 8, marginLeft: 4 }}>▼</span>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 4, flexShrink: 0 }}>
+                <polyline points="6,9 12,15 18,9"/>
+              </svg>
             </div>
           </Dropdown>
         </ConfigProvider>
@@ -269,38 +271,60 @@ export default function MainHeader({ transparent = true }) {
           <div style={{ position: 'absolute', left: 'clamp(40px,8vw,160px)', opacity: scrolled ? 1 : 0, pointerEvents: scrolled ? 'auto' : 'none', transition: 'opacity 300ms ease', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }} onClick={() => navigate('/')}>
             <div style={{ width: 24, height: 24, border: '1px solid white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', ...SF, fontSize: 11, color: 'white' }}>A</div>
           </div>
-          <nav style={{ display: 'flex', gap: 48, width: '100%', justifyContent: 'center' }}>
-            {[
-              ['THƯƠNG HIỆU', '/'], 
-              ['TRẢI NGHIỆM', '/#attractions-sec'], 
-              ['TIN TỨC', '/#news-sec'],
-              ['THÀNH VIÊN', '/#member'], 
-              ['Ý KIẾN', '/reviews']
-            ].map(([l, h]) => {
-              const isPathActive = (h === '/' && window.location.pathname === '/') || 
-                                   (h !== '/' && !h.startsWith('/#') && window.location.pathname.startsWith(h));
-              
-              // If on home page and scrolling, prioritize activeSection
-              // Otherwise, use path-based active state
-              const isActive = (window.location.pathname === '/' && activeSection) 
-                ? activeSection === h 
-                : (window.location.pathname === '/' && h === '/') 
-                  ? !activeSection // Only "Thương hiệu" is active if no section is detected
-                  : isPathActive;
-              
-              return (
-                <a key={l} href={h} style={{ 
-                  fontSize: 11, fontWeight: 500, letterSpacing: '1.5px', color: isActive ? 'white' : 'rgba(255,255,255,.7)', 
-                  textDecoration: 'none', height: 60, display: 'flex', alignItems: 'center', 
-                  borderBottom: isActive ? `2px solid ${G}` : '2px solid transparent', transition: 'color 300ms, border-color 300ms' 
-                }}
-                onMouseEnter={e => { e.target.style.color = 'white'; e.target.style.borderBottomColor = G; }} 
-                onMouseLeave={e => { e.target.style.color = isActive ? 'white' : 'rgba(255,255,255,.7)'; e.target.style.borderBottomColor = isActive ? G : 'transparent'; }}>
-                  {l}
-                </a>
-              );
-            })}
-          </nav>
+        <nav style={{ display: 'flex', gap: 48, width: '100%', justifyContent: 'center' }}>
+          {[
+            ['THƯƠNG HIỆU', '/'],
+            ['TRẢI NGHIỆM', '/#attractions-sec'],
+            ['TIN TỨC', '/#news-sec'],
+            ['THÀNH VIÊN', '/#member'],
+            ['Ý KIẾN', '/reviews'],
+          ].map(([l, h]) => {
+            const isPathActive = (h === '/' && window.location.pathname === '/') ||
+                                 (h !== '/' && !h.startsWith('/#') && window.location.pathname.startsWith(h));
+            const isActive = (window.location.pathname === '/' && activeSection)
+              ? activeSection === h
+              : (window.location.pathname === '/' && h === '/')
+                ? !activeSection
+                : isPathActive;
+
+            const handleClick = (e) => {
+              e.preventDefault();
+              if (h.startsWith('/#')) {
+                // Hash section — scroll nếu đang ở trang chủ, navigate nếu ở trang khác
+                const sectionId = h.slice(2);
+                if (window.location.pathname === '/') {
+                  document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth' });
+                } else {
+                  navigate('/');
+                  setTimeout(() => {
+                    document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth' });
+                  }, 300);
+                }
+              } else if (h === '/') {
+                if (window.location.pathname === '/') {
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                } else {
+                  navigate('/');
+                }
+              } else {
+                navigate(h);
+              }
+            };
+
+            return (
+              <a key={l} href={h} onClick={handleClick} style={{
+                fontSize: 11, fontWeight: 500, letterSpacing: '1.5px', color: isActive ? 'white' : 'rgba(255,255,255,.7)',
+                textDecoration: 'none', height: 60, display: 'flex', alignItems: 'center',
+                borderBottom: isActive ? `2px solid ${G}` : '2px solid transparent', transition: 'color 300ms, border-color 300ms',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.color = 'white'; e.currentTarget.style.borderBottomColor = G; }}
+              onMouseLeave={e => { e.currentTarget.style.color = isActive ? 'white' : 'rgba(255,255,255,.7)'; e.currentTarget.style.borderBottomColor = isActive ? G : 'transparent'; }}>
+                {l}
+              </a>
+            );
+          })}
+        </nav>
+
           <div style={{ position: 'absolute', right: 'clamp(40px,8vw,160px)', opacity: scrolled ? 1 : 0, pointerEvents: scrolled ? 'auto' : 'none', transition: 'opacity 300ms ease' }}>
             {AuthBlock}
           </div>

@@ -1,12 +1,29 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import articleApi from '../../api/articleApi';
+import { useNavigate, useLocation } from 'react-router-dom';
+import articleApi, { articleCategoryApi } from '../../api/articleApi';
 import MainHeader from '../../components/Layout/MainHeader';
 import MainFooter from '../../components/Layout/MainFooter';
 
 const GOLD = '#b8956a';
 const DARK = '#111111';
 const SF = { fontFamily: "'Playfair Display', serif" };
+
+// Chuyển tên danh mục → URL slug ("Tin Tức Khách Sạn" → "tin-tuc-khach-san")
+function toCatSlug(name) {
+  if (!name) return '';
+  return name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/gi, 'd')
+    .replace(/[^a-zA-Z0-9\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .toLowerCase();
+}
+function articlePath(categoryName, slug) {
+  const catSlug = toCatSlug(categoryName);
+  return catSlug ? `/news/${catSlug}/${slug}` : `/news/${slug}`;
+}
 
 function formatDate(str) {
   if (!str) return '';
@@ -32,11 +49,13 @@ export function FeaturedCard({ article, onClick }) {
       />
       <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.3) 55%, transparent 100%)' }} />
       <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '32px 32px 36px' }}>
-        {article.categoryName && (
-          <span style={{ display: 'inline-block', background: GOLD, color: 'white', fontSize: 9, fontWeight: 700, letterSpacing: '0.25em', textTransform: 'uppercase', padding: '4px 12px', borderRadius: 2, marginBottom: 14 }}>
-            {article.categoryName}
-          </span>
-        )}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+          {(article.categoryNames || (article.categoryName ? [article.categoryName] : [])).map(c => (
+            <span key={c} style={{ display: 'inline-block', background: GOLD, color: 'white', fontSize: 9, fontWeight: 700, letterSpacing: '0.25em', textTransform: 'uppercase', padding: '4px 12px', borderRadius: 2 }}>
+              {c}
+            </span>
+          ))}
+        </div>
         <h2 style={{ ...SF, fontSize: 'clamp(22px,2.8vw,34px)', color: 'white', margin: '0 0 12px', fontWeight: 400, lineHeight: 1.3, maxWidth: 600 }}>{article.title}</h2>
         {article.summary && (
           <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.75)', lineHeight: 1.7, margin: '0 0 16px', maxWidth: 560, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
@@ -64,7 +83,13 @@ function ArticleCard({ article, onClick, variant = 'default' }) {
           <img src={article.thumbnailUrl || FALLBACK} alt={article.title} style={{ width: '100%', height: '100%', objectFit: 'cover', transform: hov ? 'scale(1.06)' : 'scale(1)', transition: 'transform 400ms' }} />
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          {article.categoryName && <span style={{ fontSize: 9, color: GOLD, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase' }}>{article.categoryName}</span>}
+          <div style={{ display: 'flex', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
+            {(article.categoryNames || (article.categoryName ? [article.categoryName] : [])).map(c => (
+              <span key={c} style={{ fontSize: 9, color: GOLD, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase' }}>
+                {c}
+              </span>
+            ))}
+          </div>
           <h4 style={{ ...SF, fontSize: 15, color: '#111', margin: '4px 0 6px', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{article.title}</h4>
           <span style={{ fontSize: 11, color: '#9ca3af' }}>{formatDate(article.publishedAt)}</span>
         </div>
@@ -78,11 +103,15 @@ function ArticleCard({ article, onClick, variant = 'default' }) {
       <div style={{ height: 220, overflow: 'hidden' }}>
         <img src={article.thumbnailUrl || FALLBACK} alt={article.title} style={{ width: '100%', height: '100%', objectFit: 'cover', transform: hov ? 'scale(1.05)' : 'scale(1)', transition: 'transform 500ms ease' }} />
       </div>
-      <div style={{ padding: '20px 22px 24px' }}>
-        {article.categoryName && (
-          <span style={{ fontSize: 9, color: GOLD, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase' }}>{article.categoryName}</span>
-        )}
-        <h3 style={{ ...SF, fontSize: 18, color: '#111', margin: '8px 0 10px', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{article.title}</h3>
+      <div style={{ padding: '24px 28px' }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+          {(article.categoryNames || (article.categoryName ? [article.categoryName] : [])).map(c => (
+            <span key={c} style={{ fontSize: 10, color: GOLD, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase' }}>
+              {c}
+            </span>
+          ))}
+        </div>
+        <h3 style={{ ...SF, fontSize: 20, color: '#111', margin: '0 0 12px', fontWeight: 400, lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{article.title}</h3>
         <p style={{ fontSize: 13, color: '#6b7280', lineHeight: 1.7, margin: '0 0 16px', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
           {article.summary || 'Khám phá những trải nghiệm tuyệt vời tại Asteria Resort...'}
         </p>
@@ -105,12 +134,17 @@ export default function NewsPage() {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [categories, setCategories] = useState([]);
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     window.scrollTo(0, 0);
     document.title = 'Tin Tức & Cẩm Nang - Asteria Resort';
-    fetchArticles('', '');
-  }, []);
+    // Đọc query param ?category= nếu có (click từ breadcrumb ArticleDetailPage)
+    const params = new URLSearchParams(location.search);
+    const catParam = params.get('category') || '';
+    setSelectedCategory(catParam);
+    fetchArticles('', catParam);
+  }, [location.search]);
 
   const fetchArticles = (keyword, category) => {
     setLoading(true);
@@ -118,22 +152,26 @@ export default function NewsPage() {
       .then(res => {
         const data = res.data || [];
         setArticles(data);
-        if (!keyword && !category) {
-          const unique = [...new Set(data.map(i => i.categoryName).filter(Boolean))];
-          setCategories(unique);
-        }
       })
       .catch(console.error)
       .finally(() => setLoading(false));
   };
 
+  useEffect(() => {
+    articleCategoryApi.getAll()
+      .then(res => {
+        const data = res.data || [];
+        setCategories(data.filter(c => c.status === 'ACTIVE').map(c => c.name));
+      })
+      .catch(console.error);
+  }, []);
+
   const handleSearch = (e) => { e.preventDefault(); fetchArticles(searchTerm, selectedCategory); };
   const handleCategory = (cat) => { setSelectedCategory(cat); fetchArticles(searchTerm, cat); };
 
   const featured = articles[0] || null;
-  const rest = articles.slice(1);
-  const sidebarTop = rest.slice(0, 3);
-  const gridArticles = rest.slice(3);
+  const topList = articles.slice(1, 4);
+  const restList = articles.slice(4);
 
   return (
     <div style={{ background: '#fafafa', minHeight: '100vh', fontFamily: "'Inter', sans-serif" }}>
@@ -148,43 +186,6 @@ export default function NewsPage() {
         />
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(17,17,17,0.95), rgba(17,17,17,0.4))' }} />
         <div style={{ position: 'relative', zIndex: 10, textAlign: 'center', padding: '0 24px', marginTop: 124 }}>
-          {/* ── Breadcrumb ──────────────────────── */}
-          <nav
-            aria-label="breadcrumb"
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0, marginBottom: 20 }}
-          >
-            {/* Home */}
-            <a
-              href="/"
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 5,
-                color: 'rgba(255,255,255,.45)', textDecoration: 'none',
-                fontSize: 11, letterSpacing: '0.04em',
-                paddingBottom: 2, borderBottom: '1px solid transparent',
-                transition: 'color 200ms, border-color 200ms',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.color = 'rgba(255,255,255,.85)'; e.currentTarget.style.borderBottomColor = 'rgba(255,255,255,.3)'; }}
-              onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,.45)'; e.currentTarget.style.borderBottomColor = 'transparent'; }}
-            >
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                <polyline points="9,22 9,12 15,12 15,22" />
-              </svg>
-              Trang Chủ
-            </a>
-
-            {/* Chevron */}
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.2)" strokeWidth="1.5" style={{ margin: '0 6px', flexShrink: 0 }}>
-              <polyline points="9,18 15,12 9,6" />
-            </svg>
-
-            {/* Current page — highlighted gold */}
-            <span style={{
-              fontSize: 11, letterSpacing: '0.04em',
-              color: GOLD, fontWeight: 600,
-              paddingBottom: 2, borderBottom: `1px solid ${GOLD}60`,
-            }}>Tin Tức</span>
-          </nav>
 
           <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.4em', textTransform: 'uppercase', color: GOLD, marginBottom: 16 }}>CẨM NANG & TIN TỨC</p>
           <h1 style={{ ...SF, fontSize: 'clamp(32px,5vw,56px)', color: 'white', lineHeight: 1.2, margin: '0 0 16px', fontWeight: 400 }}>
@@ -257,47 +258,61 @@ export default function NewsPage() {
           </div>
         ) : (
           <>
-            {/* ── FEATURED + SIDEBAR layout ── */}
-            {featured && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 32, marginBottom: 56 }}>
-                {/* Featured big card */}
-                <FeaturedCard article={featured} onClick={() => navigate(`/news/${featured.slug}`)} />
+            {/* Helper để lấy category name cho link dựa vào filter hiện tại */}
+            {(() => {
+              const getLinkCat = (a) => {
+                if (selectedCategory && (a.categoryNames?.includes(selectedCategory) || a.categoryName === selectedCategory)) return selectedCategory;
+                return a.categoryNames?.[0] || a.categoryName;
+              };
 
-                {/* Sidebar: top 3 latest */}
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
-                    <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.3em', textTransform: 'uppercase', color: GOLD }}>MỚI NHẤT</span>
-                    <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
-                  </div>
-                  {sidebarTop.map(a => (
-                    <ArticleCard key={a.id} article={a} onClick={() => navigate(`/news/${a.slug}`)} variant="horizontal" />
-                  ))}
-                  {sidebarTop.length === 0 && (
-                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: 13 }}>
-                      Chưa có bài viết khác
+              return (
+                <>
+                  {/* ── FEATURED + SIDEBAR layout ── */}
+                  {featured && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 32, marginBottom: 56 }}>
+                      {/* Featured big card */}
+                      <FeaturedCard article={featured} onClick={() => navigate(articlePath(getLinkCat(featured), featured.slug))} />
+
+                      {/* Sidebar: top 3 latest */}
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
+                          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.3em', textTransform: 'uppercase', color: GOLD }}>MỚI NHẤT</span>
+                          <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                          {topList.map(a => (
+                            <ArticleCard key={a.id} article={a} onClick={() => navigate(articlePath(getLinkCat(a), a.slug))} variant="horizontal" />
+                          ))}
+                        </div>
+                        {topList.length === 0 && (
+                          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: 13 }}>
+                            Chưa có bài viết khác
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
-                </div>
-              </div>
-            )}
 
-            {/* ── SECTION DIVIDER ── */}
-            {gridArticles.length > 0 && (
-              <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 32 }}>
-                  <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.3em', textTransform: 'uppercase', color: GOLD, whiteSpace: 'nowrap' }}>
-                    {selectedCategory ? selectedCategory.toUpperCase() : 'TẤT CẢ BÀI VIẾT'}
-                  </span>
-                  <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
-                  <span style={{ fontSize: 12, color: '#9ca3af', whiteSpace: 'nowrap' }}>{articles.length} bài viết</span>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 28 }}>
-                  {gridArticles.map(a => (
-                    <ArticleCard key={a.id} article={a} onClick={() => navigate(`/news/${a.slug}`)} />
-                  ))}
-                </div>
-              </>
-            )}
+                  {/* ── SECTION DIVIDER ── */}
+                  {restList.length > 0 && (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 32 }}>
+                        <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.3em', textTransform: 'uppercase', color: GOLD, whiteSpace: 'nowrap' }}>
+                          {selectedCategory ? selectedCategory.toUpperCase() : 'TẤT CẢ BÀI VIẾT'}
+                        </span>
+                        <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
+                        <span style={{ fontSize: 12, color: '#9ca3af', whiteSpace: 'nowrap' }}>{articles.length} bài viết</span>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '32px 24px' }}>
+                        {restList.map(a => (
+                          <ArticleCard key={a.id} article={a} onClick={() => navigate(articlePath(getLinkCat(a), a.slug))} />
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </>
+              );
+            })()}
           </>
         )}
       </div>

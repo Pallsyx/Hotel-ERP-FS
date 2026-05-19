@@ -132,7 +132,16 @@ const MainLayout = () => {
       type: 'group',
       children: [
         { key: '/admin/vouchers', icon: <GiftOutlined />, label: 'Quản lý Voucher', requiredPermission: 'MANAGE_SERVICES' },
-        { key: '/admin/posts', icon: <EditOutlined />, label: 'Quản lý Bài viết', requiredPermission: 'MANAGE_CONTENT' },
+        {
+          key: 'content_menu',
+          icon: <EditOutlined />,
+          label: 'Nội dung & Bài viết',
+          requiredPermission: 'MANAGE_CONTENT',
+          children: [
+            { key: '/admin/article-categories', label: 'Quản lý Chuyên mục' },
+            { key: '/admin/posts',              label: 'Quản lý Bài viết' },
+          ],
+        },
         { key: '/admin/attractions', icon: <HomeOutlined />, label: 'Khám phá Điểm đến', requiredPermission: 'MANAGE_CONTENT' },
       ],
     },
@@ -254,7 +263,10 @@ const MainLayout = () => {
                   className="lotte-sider-menu"
                   theme="dark"
                   mode="inline"
-                  defaultOpenKeys={location.pathname.startsWith('/admin/') ? ['reception_menu'] : []}
+                  defaultOpenKeys={[
+                    ...(location.pathname.startsWith('/admin/bookings') || location.pathname.startsWith('/admin/arrivals') || location.pathname.startsWith('/admin/in-house') || location.pathname.startsWith('/admin/departures') ? ['reception_menu'] : []),
+                    ...(location.pathname.startsWith('/admin/posts') || location.pathname.startsWith('/admin/article-categories') ? ['content_menu'] : []),
+                  ]}
                   selectedKeys={[location.pathname]}
                   items={menuItems}
                   onClick={(e) => navigate(e.key)}

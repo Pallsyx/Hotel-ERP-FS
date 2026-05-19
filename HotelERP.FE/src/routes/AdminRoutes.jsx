@@ -28,6 +28,7 @@ import InvoiceDashboard from '../pages/Admin/Invoices/InvoiceDashboard';
 import VoucherManagement from '../pages/Admin/Vouchers/VoucherManagement';
 
 import ArticleManagement from '../pages/Admin/ArticleManagement';
+import CategoryManagement from '../pages/Admin/CategoryManagement';
 import AttractionManagement from '../pages/Admin/AttractionManagement';
 import ReviewManagement from '../pages/Admin/ReviewManagement';
 
@@ -89,7 +90,7 @@ const AdminRoutes = () => {
         <Route path='invoices' element={<InvoiceDashboard />} />
         <Route path='vouchers' element={<VoucherManagement />} />
 
-        <Route path='article-categories' element={<Placeholder title='Danh mục Bài viết' />} />
+        <Route path='article-categories' element={<CategoryManagement />} />
         <Route path='posts' element={<ArticleManagement />} />
         <Route path='attractions' element={<AttractionManagement />} />
         <Route path='reviews' element={<ReviewManagement />} />

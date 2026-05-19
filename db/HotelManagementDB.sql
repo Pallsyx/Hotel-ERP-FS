@@ -3154,3 +3154,19 @@ END
 ELSE
     PRINT N'ℹ️  Cột GalleryPublicIds đã tồn tại.';
 GO
+
+-- ============================================================
+-- MANY-TO-MANY: Article <-> ArticleCategory mapping table
+-- ============================================================
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Article_Category_Mappings')
+BEGIN
+    CREATE TABLE [dbo].[Article_Category_Mappings] (
+        [article_id] INT NOT NULL,
+        [category_id] INT NOT NULL,
+        CONSTRAINT [PK_ArticleCategoryMappings] PRIMARY KEY ([article_id], [category_id]),
+        CONSTRAINT [FK_ACM_Articles] FOREIGN KEY ([article_id]) REFERENCES [dbo].[Articles]([id]) ON DELETE CASCADE,
+        CONSTRAINT [FK_ACM_Categories] FOREIGN KEY ([category_id]) REFERENCES [dbo].[Article_Categories]([id]) ON DELETE CASCADE
+    );
+    INSERT INTO [dbo].[Article_Category_Mappings] ([article_id], [category_id])
+    SELECT [id], [category_id] FROM [dbo].[Articles] WHERE [category_id] IS NOT NULL;
+END

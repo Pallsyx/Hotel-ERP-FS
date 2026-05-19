@@ -31,6 +31,8 @@ public partial class HotelDbContext : DbContext
 
     public virtual DbSet<ArticleCategory> ArticleCategories { get; set; }
 
+    public virtual DbSet<ArticleCategoryMapping> ArticleCategoryMappings { get; set; }
+
     public virtual DbSet<Attraction> Attractions { get; set; }
 
     public virtual DbSet<AuditLog> AuditLogs { get; set; }
@@ -95,6 +97,25 @@ public partial class HotelDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<UserPermission>().HasKey(up => new { up.UserId, up.PermissionId });
+
+        // Cấu hình bảng pivot nhiều-nhiều: Article ↔ ArticleCategory
+        modelBuilder.Entity<ArticleCategoryMapping>(entity =>
+        {
+            entity.HasKey(e => new { e.ArticleId, e.CategoryId });
+            entity.ToTable("Article_Category_Mappings");
+            entity.Property(e => e.ArticleId).HasColumnName("article_id");
+            entity.Property(e => e.CategoryId).HasColumnName("category_id");
+
+            entity.HasOne(e => e.Article)
+                .WithMany(a => a.CategoryMappings)
+                .HasForeignKey(e => e.ArticleId)
+                .HasConstraintName("FK_ACM_Articles");
+
+            entity.HasOne(e => e.Category)
+                .WithMany(c => c.CategoryMappings)
+                .HasForeignKey(e => e.CategoryId)
+                .HasConstraintName("FK_ACM_Categories");
+        });
 
         modelBuilder.Entity<ArticleCategory>().HasQueryFilter(c => c.Status == "ACTIVE");
 

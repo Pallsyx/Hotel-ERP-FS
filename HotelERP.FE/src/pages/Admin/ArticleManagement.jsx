@@ -19,9 +19,9 @@ const { Option } = Select;
 
 // ── Status helpers ─────────────────────────────────────────────
 const STATUS_CONFIG = {
-  Published:      { color: '#16a34a', bg: '#dcfce7', label: 'Đã xuất bản',  icon: <CheckCircleOutlined /> },
-  'Pending Review':{ color: '#d97706', bg: '#fef3c7', label: 'Chờ duyệt',    icon: <ClockCircleOutlined /> },
-  Draft:          { color: '#6b7280', bg: '#f3f4f6', label: 'Bản nháp',     icon: <InboxOutlined /> },
+  Published: { color: '#16a34a', bg: '#dcfce7', label: 'Đã xuất bản', icon: <CheckCircleOutlined /> },
+  'Pending Review': { color: '#d97706', bg: '#fef3c7', label: 'Chờ duyệt', icon: <ClockCircleOutlined /> },
+  Draft: { color: '#6b7280', bg: '#f3f4f6', label: 'Bản nháp', icon: <InboxOutlined /> },
 };
 
 function StatusBadge({ status }) {
@@ -69,9 +69,15 @@ function ArticleCard({ article, onEdit, onDelete, onPreview }) {
         <div style={{ position: 'absolute', top: 10, left: 10 }}>
           <StatusBadge status={article.status} />
         </div>
-        {article.categoryName && (
-          <div style={{ position: 'absolute', bottom: 10, right: 10, background: 'rgba(0,0,0,0.6)', color: 'white', fontSize: 10, padding: '3px 8px', borderRadius: 4, fontWeight: 600 }}>
-            {article.categoryName}
+        {/* Category tags — nhiều chuyên mục */}
+        {article.categoryNames?.length > 0 && (
+          <div style={{ position: 'absolute', bottom: 10, right: 10, display: 'flex', flexWrap: 'wrap', gap: 4, justifyContent: 'flex-end' }}>
+            {article.categoryNames.slice(0, 2).map((cat, i) => (
+              <span key={i} style={{ background: 'rgba(0,0,0,0.6)', color: 'white', fontSize: 9, padding: '2px 7px', borderRadius: 4, fontWeight: 600 }}>{cat}</span>
+            ))}
+            {article.categoryNames.length > 2 && (
+              <span style={{ background: 'rgba(184,149,106,0.8)', color: 'white', fontSize: 9, padding: '2px 7px', borderRadius: 4, fontWeight: 600 }}>+{article.categoryNames.length - 2}</span>
+            )}
           </div>
         )}
       </div>
@@ -173,7 +179,10 @@ export default function ArticleManagement() {
     let list = [...articles];
     if (search) list = list.filter(a => a.title?.toLowerCase().includes(search.toLowerCase()) || a.summary?.toLowerCase().includes(search.toLowerCase()));
     if (statusFilter !== 'ALL') list = list.filter(a => a.status === statusFilter);
-    if (categoryFilter !== 'ALL') list = list.filter(a => a.categoryName === categoryFilter);
+    // Lọc nhiều chuyên mục: bài viết có ít nhất 1 chuyên mục khớp
+    if (categoryFilter !== 'ALL') list = list.filter(a =>
+      (a.categoryNames || []).includes(categoryFilter)
+    );
     setFiltered(list);
   }, [articles, search, statusFilter, categoryFilter]);
 
@@ -200,7 +209,8 @@ export default function ArticleManagement() {
       setEditingId(d.id);
       form.setFieldsValue({
         Title: d.title,
-        CategoryName: d.category?.name || record.categoryName,
+        // Đọc danh sách nhiều chuyên mục
+        CategoryNames: d.categoryNames || (d.categoryName ? [d.categoryName] : []),
         Summary: d.summary,
         Content: d.content,
         Tags: d.tags ? d.tags.split(',').map(t => t.trim()) : [],
@@ -236,7 +246,11 @@ export default function ArticleManagement() {
       const values = await form.validateFields();
       const formData = new FormData();
       formData.append('Title', values.Title);
-      if (values.CategoryName) formData.append('CategoryName', values.CategoryName);
+
+      // Gửi CategoryNames dạng JSON string — ASP.NET bind List<string> chính xác hơn
+      const catNames = values.CategoryNames || [];
+      formData.append('CategoryNamesJson', JSON.stringify(catNames));
+
       if (values.Summary) formData.append('Summary', values.Summary);
       if (values.Content) formData.append('Content', values.Content);
       if (values.Tags?.length) formData.append('Tags', values.Tags.join(', '));
@@ -288,7 +302,7 @@ export default function ArticleManagement() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, color: '#111', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <FileTextOutlined style={{ color: '#b8956a' }} /> Quản lý Tin Tức & Bài Viết
+            <FileTextOutlined style={{ color: '#b8956a' }} /> Quản lý bài viết
           </h1>
           <p style={{ color: '#71717a', fontSize: 13, margin: '4px 0 0' }}>CMS nội dung khách sạn — Đăng, chỉnh sửa và quản lý bài viết</p>
         </div>
@@ -409,11 +423,29 @@ export default function ArticleManagement() {
             <Input size="large" placeholder="Nhập tiêu đề hấp dẫn cho bài viết..." />
           </Form.Item>
 
-          {/* Row 2: Category + Status + Tags */}
+          {/* Row 2: Category (multi) + Status + Tags */}
           <Row gutter={16}>
             <Col span={8}>
-              <Form.Item name="CategoryName" label={<span style={{ fontWeight: 600 }}>Chuyên mục</span>}>
-                <Select placeholder="Chọn hoặc nhập mới..." showSearch allowClear>
+              <Form.Item
+                name="CategoryNames"
+                label={
+                  <span style={{ fontWeight: 600 }}>
+                    Chủ đề / Chuyên mục
+                    <span style={{ fontWeight: 400, color: '#9ca3af', fontSize: 11, marginLeft: 6 }}>
+                      (chọn 1 hoặc nhiều)
+                    </span>
+                  </span>
+                }
+              >
+                <Select
+                  mode="multiple"
+                  placeholder="VD: Tin Tức Khách Sạn, Sự Kiện..."
+                  showSearch
+                  allowClear
+                  filterOption={(input, option) =>
+                    option?.children?.toLowerCase().includes(input.toLowerCase())
+                  }
+                >
                   {categories.map(c => <Option key={c.id} value={c.name}>{c.name}</Option>)}
                 </Select>
               </Form.Item>
@@ -498,7 +530,10 @@ export default function ArticleManagement() {
             )}
             <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
               <StatusBadge status={previewArticle.status} />
-              {previewArticle.categoryName && <Tag color="blue">{previewArticle.categoryName}</Tag>}
+              {/* Hiển thị nhiều chuyên mục */}
+              {(previewArticle.categoryNames || (previewArticle.categoryName ? [previewArticle.categoryName] : [])).map((cat, i) => (
+                <Tag key={i} color="blue">{cat}</Tag>
+              ))}
               <span style={{ fontSize: 12, color: '#9ca3af' }}><CalendarOutlined /> {formatDate(previewArticle.publishedAt)}</span>
             </div>
             <h2 style={{ fontSize: 22, fontWeight: 700, color: '#111', marginBottom: 12 }}>{previewArticle.title}</h2>

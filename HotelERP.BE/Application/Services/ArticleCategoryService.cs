@@ -14,12 +14,30 @@ public class ArticleCategoryService
         _context = context;
     }
 
-    // 1. LẤY DANH SÁCH TẤT CẢ DANH MỤC
-    public async Task<List<ArticleCategory>> GetAllCategoriesAsync()
+    // 1. LẤY DANH SÁCH TẤT CẢ DANH MỤC kèm số bài viết
+    public async Task<List<object>> GetAllCategoriesAsync()
     {
-        return await _context.ArticleCategories
+        // IgnoreQueryFilters để admin thấy cả danh mục INACTIVE
+        var cats = await _context.ArticleCategories
+            .IgnoreQueryFilters()
             .OrderByDescending(c => c.CreatedAt)
             .ToListAsync();
+
+        var counts = await _context.ArticleCategoryMappings
+            .GroupBy(m => m.CategoryId)
+            .Select(g => new { CategoryId = g.Key, Count = g.Count() })
+            .ToListAsync();
+
+        var countMap = counts.ToDictionary(x => x.CategoryId, x => x.Count);
+
+        return cats.Select(c => (object)new
+        {
+            c.Id,
+            c.Name,
+            c.Status,
+            c.CreatedAt,
+            ArticleCount = countMap.TryGetValue(c.Id, out var cnt) ? cnt : 0,
+        }).ToList();
     }
 
     // 2. THÊM DANH MỤC MỚI
@@ -46,7 +64,7 @@ public class ArticleCategoryService
     // 3. SỬA TÊN DANH MỤC
     public async Task<ArticleCategory> UpdateCategoryAsync(int id, ArticleCategoryRequestDto request)
     {
-        var category = await _context.ArticleCategories.FindAsync(id);
+        var category = await _context.ArticleCategories.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.Id == id);
         if (category == null) throw new Exception("Không tìm thấy danh mục này.");
 
         // Kiểm tra trùng tên với danh mục khác
@@ -70,7 +88,7 @@ public class ArticleCategoryService
     // 4. XÓA DANH MỤC (Lưu ý: Chỉ xóa mềm hoặc kiểm tra xem có bài viết nào đang dùng không)
     public async Task DeleteCategoryAsync(int id)
     {
-        var category = await _context.ArticleCategories.FindAsync(id);
+        var category = await _context.ArticleCategories.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.Id == id);
         if (category == null) throw new Exception("Không tìm thấy danh mục này.");
 
         // Kiểm tra xem có bài viết nào đang thuộc danh mục này không

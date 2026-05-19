@@ -1,61 +1,104 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { GoogleMap, useJsApiLoader, Marker, DirectionsRenderer } from '@react-google-maps/api';
-import { Select, Input, Tag, Spin } from 'antd';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import { Spin } from 'antd';
 import { SearchOutlined, EnvironmentOutlined } from '@ant-design/icons';
 import attractionApi from '../../api/attractionApi';
 import MainHeader from '../../components/Layout/MainHeader';
-
-const { Option } = Select;
-
-const GOLD = '#b8956a';
-const DARK = '#111111';
-
-const containerStyle = { width: '100%', height: '100%', borderRadius: 4 };
-const hotelLocation  = { lat: 10.948386, lng: 106.790938 };
-const mapOptions     = { disableDefaultUI: false, zoomControl: true, streetViewControl: false, mapTypeControl: false };
-
 import MainFooter from '../../components/Layout/MainFooter';
 
-/* ═══════════════════════════════════════════════════════════ */
-/*  HELPERS                                                     */
-/* ═══════════════════════════════════════════════════════════ */
-const CLOUDINARY_BASE = 'https://res.cloudinary.com/dfvdvkssv/image/upload/hotel_placeholders';
+// ── Fix default icon bị mất trong Vite/Webpack ──────────────
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
+  iconUrl:       'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+  shadowUrl:     'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+});
 
-const getPlaceholderImage = (item) => {
+const GOLD  = '#b8956a';
+const DARK  = '#111111';
+const HOTEL = { lat: 10.948386, lng: 106.790938 };
+
+// Icon hotel màu xanh — ghim kiểu Google Maps
+const hotelIcon = L.divIcon({
+  className: '',
+  html: `<div style="position:relative;width:32px;height:40px;filter:drop-shadow(0 3px 6px rgba(0,0,0,.45));">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 40" width="32" height="40">
+      <path d="M16 0C9.373 0 4 5.373 4 12c0 9 12 28 12 28S28 21 28 12C28 5.373 22.627 0 16 0z" fill="#2563eb"/>
+      <circle cx="16" cy="12" r="6" fill="white"/>
+      <path d="M16 0C9.373 0 4 5.373 4 12c0 9 12 28 12 28S28 21 28 12C28 5.373 22.627 0 16 0z" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+    </svg>
+    <div style="position:absolute;top:6px;left:50%;transform:translateX(-50%);">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="#2563eb"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+    </div>
+  </div>`,
+  iconSize:   [32, 40],
+  iconAnchor: [16, 40],
+  popupAnchor:[0, -42],
+});
+
+// Icon điểm đến — ghim kiểu Google Maps
+const attractionIcon = (selected) => L.divIcon({
+  className: '',
+  html: `<div style="position:relative;width:${selected?40:28}px;height:${selected?52:36}px;filter:drop-shadow(0 3px 8px rgba(0,0,0,.5));transition:all 200ms;">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 40" width="100%" height="100%">
+      <path d="M16 0C9.373 0 4 5.373 4 12c0 9 12 28 12 28S28 21 28 12C28 5.373 22.627 0 16 0z" fill="#ef4444"/>
+      <circle cx="16" cy="12" r="6" fill="white"/>
+      <circle cx="16" cy="12" r="3" fill="#ef4444"/>
+    </svg>
+  </div>`,
+  iconSize:   [selected ? 40 : 28, selected ? 52 : 36],
+  iconAnchor: [selected ? 20 : 14, selected ? 52 : 36],
+  popupAnchor:[0, -54],
+});
+
+// ── Component di chuyển map tới vị trí ──────────────────────
+function FlyToMarker({ position }) {
+  const map = useMap();
+  useEffect(() => {
+    if (position) map.flyTo([position.lat, position.lng], 14, { duration: 1 });
+  }, [position, map]);
+  return null;
+}
+
+// ── OSRM Routing (miễn phí, không cần API key) ──────────────
+async function fetchRoute(fromLat, fromLng, toLat, toLng) {
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson`;
+    const res  = await fetch(url);
+    const data = await res.json();
+    if (data.code === 'Ok' && data.routes?.[0]) {
+      const route = data.routes[0];
+      const coords = route.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+      const dist   = (route.distance / 1000).toFixed(1) + ' km';
+      const dur    = Math.round(route.duration / 60) + ' phút';
+      return { coords, dist, dur };
+    }
+  } catch {}
+  return null;
+}
+
+// ── Placeholder ảnh ─────────────────────────────────────────
+const CLOUDINARY_BASE = 'https://res.cloudinary.com/dfvdvkssv/image/upload/hotel_placeholders';
+function getPlaceholderImage(item) {
   if (item.imageUrl && (item.imageUrl.startsWith('http') || item.imageUrl.startsWith('https'))) return item.imageUrl;
-  
   const name = (item.name || '').toLowerCase();
   const type = (item.type || '').toLowerCase();
-
-  if (name.includes('biển') || name.includes('beach') || name.includes('vịnh')) 
-    return `${CLOUDINARY_BASE}/beach_placeholder.jpg`;
-  if (name.includes('chợ') || name.includes('market') || name.includes('trung tâm')) 
-    return `${CLOUDINARY_BASE}/market_placeholder.jpg`;
-  if (name.includes('bảo tàng') || name.includes('museum') || name.includes('triển lãm') || name.includes('di tích')) 
-    return `${CLOUDINARY_BASE}/museum_placeholder.jpg`;
-  if (name.includes('phố') || name.includes('street') || name.includes('quảng trường')) 
-    return `${CLOUDINARY_BASE}/street_placeholder.jpg`;
-  if (name.includes('chùa') || name.includes('pagoda') || name.includes('đền') || name.includes('nhà thờ') || name.includes('tháp')) 
-    return `${CLOUDINARY_BASE}/pagoda_placeholder.jpg`;
-  if (name.includes('vui chơi') || name.includes('park') || name.includes('công viên') || type.includes('giải trí')) 
-    return `${CLOUDINARY_BASE}/park_placeholder.jpg`;
-  if (name.includes('nhà hàng') || name.includes('ăn uống') || name.includes('food') || name.includes('quán')) 
-    return `${CLOUDINARY_BASE}/food_placeholder.jpg`;
-  if (name.includes('thác') || name.includes('nước') || name.includes('suối')) 
-    return `${CLOUDINARY_BASE}/waterfall_placeholder.jpg`;
-  if (name.includes('núi') || name.includes('rừng') || name.includes('đèo')) 
-    return `${CLOUDINARY_BASE}/mountain_placeholder.jpg`;
-  if (name.includes('golf') || name.includes('sân')) 
-    return `${CLOUDINARY_BASE}/golf_placeholder.jpg`;
-  if (name.includes('làng') || name.includes('truyền thống') || name.includes('nghề')) 
-    return `${CLOUDINARY_BASE}/village_placeholder.jpg`;
-  if (name.includes('hoàng hôn') || name.includes('sunset') || name.includes('ngắm')) 
-    return `${CLOUDINARY_BASE}/sunset_placeholder.jpg`;
-  
+  if (name.includes('biển') || name.includes('beach') || name.includes('vịnh')) return `${CLOUDINARY_BASE}/beach_placeholder.jpg`;
+  if (name.includes('chợ') || name.includes('market')) return `${CLOUDINARY_BASE}/market_placeholder.jpg`;
+  if (name.includes('bảo tàng') || name.includes('di tích')) return `${CLOUDINARY_BASE}/museum_placeholder.jpg`;
+  if (name.includes('phố') || name.includes('quảng trường')) return `${CLOUDINARY_BASE}/street_placeholder.jpg`;
+  if (name.includes('chùa') || name.includes('đền') || name.includes('nhà thờ')) return `${CLOUDINARY_BASE}/pagoda_placeholder.jpg`;
+  if (name.includes('công viên') || type.includes('giải trí')) return `${CLOUDINARY_BASE}/park_placeholder.jpg`;
+  if (name.includes('nhà hàng') || name.includes('ăn uống')) return `${CLOUDINARY_BASE}/food_placeholder.jpg`;
+  if (name.includes('thác') || name.includes('suối')) return `${CLOUDINARY_BASE}/waterfall_placeholder.jpg`;
+  if (name.includes('núi') || name.includes('rừng')) return `${CLOUDINARY_BASE}/mountain_placeholder.jpg`;
   return 'https://res.cloudinary.com/dfvdvkssv/image/upload/v1778288591/hotel_placeholders/market_placeholder.jpg';
-};
+}
 
+/* ═══════════════════════════════════════════════════════════ */
 export default function AttractionsPage() {
   const navigate = useNavigate();
   const [attractions,        setAttractions]        = useState([]);
@@ -63,89 +106,39 @@ export default function AttractionsPage() {
   const [searchTerm,         setSearchTerm]         = useState('');
   const [selectedCategory,   setSelectedCategory]   = useState('All');
   const [selectedAttraction, setSelectedAttraction] = useState(null);
-  const [directionsResponse, setDirectionsResponse] = useState(null);
+  const [routeCoords,        setRouteCoords]        = useState(null);
   const [distance,           setDistance]           = useState('');
   const [duration,           setDuration]           = useState('');
-  const [travelMode,         setTravelMode]         = useState('DRIVING');
-  const [authError,          setAuthError]          = useState(false);
-  // Default dùng OSM, chỉ switch sang Google Maps khi nó thực sự load thành công
-  const [mapsReady,          setMapsReady]          = useState(false);
-
-  const hasApiKey = !!import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-
-  const { isLoaded, loadError } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '',
-  });
-
-  // Lắng nghe lỗi xác thực Google Maps (API key sai/hết hạn)
-  useEffect(() => {
-    const prev = window.gm_authFailure;
-    window.gm_authFailure = () => {
-      console.error('[AttractionMap] Google Maps auth failure — kiểm tra API key và billing.');
-      setAuthError(true);
-      if (prev) prev();
-    };
-    return () => { window.gm_authFailure = prev; };
-  }, []);
-
-  // Ghi nhận trạng thái isLoaded lúc MOUNT (navigate case: isLoaded đã true từ trước)
-  const alreadyLoadedAtMount = useRef(isLoaded);
-
-  // Chỉ tin Google Maps nếu nó load TRONG lần visit này (không phải từ cache), và không có lỗi auth
-  useEffect(() => {
-    if (isLoaded && !alreadyLoadedAtMount.current && window.google?.maps && !authError) {
-      setMapsReady(true);
-    }
-  }, [isLoaded, authError]);
-
-  // Dùng OSM fallback trừ khi Google Maps đã xác nhận ready
-  const useMapFallback = !mapsReady || authError || !!loadError;
+  const [routeLoading,       setRouteLoading]       = useState(false);
+  const [flyTo,              setFlyTo]              = useState(null);
 
   useEffect(() => {
     window.scrollTo(0, 0);
     document.title = 'Khám phá Điểm đến - Asteria Resort';
-    fetchAttractions();
+    attractionApi.getAll()
+      .then(res => setAttractions(res.data.filter(a => a.status !== 'INACTIVE')))
+      .catch(console.error)
+      .finally(() => setLoading(false));
   }, []);
 
-  const fetchAttractions = async () => {
-    setLoading(true);
-    try {
-      const res = await attractionApi.getAll();
-      setAttractions(res.data.filter(a => a.status !== 'INACTIVE'));
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); }
-  };
-
-  const calculateRoute = async (dest) => {
-    // ✅ Guard: không gọi Google Maps nếu đang dùng fallback (iframe) hoặc chưa load xong
-    if (!dest?.latitude || !dest?.longitude) return;
-    if (useMapFallback || !isLoaded) return;
-    try {
-      // eslint-disable-next-line no-undef
-      const svc = new google.maps.DirectionsService();
-      // eslint-disable-next-line no-undef
-      const results = await svc.route({
-        origin: hotelLocation,
-        destination: { lat: Number(dest.latitude), lng: Number(dest.longitude) },
-        // eslint-disable-next-line no-undef
-        travelMode: google.maps.TravelMode[travelMode],
-      });
-      if (results?.routes?.[0]?.legs?.[0]) {
-        setDirectionsResponse(results);
-        setDistance(results.routes[0].legs[0].distance.text);
-        setDuration(results.routes[0].legs[0].duration.text);
-      }
-    } catch (err) { console.error('[calculateRoute]', err); }
-  };
-
-  const handleCardClick = (item) => {
+  const handleCardClick = useCallback(async (item) => {
     setSelectedAttraction(item);
-    calculateRoute(item);
-    window.scrollTo({ top: 300, behavior: 'smooth' });
-  };
+    setRouteCoords(null);
+    setDistance('');
+    setDuration('');
+    setFlyTo({ lat: Number(item.latitude), lng: Number(item.longitude) });
 
-  useEffect(() => { if (selectedAttraction) calculateRoute(selectedAttraction); }, [travelMode]);
+    if (!item.latitude || !item.longitude) return;
+    setRouteLoading(true);
+    const result = await fetchRoute(HOTEL.lat, HOTEL.lng, Number(item.latitude), Number(item.longitude));
+    if (result) {
+      setRouteCoords(result.coords);
+      setDistance(result.dist);
+      setDuration(result.dur);
+    }
+    setRouteLoading(false);
+    window.scrollTo({ top: 300, behavior: 'smooth' });
+  }, []);
 
   const categories = ['All', ...new Set(attractions.map(a => a.type).filter(Boolean))];
   const filtered   = attractions.filter(i => {
@@ -154,13 +147,13 @@ export default function AttractionsPage() {
     return matchName && matchCat;
   });
 
-  // ✅ Reset trạng thái chọn khi category thay đổi để tránh state bị lỗi
   const handleCategoryChange = (cat) => {
     setSelectedCategory(cat);
     setSelectedAttraction(null);
-    setDirectionsResponse(null);
+    setRouteCoords(null);
     setDistance('');
     setDuration('');
+    setFlyTo(null);
   };
 
   return (
@@ -194,7 +187,7 @@ export default function AttractionsPage() {
             <div style={{ position: 'relative', marginBottom: 14 }}>
               <SearchOutlined style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#a1a1aa', zIndex: 1 }} />
               <input type="text" placeholder="Nhập tên địa điểm..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-                style={{ width: '100%', padding: '10px 12px 10px 36px', fontSize: 13, border: '1px solid #e5e7eb', borderRadius: 4, outline: 'none' }}
+                style={{ width: '100%', padding: '10px 12px 10px 36px', fontSize: 13, border: '1px solid #e5e7eb', borderRadius: 4, outline: 'none', color: '#111', background: 'white' }}
                 onFocus={e => e.target.style.borderColor = GOLD} onBlur={e => e.target.style.borderColor = '#e5e7eb'} />
             </div>
 
@@ -217,7 +210,6 @@ export default function AttractionsPage() {
               ) : filtered.map(item => (
                 <div key={item.id} onClick={() => handleCardClick(item)}
                   style={{ display: 'flex', gap: 14, padding: 12, borderRadius: 4, cursor: 'pointer', border: `1px solid ${selectedAttraction?.id === item.id ? GOLD : '#f0f0f0'}`, background: selectedAttraction?.id === item.id ? '#fdf8f3' : 'white', transition: 'all 200ms' }}>
-                  {/* Thumbnail — collage động theo số ảnh gallery */}
                   {(() => {
                     let galleryUrls = [];
                     try { galleryUrls = item.galleryImages ? JSON.parse(item.galleryImages).filter(Boolean) : []; } catch {}
@@ -235,25 +227,9 @@ export default function AttractionsPage() {
                     return (
                       <div style={{ width: 88, height: 88, borderRadius: 4, overflow: 'hidden', flexShrink: 0, background: '#f0f0f0' }}>
                         {n === 1 && <Cell src={allImgs[0]} />}
-                        {n === 2 && (
-                          <div style={{ display: 'grid', gridTemplateRows: '1fr 1fr', gap: 1, height: '100%' }}>
-                            <Cell src={allImgs[0]} /><Cell src={allImgs[1]} />
-                          </div>
-                        )}
-                        {n === 3 && (
-                          <div style={{ display: 'grid', gridTemplateRows: '1fr 1fr', gap: 1, height: '100%' }}>
-                            <Cell src={allImgs[0]} />
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
-                              <Cell src={allImgs[1]} /><Cell src={allImgs[2]} />
-                            </div>
-                          </div>
-                        )}
-                        {n >= 4 && (
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: 1, height: '100%' }}>
-                            <Cell src={allImgs[0]} /><Cell src={allImgs[1]} />
-                            <Cell src={allImgs[2]} /><Cell src={allImgs[3]} />
-                          </div>
-                        )}
+                        {n === 2 && (<div style={{ display: 'grid', gridTemplateRows: '1fr 1fr', gap: 1, height: '100%' }}><Cell src={allImgs[0]} /><Cell src={allImgs[1]} /></div>)}
+                        {n === 3 && (<div style={{ display: 'grid', gridTemplateRows: '1fr 1fr', gap: 1, height: '100%' }}><Cell src={allImgs[0]} /><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}><Cell src={allImgs[1]} /><Cell src={allImgs[2]} /></div></div>)}
+                        {n >= 4 && (<div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: 1, height: '100%' }}><Cell src={allImgs[0]} /><Cell src={allImgs[1]} /><Cell src={allImgs[2]} /><Cell src={allImgs[3]} /></div>)}
                       </div>
                     );
                   })()}
@@ -263,61 +239,88 @@ export default function AttractionsPage() {
                       {item.type && <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: GOLD, background: '#fdf3e7', padding: '2px 8px', borderRadius: 2, flexShrink: 0 }}>{item.type}</span>}
                     </div>
                     <p style={{ fontSize: 12, color: '#71717a', lineHeight: 1.6, margin: 0, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{item.description}</p>
-                    {item.distanceKm && <p style={{ fontSize: 11, color: GOLD, marginTop: 6, margin: 0 }}><EnvironmentOutlined /> Cách resort {item.distanceKm} km</p>}
+                    {item.distanceKm && <p style={{ fontSize: 11, color: GOLD, marginTop: 6, margin: '6px 0 0' }}><EnvironmentOutlined /> Cách resort {item.distanceKm} km</p>}
                   </div>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* RIGHT — Map */}
+          {/* RIGHT — OpenStreetMap */}
           <div style={{ background: 'white', borderRadius: 4, border: '1px solid #f0f0f0', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', overflow: 'hidden', display: 'flex', flexDirection: 'column', position: 'sticky', top: 80, height: 'calc(100vh - 120px)', minHeight: 600 }}>
             {/* Map header */}
-            <div style={{ padding: '14px 20px', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fafafa' }}>
+            <div style={{ padding: '14px 20px', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fafafa', flexShrink: 0 }}>
               <div>
                 <h3 style={{ fontSize: 14, fontWeight: 600, color: '#18181b', margin: 0 }}>
                   {selectedAttraction ? `Đường đi: ${selectedAttraction.name}` : 'Bản đồ Khám phá'}
                 </h3>
-                {selectedAttraction && distance && duration && (
+                {routeLoading && <p style={{ fontSize: 12, color: GOLD, margin: '2px 0 0' }}>Đang tìm đường...</p>}
+                {!routeLoading && distance && duration && (
                   <p style={{ fontSize: 12, color: '#71717a', margin: '2px 0 0' }}>
-                    Khoảng cách: <strong style={{ color: '#18181b' }}>{distance}</strong> • Thời gian: <strong style={{ color: '#18181b' }}>{duration}</strong>
+                    Khoảng cách: <strong style={{ color: '#18181b' }}>{distance}</strong> • Thời gian lái xe: <strong style={{ color: '#18181b' }}>{duration}</strong>
                   </p>
                 )}
               </div>
-
+              {/* Badge OpenStreetMap */}
+              <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: '#2563eb', background: '#eff6ff', border: '1px solid #bfdbfe', padding: '3px 10px', borderRadius: 4 }}>
+                OpenStreetMap
+              </span>
             </div>
 
-            {/* Map */}
+            {/* Leaflet Map */}
             <div style={{ flex: 1, position: 'relative' }}>
-              {useMapFallback ? (
-                // Fallback: OpenStreetMap Iframe with dynamic marker
-                <iframe
-                  src={`https://www.openstreetmap.org/export/embed.html?bbox=${(selectedAttraction ? Number(selectedAttraction.longitude) : hotelLocation.lng) - 0.005}%2C${(selectedAttraction ? Number(selectedAttraction.latitude) : hotelLocation.lat) - 0.005}%2C${(selectedAttraction ? Number(selectedAttraction.longitude) : hotelLocation.lng) + 0.005}%2C${(selectedAttraction ? Number(selectedAttraction.latitude) : hotelLocation.lat) + 0.005}&layer=mapnik&marker=${selectedAttraction ? Number(selectedAttraction.latitude) : hotelLocation.lat}%2C${selectedAttraction ? Number(selectedAttraction.longitude) : hotelLocation.lng}`}
-                  width="100%"
-                  height="100%"
-                  style={{ border: 0, display: 'block' }}
-                  allowFullScreen=""
-                  loading="lazy"
-                  referrerPolicy="no-referrer-when-downgrade"
+              <MapContainer
+                center={[HOTEL.lat, HOTEL.lng]}
+                zoom={12}
+                style={{ width: '100%', height: '100%' }}
+                scrollWheelZoom={true}
+              >
+                <TileLayer
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
-              ) : isLoaded ? (
-                <GoogleMap mapContainerStyle={containerStyle} center={selectedAttraction ? { lat: Number(selectedAttraction.latitude), lng: Number(selectedAttraction.longitude) } : hotelLocation} zoom={13} options={mapOptions}>
-                  <Marker position={hotelLocation} icon={{ url: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png' }} title="Asteria Resort" />
-                  {!directionsResponse && attractions.map(item => (
-                    <Marker key={item.id} position={{ lat: Number(item.latitude), lng: Number(item.longitude) }} onClick={() => handleCardClick(item)} animation={selectedAttraction?.id === item.id ? 1 : 0} />
-                  ))}
-                  {directionsResponse && (
-                    <DirectionsRenderer directions={directionsResponse} options={{ suppressMarkers: false, polylineOptions: { strokeColor: GOLD, strokeWeight: 5, strokeOpacity: 0.8 } }} />
-                  )}
-                </GoogleMap>
-              ) : (
-                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}><Spin size="large" /></div>
-              )}
+
+                {/* Fly to selected attraction */}
+                {flyTo && <FlyToMarker position={flyTo} />}
+
+                {/* Hotel marker */}
+                <Marker position={[HOTEL.lat, HOTEL.lng]} icon={hotelIcon}>
+                  <Popup>
+                    <strong>🏨 Asteria Resort</strong><br />Vị trí khách sạn
+                  </Popup>
+                </Marker>
+
+                {/* Attraction markers */}
+                {attractions.filter(a => a.latitude && a.longitude).map(item => (
+                  <Marker
+                    key={item.id}
+                    position={[Number(item.latitude), Number(item.longitude)]}
+                    icon={attractionIcon(selectedAttraction?.id === item.id)}
+                    eventHandlers={{ click: () => handleCardClick(item) }}
+                  >
+                    <Popup>
+                      <strong>{item.name}</strong>
+                      {item.type && <><br /><span style={{ color: GOLD, fontSize: 11 }}>{item.type}</span></>}
+                      {item.distanceKm && <><br /><span style={{ color: '#71717a', fontSize: 11 }}>Cách resort {item.distanceKm} km</span></>}
+                    </Popup>
+                  </Marker>
+                ))}
+
+                {/* Route polyline */}
+                {routeCoords && routeCoords.length > 0 && (
+                  <Polyline
+                    positions={routeCoords}
+                    color={GOLD}
+                    weight={5}
+                    opacity={0.85}
+                  />
+                )}
+              </MapContainer>
             </div>
 
-            {/* Book CTA */}
+            {/* Book CTA khi chọn điểm đến */}
             {selectedAttraction && (
-              <div style={{ padding: '18px 24px', background: DARK, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+              <div style={{ padding: '18px 24px', background: DARK, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap', flexShrink: 0 }}>
                 <div>
                   <h4 style={{ fontFamily: "'Playfair Display', serif", fontSize: 17, color: GOLD, margin: '0 0 4px' }}>Sẵn sàng cho chuyến đi?</h4>
                   <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', margin: 0 }}>Đặt phòng tại Asteria để bắt đầu hành trình khám phá {selectedAttraction.name}.</p>
