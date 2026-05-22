@@ -5,7 +5,7 @@ import {
   AppstoreOutlined, HomeOutlined, DatabaseOutlined, FormatPainterOutlined,
   WarningOutlined, DashboardOutlined, IdcardOutlined, FileTextOutlined,
   GiftOutlined, EditOutlined, MenuFoldOutlined, MenuUnfoldOutlined,
-  CommentOutlined, ShoppingOutlined,
+  CommentOutlined, ShoppingOutlined, TrophyOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
@@ -133,6 +133,7 @@ const MainLayout = () => {
       type: 'group',
       children: [
         { key: '/admin/vouchers', icon: <GiftOutlined />, label: 'Quản lý Voucher', requiredPermission: 'MANAGE_SERVICES' },
+        { key: '/admin/membership', icon: <TrophyOutlined />, label: 'Hạng Thành Viên', requiredPermission: 'MANAGE_SERVICES' },
         {
           key: 'content_menu',
           icon: <EditOutlined />,

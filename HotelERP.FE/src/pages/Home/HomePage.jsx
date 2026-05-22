@@ -9,6 +9,7 @@ import attractionApi from '../../api/attractionApi';
 import axiosClient from '../../api/axiosClient';
 import RoomSearchWidget from '../../components/RoomSearch/RoomSearchWidget';
 import MainFooter from '../../components/Layout/MainFooter';
+import roomTypeApi from '../../api/roomTypeApi';
 
 const SLIDES = [
   { id: 1, img: 'https://images.unsplash.com/photo-1611892440504-42a792e24d32?q=80&w=2000', title: "Không gian nghỉ dưỡng đẳng cấp,\nhòa mình cùng thiên nhiên." },
@@ -18,6 +19,76 @@ const SLIDES = [
 ];
 const G = '#b8956a', D = '#111111';
 const SF = { fontFamily: "'Playfair Display',serif" };
+
+function formatVND(n) {
+  if (n === null || n === undefined) return '';
+  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(n);
+}
+
+// Dynamic multiple images list for room gallery slider
+function getRoomImages(roomType) {
+  if (!roomType) return [];
+  let dbImages = [];
+  if (roomType.images && roomType.images.length > 0) {
+    dbImages = roomType.images.map(img => img.imageUrl).filter(Boolean);
+  } else if (roomType.imageUrl) {
+    dbImages = [roomType.imageUrl];
+  }
+  
+  if (dbImages.length > 0) {
+    return dbImages;
+  }
+  
+  const name = (roomType.name || '').toLowerCase();
+  let fallbacks = [];
+  
+  if (name.includes('tiêu chuẩn') || name.includes('standard')) {
+    fallbacks = [
+      'https://images.unsplash.com/photo-1590490360182-c33d57733427?q=80&w=1200',
+      'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?q=80&w=1200',
+      'https://images.unsplash.com/photo-1505691938895-1758d7feb511?q=80&w=1200'
+    ];
+  } else if (name.includes('deluxe')) {
+    fallbacks = [
+      'https://images.unsplash.com/photo-1566665797739-1674de7a421a?q=80&w=1200',
+      'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?q=80&w=1200',
+      'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?q=80&w=1200'
+    ];
+  } else if (name.includes('premium') || name.includes('cao cấp')) {
+    fallbacks = [
+      'https://images.unsplash.com/photo-1618773928121-c32242e63f39?q=80&w=1200',
+      'https://images.unsplash.com/photo-1611892440504-42a792e24d32?q=80&w=1200',
+      'https://images.unsplash.com/photo-1582719508461-905c673771fd?q=80&w=1200'
+    ];
+  } else if (name.includes('suite')) {
+    fallbacks = [
+      'https://images.unsplash.com/photo-1578683010236-d716f9a3f461?q=80&w=1200',
+      'https://images.unsplash.com/photo-1591088398332-8a7791972843?q=80&w=1200',
+      'https://images.unsplash.com/photo-1552321554-5fefe8c9ef14?q=80&w=1200'
+    ];
+  } else if (name.includes('tổng thống') || name.includes('president') || name.includes('biệt thự') || name.includes('villa') || name.includes('hoàng gia')) {
+    fallbacks = [
+      'https://images.unsplash.com/photo-1631049307264-da0ec9d70304?q=80&w=1200',
+      'https://images.unsplash.com/photo-1576013551627-0cc20b96c2a7?q=80&w=1200',
+      'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?q=80&w=1200',
+      'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?q=80&w=1200'
+    ];
+  } else {
+    fallbacks = [
+      'https://images.unsplash.com/photo-1542314831-c6a4d4586f37?q=80&w=1200',
+      'https://images.unsplash.com/photo-1566073771259-6a8506099945?q=80&w=1200',
+      'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?q=80&w=1200'
+    ];
+  }
+  
+  const uniqueImages = [...dbImages];
+  for (const img of fallbacks) {
+    if (!uniqueImages.includes(img)) {
+      uniqueImages.push(img);
+    }
+  }
+  return uniqueImages;
+}
 
 // Chuyển tên danh mục → URL slug
 function toCatSlug(name) {
@@ -208,6 +279,12 @@ export default function HomePage() {
   const [dragStartX, setDragStartX] = useState(null);
   const [dragOffset, setDragOffset] = useState(0);
 
+  // States for room types images slider
+  const [roomTypes, setRoomTypes] = useState([]);
+  const [selectedRoomTypeIndex, setSelectedRoomTypeIndex] = useState(0);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [isHoveringRoomSlider, setIsHoveringRoomSlider] = useState(false);
+
   const handleDragStart = (e) => {
     setDragStartX(e.type === 'touchstart' ? e.touches[0].clientX : e.clientX);
     setPlay(false);
@@ -235,6 +312,39 @@ export default function HomePage() {
         .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
     )).catch(() => { });
   }, []);
+
+  // Fetch room types
+  useEffect(() => {
+    roomTypeApi.getAll()
+      .then(data => {
+        if (data && data.length > 0) {
+          setRoomTypes(data);
+        }
+      })
+      .catch(err => {
+        console.error('Error fetching room types:', err);
+      });
+  }, []);
+
+  // Reset active image index whenever the selected room type changes
+  useEffect(() => {
+    setActiveImageIndex(0);
+  }, [selectedRoomTypeIndex]);
+
+  // Auto-play for room image slider
+  useEffect(() => {
+    if (isHoveringRoomSlider) return;
+    const activeRoom = roomTypes[selectedRoomTypeIndex] || null;
+    const imgs = getRoomImages(activeRoom);
+    
+    if (imgs.length <= 1) return;
+    
+    const timer = setInterval(() => {
+      setActiveImageIndex(prev => (prev + 1) % imgs.length);
+    }, 4500);
+    
+    return () => clearInterval(timer);
+  }, [roomTypes, selectedRoomTypeIndex, isHoveringRoomSlider]);
   useEffect(() => {
     document.title = 'Asteria Resort - Không gian nghỉ dưỡng đẳng cấp';
     // Handle anchor scroll if exists
@@ -345,25 +455,245 @@ export default function HomePage() {
       {/* INTRO + ROOM CARDS */}
       <section style={{ background: 'white', padding: '80px 24px' }}>
         <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 64, alignItems: 'center', marginBottom: 48 }}>
-            <div>
-              <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.25em', textTransform: 'uppercase', color: G, display: 'block', marginBottom: 16 }}>Phòng Nghỉ</span>
-              <h2 style={{ ...SF, fontSize: 'clamp(28px,4vw,44px)', color: '#18181b', marginBottom: 20, lineHeight: 1.2 }}>Tìm kiếm không gian hoàn hảo cho kỳ nghỉ.</h2>
-              <div style={{ width: 48, height: 1, background: G, marginBottom: 24 }} />
-              <p style={{ fontSize: 14, color: '#71717a', lineHeight: 1.9, marginBottom: 28 }}>Tận hưởng sự yên bình tuyệt đối trong không gian sang trọng được thiết kế tinh tế. Từ ban công riêng tư, quý khách có thể chiêm ngưỡng trọn vẹn vẻ đẹp của bình minh.</p>
-              <div><span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.2em', textTransform: 'uppercase', color: '#71717a', display: 'block', marginBottom: 4 }}>Hotline Đặt Phòng</span><span style={{ fontSize: 22, ...SF, color: G }}>0363 332 841</span></div>
-            </div>
-            <div><img src="https://dulichkhampha24.com/wp-content/uploads/2020/08/khach-san-fivitel-hoi-an-2.jpg" alt="Hotel" style={{ width: '100%', height: 400, objectFit: 'cover', borderRadius: 2 }} /></div>
-          </div>
-          <div style={{ display: 'flex', gap: 16, overflowX: 'auto', paddingBottom: 8 }}>
-            {['https://images.unsplash.com/photo-1582719508461-905c673771fd?q=80&w=600', 'https://images.unsplash.com/photo-1566665797739-1674de7a421a?q=80&w=600', 'https://images.unsplash.com/photo-1631049307264-da0ec9d70304?q=80&w=600', 'https://images.unsplash.com/photo-1590490360182-c33d57733427?q=80&w=600', 'https://images.unsplash.com/photo-1578683010236-d716f9a3f461?q=80&w=600'].map((img, i) => (
-              <div key={i} style={{ position: 'relative', flexShrink: 0, width: 220, height: 300, overflow: 'hidden', cursor: 'pointer', borderRadius: 2 }}>
-                <img src={img} alt="room" style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 700ms' }} onMouseEnter={e => e.target.style.transform = 'scale(1.1)'} onMouseLeave={e => e.target.style.transform = 'scale(1)'} />
-                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top,rgba(0,0,0,.6),transparent)' }} />
-                <p style={{ position: 'absolute', bottom: 16, left: 16, color: 'white', ...SF, fontSize: 15, margin: 0 }}>The Cottage</p>
-              </div>
-            ))}
-          </div>
+          {(() => {
+            const FALLBACK_ROOM_TYPES = [
+              {
+                id: 1,
+                name: 'Phòng Tiêu Chuẩn',
+                description: 'Không gian nghỉ dưỡng thoải mái, tiện nghi với đầy đủ trang thiết bị hiện đại.',
+                basePrice: 500000,
+                capacityAdults: 2,
+                capacityChildren: 1,
+                imageUrl: 'https://images.unsplash.com/photo-1582719508461-905c673771fd?q=80&w=600',
+                images: [{ imageUrl: 'https://images.unsplash.com/photo-1582719508461-905c673771fd?q=80&w=600' }]
+              },
+              {
+                id: 2,
+                name: 'Phòng Deluxe',
+                description: 'Trải nghiệm sự tinh tế với ban công riêng hướng vườn hoa thơ mộng.',
+                basePrice: 900000,
+                capacityAdults: 2,
+                capacityChildren: 2,
+                imageUrl: 'https://images.unsplash.com/photo-1566665797739-1674de7a421a?q=80&w=600',
+                images: [{ imageUrl: 'https://images.unsplash.com/photo-1566665797739-1674de7a421a?q=80&w=600' }]
+              },
+              {
+                id: 3,
+                name: 'Phòng Premium',
+                description: 'Thiết kế sang trọng, tối ưu tầm nhìn bao quát toàn bộ khuôn viên resort.',
+                basePrice: 1200000,
+                capacityAdults: 2,
+                capacityChildren: 2,
+                imageUrl: 'https://images.unsplash.com/photo-1631049307264-da0ec9d70304?q=80&w=600',
+                images: [{ imageUrl: 'https://images.unsplash.com/photo-1631049307264-da0ec9d70304?q=80&w=600' }]
+              },
+              {
+                id: 4,
+                name: 'Phòng Gia Đình',
+                description: 'Lựa chọn hoàn hảo cho kỳ nghỉ của gia đình nhỏ với hai không gian kết nối.',
+                basePrice: 1500000,
+                capacityAdults: 4,
+                capacityChildren: 2,
+                imageUrl: 'https://images.unsplash.com/photo-1590490360182-c33d57733427?q=80&w=600',
+                images: [{ imageUrl: 'https://images.unsplash.com/photo-1590490360182-c33d57733427?q=80&w=600' }]
+              },
+              {
+                id: 5,
+                name: 'Biệt Thự Hoàng Gia',
+                description: 'Đẳng cấp thượng lưu với hồ bơi riêng biệt, quản gia riêng phục vụ 24/7.',
+                basePrice: 8000000,
+                capacityAdults: 6,
+                capacityChildren: 4,
+                imageUrl: 'https://images.unsplash.com/photo-1578683010236-d716f9a3f461?q=80&w=600',
+                images: [{ imageUrl: 'https://images.unsplash.com/photo-1578683010236-d716f9a3f461?q=80&w=600' }]
+              }
+            ];
+
+            const displayRoomTypes = roomTypes.length > 0 ? roomTypes : FALLBACK_ROOM_TYPES;
+            const activeRoomType = displayRoomTypes[selectedRoomTypeIndex] || displayRoomTypes[0];
+            const roomImages = getRoomImages(activeRoomType);
+
+            return (
+              <>
+                <div className="room-gallery-grid">
+                  <div>
+                    <span className="section-tag" style={{ color: G, marginBottom: 16 }}>
+                      Phòng Nghỉ - {activeRoomType?.name}
+                    </span>
+                    <h2 style={{ ...SF, fontSize: 'clamp(28px,4vw,44px)', color: '#18181b', marginBottom: 20, lineHeight: 1.2 }}>
+                      {activeRoomType?.name || 'Tìm kiếm không gian hoàn hảo cho kỳ nghỉ.'}
+                    </h2>
+                    <div className="gold-divider" style={{ marginBottom: 24 }} />
+                    <p style={{ fontSize: 14, color: '#71717a', lineHeight: 1.9, marginBottom: 20 }}>
+                      {activeRoomType?.description || 'Tận hưởng sự yên bình tuyệt đối trong không gian sang trọng được thiết kế tinh tế. Từ ban công riêng tư, quý khách có thể chiêm ngưỡng trọn vẹn vẻ đẹp của bình minh.'}
+                    </p>
+
+                    {/* Price & Capacity info box */}
+                    <div style={{ background: 'rgba(184,149,106,0.05)', borderLeft: `3px solid ${G}`, padding: '12px 18px', marginBottom: 28, borderRadius: '0 4px 4px 0' }}>
+                      <div style={{ fontSize: 12, color: '#71717a', marginBottom: 4 }}>Giá phòng cơ bản:</div>
+                      <div style={{ fontSize: 24, fontWeight: 800, color: G, fontFamily: "'Playfair Display', serif" }}>
+                        {formatVND(activeRoomType?.basePrice)}
+                        <span style={{ fontSize: 14, fontWeight: 400, color: '#71717a', fontFamily: "'Inter', sans-serif" }}> / đêm</span>
+                      </div>
+                      <div style={{ fontSize: 12, color: '#a1a1aa', marginTop: 6, display: 'flex', gap: 12 }}>
+                        <span>👥 Sức chứa: {activeRoomType?.capacityAdults} Người lớn</span>
+                        {activeRoomType?.capacityChildren > 0 && <span>👶 {activeRoomType.capacityChildren} Trẻ em</span>}
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
+                      <div>
+                        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.2em', textTransform: 'uppercase', color: '#71717a', display: 'block', marginBottom: 4 }}>Hotline Đặt Phòng</span>
+                        <span style={{ fontSize: 22, ...SF, color: G }}>0363 332 841</span>
+                      </div>
+                      <button 
+                        onClick={() => nav('/booking/search')}
+                        style={{
+                          background: G, color: 'white', border: 'none', padding: '12px 28px',
+                          fontSize: 12, fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase',
+                          borderRadius: 2, cursor: 'pointer', transition: 'all 200ms', outline: 'none'
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.background = '#a3815c'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = G; }}
+                      >
+                        Đặt phòng ngay
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Large Image Carousel */}
+                  <div 
+                    className="room-gallery-carousel"
+                    onMouseEnter={() => setIsHoveringRoomSlider(true)}
+                    onMouseLeave={() => setIsHoveringRoomSlider(false)}
+                  >
+                    <img 
+                      key={roomImages[activeImageIndex]}
+                      src={roomImages[activeImageIndex]} 
+                      alt={activeRoomType?.name || "Room"} 
+                      className="room-fade-in"
+                      onClick={() => {
+                        if (roomImages.length > 1) {
+                          setActiveImageIndex(prev => (prev + 1) % roomImages.length);
+                        }
+                      }}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'all 500ms ease', cursor: roomImages.length > 1 ? 'pointer' : 'default' }} 
+                    />
+                    <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 40%)', pointerEvents: 'none' }} />
+                    
+                    {/* Navigation Arrows */}
+                    {roomImages.length > 1 && (
+                      <>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveImageIndex(prev => (prev - 1 + roomImages.length) % roomImages.length);
+                          }}
+                          style={{
+                            position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)',
+                            width: 36, height: 36, borderRadius: '50%', background: 'rgba(0,0,0,0.6)',
+                            border: '1px solid rgba(255,255,255,0.25)', color: 'white', fontSize: 18,
+                            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            transition: 'all 200ms', outline: 'none', zIndex: 10
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.background = G; e.currentTarget.style.borderColor = G; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.6)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'; }}
+                        >
+                          ‹
+                        </button>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveImageIndex(prev => (prev + 1) % roomImages.length);
+                          }}
+                          style={{
+                            position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)',
+                            width: 36, height: 36, borderRadius: '50%', background: 'rgba(0,0,0,0.6)',
+                            border: '1px solid rgba(255,255,255,0.25)', color: 'white', fontSize: 18,
+                            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            transition: 'all 200ms', outline: 'none', zIndex: 10
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.background = G; e.currentTarget.style.borderColor = G; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.6)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'; }}
+                        >
+                          ›
+                        </button>
+                      </>
+                    )}
+
+                    {/* Dot indicators */}
+                    {roomImages.length > 1 && (
+                      <div style={{ position: 'absolute', bottom: 16, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 6, zIndex: 10 }}>
+                        {roomImages.map((_, dotIdx) => (
+                          <div 
+                            key={dotIdx}
+                            onClick={() => setActiveImageIndex(dotIdx)}
+                            style={{ 
+                              width: dotIdx === activeImageIndex ? 20 : 6, 
+                              height: 6, 
+                              borderRadius: 3, 
+                              background: dotIdx === activeImageIndex ? G : 'rgba(255,255,255,0.5)', 
+                              cursor: 'pointer',
+                              transition: 'all 300ms ease'
+                            }}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Horizontal scroll list of room types */}
+                <div style={{ display: 'flex', gap: 16, overflowX: 'auto', paddingBottom: 16 }}>
+                  {displayRoomTypes.map((room, i) => {
+                    const isSelected = i === selectedRoomTypeIndex;
+                    const imgUrl = room.imageUrl || room.images?.[0]?.imageUrl || 'https://images.unsplash.com/photo-1582719508461-905c673771fd?q=80&w=600';
+                    
+                    return (
+                      <div 
+                        key={room.id || i} 
+                        onClick={() => {
+                          setSelectedRoomTypeIndex(i);
+                          setActiveImageIndex(0);
+                        }}
+                        className={`room-card-item${isSelected ? ' selected' : ''}`}
+                      >
+                        <img 
+                          src={imgUrl} 
+                          alt={room.name} 
+                          className="room-card-img"
+                        />
+                        <div className="room-card-overlay" />
+                        
+                        {/* Price Badge */}
+                        <div style={{ position: 'absolute', top: 12, right: 12, background: 'rgba(0,0,0,0.65)', border: `1px solid ${G}`, borderRadius: 4, padding: '3px 8px', fontSize: 11, color: 'white', fontWeight: 600 }}>
+                          {formatVND(room.basePrice)}
+                        </div>
+                        
+                        <p style={{ 
+                          position: 'absolute', 
+                          bottom: 16, 
+                          left: 16, 
+                          right: 16,
+                          color: 'white', 
+                          ...SF, 
+                          fontSize: 16, 
+                          fontWeight: 600,
+                          margin: 0,
+                          textShadow: '0 2px 4px rgba(0,0,0,0.5)',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}>
+                          {room.name}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            );
+          })()}
         </div>
       </section>
 

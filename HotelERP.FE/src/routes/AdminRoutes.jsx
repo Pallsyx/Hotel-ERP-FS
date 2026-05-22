@@ -26,6 +26,7 @@ import Departures from '../pages/Receptionist/Departures';
 import InvoiceManagement from '../pages/Invoices/InvoiceManagement';
 import InvoiceDashboard from '../pages/Admin/Invoices/InvoiceDashboard';
 import VoucherManagement from '../pages/Admin/Vouchers/VoucherManagement';
+import MembershipManagement from '../pages/Admin/MembershipManagement';
 
 import ArticleManagement from '../pages/Admin/ArticleManagement';
 import CategoryManagement from '../pages/Admin/CategoryManagement';
@@ -99,6 +100,7 @@ const AdminRoutes = () => {
         <Route path='loss-and-damages' element={<LossAndDamages />} />
         <Route path='invoices' element={<InvoiceDashboard />} />
         <Route path='vouchers' element={<VoucherManagement />} />
+        <Route path='membership' element={<MembershipManagement />} />
 
         <Route path='article-categories' element={<CategoryManagement />} />
         <Route path='posts' element={<ArticleManagement />} />
