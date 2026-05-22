@@ -122,7 +122,7 @@ export default function GuestBookingPage() {
     return (
       <div style={{ padding: '100px 20px', textAlign: 'center', color: 'white' }}>
         <p>Không có thông tin phòng. Vui lòng quay lại tìm kiếm.</p>
-        <Button onClick={() => navigate('/booking/search')}>Quay lại tìm kiếm</Button>
+        <Button onClick={() => navigate('/', { state: { openBooking: true } })}>Quay lại tìm kiếm</Button>
       </div>
     );
   }

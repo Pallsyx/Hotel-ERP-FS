@@ -547,7 +547,7 @@ export default function HomePage() {
                         <span style={{ fontSize: 22, ...SF, color: G }}>0363 332 841</span>
                       </div>
                       <button 
-                        onClick={() => nav('/booking/search')}
+                        onClick={() => window.dispatchEvent(new CustomEvent('open-booking-widget'))}
                         style={{
                           background: G, color: 'white', border: 'none', padding: '12px 28px',
                           fontSize: 12, fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase',
