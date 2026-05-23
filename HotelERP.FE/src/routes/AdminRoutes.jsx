@@ -26,6 +26,7 @@ import Departures from '../pages/Receptionist/Departures';
 import InvoiceManagement from '../pages/Invoices/InvoiceManagement';
 import InvoiceDashboard from '../pages/Admin/Invoices/InvoiceDashboard';
 import VoucherManagement from '../pages/Admin/Vouchers/VoucherManagement';
+import MembershipManagement from '../pages/Admin/MembershipManagement';
 
 import ArticleManagement from '../pages/Admin/ArticleManagement';
 import CategoryManagement from '../pages/Admin/CategoryManagement';
@@ -61,6 +62,15 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
+// Chỉ Admin mới được vào — các role khác redirect về dashboard
+const AdminOnlyRoute = ({ children }) => {
+  const { user } = useAuthStore((state) => state);
+  if (user?.roleName !== 'Admin') {
+    message.warning('Chức năng này chỉ dành cho Quản trị viên!');
+    return <Navigate to='/admin/dashboard' replace />;
+  }
+  return children;
+};
 
 const AdminRoutes = () => {
   return (
@@ -75,7 +85,7 @@ const AdminRoutes = () => {
       <Route path='/' element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
         <Route index element={<Navigate to='dashboard' replace />} />
         <Route path='dashboard' element={<Dashboard />} />
-        <Route path='period-dashboard' element={<PeriodDashboard />} />
+        <Route path='period-dashboard' element={<AdminOnlyRoute><PeriodDashboard /></AdminOnlyRoute>} />
 
         <Route path='users' element={<UserManagement />} />
         <Route path='roles' element={<RoleManagement />} />
@@ -90,6 +100,7 @@ const AdminRoutes = () => {
         <Route path='loss-and-damages' element={<LossAndDamages />} />
         <Route path='invoices' element={<InvoiceDashboard />} />
         <Route path='vouchers' element={<VoucherManagement />} />
+        <Route path='membership' element={<MembershipManagement />} />
 
         <Route path='article-categories' element={<CategoryManagement />} />
         <Route path='posts' element={<ArticleManagement />} />

@@ -70,6 +70,22 @@ const premiumInputHoverStyle = `
     0%, 100% { box-shadow: 0 0 20px rgba(255,200,80,0.3), 0 4px 24px rgba(0,0,0,0.4); }
     50%       { box-shadow: 0 0 40px rgba(255,200,80,0.55), 0 4px 24px rgba(0,0,0,0.4); }
   }
+  .deposit-option {
+    cursor: pointer;
+    border: 2px solid rgba(255,255,255,0.1);
+    border-radius: 10px;
+    padding: 14px 18px;
+    transition: all 200ms;
+    background: rgba(255,255,255,0.03);
+  }
+  .deposit-option:hover {
+    border-color: rgba(184,149,106,0.5);
+    background: rgba(184,149,106,0.06);
+  }
+  .deposit-option.selected {
+    border-color: #b8956a;
+    background: rgba(184,149,106,0.1);
+  }
 `;
 
 export default function GuestBookingPage() {
@@ -97,12 +113,16 @@ export default function GuestBookingPage() {
   const [birthdayVouchers, setBirthdayVouchers] = useState([]);
   const [loadingBirthdayVouchers, setLoadingBirthdayVouchers] = useState(false);
 
+  // Deposit state
+  const [depositMethod, setDepositMethod] = useState('RESORT'); // 'TRANSFER' hoặc 'RESORT'
+  const [transferRef, setTransferRef] = useState('');
+
   // Fallback if no state
   if (!state) {
     return (
       <div style={{ padding: '100px 20px', textAlign: 'center', color: 'white' }}>
         <p>Không có thông tin phòng. Vui lòng quay lại tìm kiếm.</p>
-        <Button onClick={() => navigate('/booking/search')}>Quay lại tìm kiếm</Button>
+        <Button onClick={() => navigate('/', { state: { openBooking: true } })}>Quay lại tìm kiếm</Button>
       </div>
     );
   }
@@ -218,7 +238,11 @@ export default function GuestBookingPage() {
         GuestName:  values.fullName,
         GuestPhone: values.phone,
         GuestEmail: values.email || '',
-        Notes:      values.notes || '',
+        Notes:      [
+          values.notes || '',
+          `[CỌC: ${depositMethod === 'TRANSFER' ? 'Chuyển khoản' : 'Thanh toán tại Resort'}]`,
+          depositMethod === 'TRANSFER' && transferRef ? `[REF: ${transferRef}]` : '',
+        ].filter(Boolean).join(' ').trim(),
         VoucherCode: appliedVoucher ? appliedVoucher.code : null,
         Items: resolvedCart.map(item => ({
           RoomTypeId:  item.roomTypeId,
@@ -258,10 +282,26 @@ export default function GuestBookingPage() {
               Cảm ơn bạn đã lựa chọn Asteria Resort. Thông tin đặt phòng của bạn đã được ghi nhận. 
               Mã đặt phòng của bạn là lời cam kết của chúng tôi cho một kỳ nghỉ tuyệt vời.
             </p>
-            <div style={{ background: 'rgba(184,149,106,0.1)', padding: 20, borderRadius: 8, marginBottom: 32, border: '1px dashed #b8956a' }}>
+            <div style={{ background: 'rgba(184,149,106,0.1)', padding: 20, borderRadius: 8, marginBottom: 24, border: '1px dashed #b8956a' }}>
               <p style={{ margin: 0, fontSize: 13, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '1px' }}>Mã đặt phòng của quý khách</p>
               <p style={{ margin: '8px 0 0', fontSize: 24, fontWeight: 700, color: GOLD }}>#{successCode}</p>
             </div>
+            {/* Thông tin cọc */}
+            {depositMethod === 'TRANSFER' ? (
+              <div style={{ background: 'rgba(22,163,74,0.1)', border: '1px solid rgba(22,163,74,0.25)', borderRadius: 10, padding: 20, marginBottom: 24, textAlign: 'left' }}>
+                <div style={{ fontWeight: 700, color: '#4ade80', marginBottom: 10, fontSize: 14 }}>✅ Vui lòng chuyển cọc để xác nhận đặt phòng</div>
+                <div style={{ fontFamily: 'monospace', fontSize: 13, display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'rgba(255,255,255,0.45)' }}>Số tiền:</span><span style={{ color: GOLD, fontWeight: 700 }}>{formatVND(Math.round(totalPrice * 0.3))}</span></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'rgba(255,255,255,0.45)' }}>Ngân hàng:</span><span style={{ color: 'white' }}>Vietcombank - 1019 3636 8888</span></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'rgba(255,255,255,0.45)' }}>Nội dung:</span><span style={{ color: '#4ade80', fontWeight: 600 }}>DATPHONG {successCode}</span></div>
+                </div>
+              </div>
+            ) : (
+              <div style={{ background: 'rgba(184,149,106,0.08)', border: '1px solid rgba(184,149,106,0.2)', borderRadius: 10, padding: 16, marginBottom: 24, display: 'flex', gap: 10 }}>
+                <span style={{ fontSize: 18 }}>🏨</span>
+                <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)', lineHeight: 1.5 }}>Vui lòng đặt cọc <strong style={{color: GOLD}}>{formatVND(Math.round(totalPrice * 0.3))}</strong> khi nhận phòng tại quầy lễ tân.</span>
+              </div>
+            )}
             <Button 
               type="primary" 
               size="large" 
@@ -640,11 +680,76 @@ export default function GuestBookingPage() {
                 </div>
               </div>
 
-              <div style={{ background: 'rgba(184,149,106,0.05)', border: `1px solid rgba(184,149,106,0.2)`, borderRadius: 8, padding: '14px 18px', marginBottom: 24, display: 'flex', gap: 12 }}>
-                <InfoCircleOutlined style={{ color: GOLD, fontSize: 18, marginTop: 2 }} />
-                <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>
-                  <strong style={{ color: GOLD }}>Thanh toán tại Resort:</strong> Quý khách sẽ thanh toán trực tiếp khi nhận phòng. Asteria Resort không yêu cầu trả trước hay thẻ tín dụng cho đặt phòng này.
-                </span>
+              {/* ── PHƯƠNG THỨC ĐẶT CỌC ── */}
+              <div style={{ marginBottom: 24 }}>
+                <p style={{ fontWeight: 700, fontSize: 14, color: 'white', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ display: 'inline-flex', width: 22, height: 22, background: GOLD, color: 'white', borderRadius: '50%', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}>3</span>
+                  Đặt cọc trước
+                </p>
+
+                {/* Số tiền cọc */}
+                <div style={{ background: 'rgba(184,149,106,0.08)', border: '1px solid rgba(184,149,106,0.2)', borderRadius: 8, padding: '12px 16px', marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>Tiền cọc yêu cầu (30%)</div>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: GOLD, fontFamily: "'Playfair Display', serif" }}>{formatVND(Math.round(totalPrice * 0.3))}</div>
+                  </div>
+                  <div style={{ textAlign: 'right', fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>Phần còn lại<br/>thanh toán tại resort</div>
+                </div>
+
+                {/* Chọn phương thức */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {/* Option 1: Chuyển khoản */}
+                  <div
+                    className={`deposit-option${depositMethod === 'TRANSFER' ? ' selected' : ''}`}
+                    onClick={() => setDepositMethod('TRANSFER')}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ width: 18, height: 18, borderRadius: '50%', border: `2px solid ${depositMethod === 'TRANSFER' ? GOLD : 'rgba(255,255,255,0.3)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        {depositMethod === 'TRANSFER' && <div style={{ width: 8, height: 8, borderRadius: '50%', background: GOLD }} />}
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: 'white' }}>💳 Chuyển khoản ngân hàng</div>
+                        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', marginTop: 1 }}>Xác nhận nhanh hơn — ưu tiên xử lý</div>
+                      </div>
+                    </div>
+                    {depositMethod === 'TRANSFER' && (
+                      <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                        <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: 8, padding: '14px 16px', marginBottom: 12, fontFamily: 'monospace', fontSize: 13 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}><span style={{ color: 'rgba(255,255,255,0.45)' }}>Ngân hàng:</span><span style={{ color: 'white', fontWeight: 600 }}>Vietcombank</span></div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}><span style={{ color: 'rgba(255,255,255,0.45)' }}>Số TK:</span><span style={{ color: GOLD, fontWeight: 700, letterSpacing: '1px' }}>1019 3636 8888</span></div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}><span style={{ color: 'rgba(255,255,255,0.45)' }}>Chủ TK:</span><span style={{ color: 'white' }}>CONG TY ASTERIA RESORT</span></div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'rgba(255,255,255,0.45)' }}>Nội dung CK:</span><span style={{ color: '#4ade80', fontWeight: 600 }}>DATPHONG [SĐT của bạn]</span></div>
+                        </div>
+                        <div>
+                          <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', display: 'block', marginBottom: 6, letterSpacing: '0.3px' }}>Mã giao dịch / Ref number (nếu có)</label>
+                          <input
+                            value={transferRef}
+                            onChange={e => setTransferRef(e.target.value)}
+                            placeholder="Ví dụ: FT26142ABC123"
+                            style={{ ...premiumInputStyle, width: '100%', padding: '10px 14px', fontSize: 14, boxSizing: 'border-box' }}
+                            className="premium-input"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Option 2: Tại resort */}
+                  <div
+                    className={`deposit-option${depositMethod === 'RESORT' ? ' selected' : ''}`}
+                    onClick={() => setDepositMethod('RESORT')}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ width: 18, height: 18, borderRadius: '50%', border: `2px solid ${depositMethod === 'RESORT' ? GOLD : 'rgba(255,255,255,0.3)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        {depositMethod === 'RESORT' && <div style={{ width: 8, height: 8, borderRadius: '50%', background: GOLD }} />}
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: 'white' }}>🏨 Đặt cọc tại Resort</div>
+                        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', marginTop: 1 }}>Thanh toán toàn bộ khi nhận phòng</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <Button 

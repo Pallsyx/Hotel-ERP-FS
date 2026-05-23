@@ -26,10 +26,22 @@ export default function FloatingSidebar() {
     }).catch(() => {});
   }, []);
 
-  // Đóng modal khi chuyển trang
+  // Xử lý mở/đóng modal tìm phòng dựa trên chuyển trang và custom event
   useEffect(() => {
-    setBookOpen(false);
+    if (location.state?.openBooking) {
+      setBookOpen(true);
+      // Xóa state để tránh mở lại khi reload/back
+      nav(location.pathname, { replace: true, state: { ...location.state, openBooking: false } });
+    } else {
+      setBookOpen(false);
+    }
   }, [location.pathname]);
+
+  useEffect(() => {
+    const handleOpen = () => setBookOpen(true);
+    window.addEventListener('open-booking-widget', handleOpen);
+    return () => window.removeEventListener('open-booking-widget', handleOpen);
+  }, []);
 
   if (shouldHide) return null;
 

@@ -5,7 +5,7 @@ import {
   AppstoreOutlined, HomeOutlined, DatabaseOutlined, FormatPainterOutlined,
   WarningOutlined, DashboardOutlined, IdcardOutlined, FileTextOutlined,
   GiftOutlined, EditOutlined, MenuFoldOutlined, MenuUnfoldOutlined,
-  CommentOutlined, ShoppingOutlined,
+  CommentOutlined, ShoppingOutlined, TrophyOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
@@ -89,7 +89,7 @@ const MainLayout = () => {
   /* ── Menu definition ── */
   const rawMenuItems = [
     { key: '/admin/dashboard', icon: <DashboardOutlined />, label: 'Dashboard' },
-    { key: '/admin/period-dashboard', icon: <AppstoreOutlined />, label: 'Báo cáo Định kỳ' },
+    { key: '/admin/period-dashboard', icon: <AppstoreOutlined />, label: 'Báo cáo Định kỳ', adminOnly: true },
 
     {
       key: 'grp_frontdesk',
@@ -133,6 +133,7 @@ const MainLayout = () => {
       type: 'group',
       children: [
         { key: '/admin/vouchers', icon: <GiftOutlined />, label: 'Quản lý Voucher', requiredPermission: 'MANAGE_SERVICES' },
+        { key: '/admin/membership', icon: <TrophyOutlined />, label: 'Hạng Thành Viên', requiredPermission: 'MANAGE_SERVICES' },
         {
           key: 'content_menu',
           icon: <EditOutlined />,
@@ -162,6 +163,7 @@ const MainLayout = () => {
   const filterMenuItems = (items) =>
     items
       .filter(item => {
+        if (item.adminOnly && !isAdmin) return false;
         if (isAdmin) return true;
         if (!item.requiredPermission) return true;
         return permissions && permissions.includes(item.requiredPermission);
@@ -173,7 +175,7 @@ const MainLayout = () => {
         return item;
       })
       .filter(item => !item.children || item.children.length > 0)
-      .map(({ requiredPermission, ...rest }) => rest);
+      .map(({ requiredPermission, adminOnly, ...rest }) => rest);
 
   const menuItems = filterMenuItems(rawMenuItems);
 
