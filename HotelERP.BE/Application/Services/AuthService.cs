@@ -75,7 +75,9 @@ public class AuthService : IAuthService
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
             Phone = request.Phone,
             Address = request.Address,
-            DateOfBirth = request.DateOfBirth,
+            DateOfBirth = request.DateOfBirth.HasValue 
+                ? DateTime.SpecifyKind(request.DateOfBirth.Value.Date, DateTimeKind.Utc)
+                : (DateTime?)null,
             RoleId = customerRole.Id, // Tự động gán cứng ID của quyền Khách hàng
             Status = true, 
             CreatedAt = DateTime.UtcNow

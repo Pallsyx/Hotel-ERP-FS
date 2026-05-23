@@ -63,7 +63,7 @@ public class UserProfileService : IUserProfileService
         
         if (!user.DateOfBirth.HasValue && request.DateOfBirth.HasValue)
         {
-            user.DateOfBirth = request.DateOfBirth;
+            user.DateOfBirth = DateTime.SpecifyKind(request.DateOfBirth.Value.Date, DateTimeKind.Utc);
         }
 
         user.UpdatedAt = DateTime.UtcNow;
@@ -115,7 +115,7 @@ public class UserProfileService : IUserProfileService
     {
         if (!user.DateOfBirth.HasValue) return;
 
-        var today = DateTime.UtcNow.AddHours(7); // Giả định múi giờ VN
+        var today = DateTime.UtcNow.AddHours(7).Date; // Giả định múi giờ VN, lấy đầu ngày
         var birthday = user.DateOfBirth.Value;
 
         // Kiểm tra xem có đúng ngày sinh nhật không
@@ -135,11 +135,11 @@ public class UserProfileService : IUserProfileService
                     {
                         Code = voucherCode,
                         UserId = user.Id,
-                        DiscountType = "FIXED_AMOUNT",
-                        DiscountValue = 500000, 
-                        MinBookingValue = 2000000, 
-                        ValidFrom = today,
-                        ValidTo = today.AddDays(30), 
+                        DiscountType = "PERCENT",
+                        DiscountValue = 10,
+                        MinBookingValue = 0,
+                        ValidFrom = today.ToUniversalTime(),          // Đầu ngày sinh nhật (UTC)
+                        ValidTo = today.AddDays(7).ToUniversalTime(), // Hết hạn sau 7 ngày (đồng bộ với VoucherService)
                         UsageLimit = 1
                     };
 
